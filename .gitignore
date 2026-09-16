@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Test and coverage output
+coverage/
+
+# Managed App data. Running `bun run dev` from this source directory would create
+# ./lazyapp/ with plaintext credentials; the workspace carries its own
+# `lazyapp/.gitignore` containing `*` (docs/spec.md section 9).
+/lazyapp/
+
+# Workspace staging directory, created at the project root during initialization.
+.lazyapp-stage-*/
+
+# Local environment files with credentials
+.env
+.env.*
+!.env.example
+
+# Editor and OS noise
+.DS_Store
