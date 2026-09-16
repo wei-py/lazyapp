@@ -1,0 +1,25 @@
+{
+  "name": "lazyapp",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "bun@1.4.2",
+  "bin": {
+    "lazyapp": "./src/main.js"
+  },
+  "scripts": {
+    "dev": "bun src/main.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@opentui/core": "0.5.11",
+    "string-width": "7.2.0"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "9.5.1",
+    "@types/bun": "1.4.2",
+    "eslint": "10.10.0"
+  }
+}
