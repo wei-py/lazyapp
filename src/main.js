@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { resolve } from 'node:path'
 import process from 'node:process'
+import { prepareStartup } from './app/startup.js'
 
 /** Start only in an interactive terminal; renderer and workspace cleanup are idempotent. */
 export async function main(args = process.argv.slice(2)) {
@@ -16,6 +17,10 @@ export async function main(args = process.argv.slice(2)) {
     process.stderr.write('lazyapp requires interactive stdin and stdout TTYs. Run it directly in a terminal.\n')
     return 1
   }
+  const projectDir = resolve(args[0] || process.cwd())
+  const startupCode = await prepareStartup(projectDir)
+  if (startupCode !== null)
+    return startupCode
   let renderer
   let app
   let cleanup
@@ -68,7 +73,7 @@ export async function main(args = process.argv.slice(2)) {
       return await done
     }
     const view = createView(renderer)
-    app = new Application(resolve(args[0] || process.cwd()), view, code => finish(code))
+    app = new Application(projectDir, view, code => finish(code))
     renderer.on('resize', () => app.update())
     renderer.on('render:error', onFailure)
     renderer.on('handler:error', onFailure)

@@ -118,6 +118,12 @@ async function workspaceLocation(projectDir) {
   return { project, root: path.join(project, 'lazyapp') }
 }
 
+/** Read-only discovery: any existing target is reserved, including corrupt files and symbolic links. */
+export async function workspaceExists(projectDir) {
+  const { root } = await workspaceLocation(projectDir)
+  return (await statOrNull(root)) !== null
+}
+
 async function acquireLock(root) {
   const target = path.join(root, LOCK_NAME)
   const owner = { pid: process.pid, hostname: hostname(), startedAt: new Date().toISOString(), token: randomUUID() }
@@ -435,22 +441,30 @@ export async function openWorkspace(projectDir) {
 
 /**
  * Commit a new workspace from a private sibling staging directory only after final confirmation.
- * Documents and imports are prepared before the directory is published. Existing directories are never adopted.
+ * Documents, imports, and inactive examples are prepared before publication. Existing directories are never adopted.
  */
-export async function initializeWorkspace(projectDir, app, { documents = [], imports = [] } = {}) {
+export async function initializeWorkspace(projectDir, app, { documents = [], imports = [], examples = [] } = {}) {
   const { project, root } = await workspaceLocation(projectDir)
   encodeDocument(app, 'app.json')
   if (await statOrNull(root))
     throw failure('WORKSPACE_CONFLICT', `The path ${root} already exists; initialization will not overwrite it.`)
+  for (const example of examples) {
+    components(example.path)
+    if (!example.path.endsWith('.example'))
+      throw failure('INVALID_DOCUMENT', 'Initialization examples must use an inactive .example filename.')
+  }
   const paths = new Set(['app.json'])
-  for (const item of [...documents.map(document => ({ destination: document.path })), ...imports]) {
+  for (const item of [...documents.map(document => ({ destination: document.path })), ...imports, ...examples.map(example => ({ destination: example.path }))]) {
     components(item.destination)
-    if (paths.has(item.destination))
+    const normalized = item.destination.normalize('NFC').toLowerCase()
+    if (paths.has(normalized))
       throw failure('FILE_EXISTS', `Initialization contains duplicate destination ${item.destination}.`)
-    paths.add(item.destination)
+    paths.add(normalized)
   }
   for (const document of documents)
     encodeDocument(document.data, document.path)
+  for (const example of examples)
+    encodeDocument(example.data, example.path)
   const stage = await fs.mkdtemp(path.join(project, '.lazyapp-stage-'))
   await fs.chmod(stage, 0o700)
   let stagingSession
@@ -461,6 +475,8 @@ export async function initializeWorkspace(projectDir, app, { documents = [], imp
     await stagingSession.save('app.json', app, null)
     for (const document of documents)
       await stagingSession.save(document.path, document.data, null)
+    for (const example of examples)
+      await stagingSession.save(example.path, example.data, null)
     for (const item of imports)
       await stagingSession.importFile(item.source, item.destination)
     const ignore = await fs.open(path.join(stage, '.gitignore'), 'wx', 0o600)
