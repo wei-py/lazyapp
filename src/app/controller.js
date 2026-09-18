@@ -1,31 +1,53 @@
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
-import { createApp, documentFields, documentPath, isSafeName, validateDocument } from '../config/model.js'
-import { identifyDocument, loadDocuments, runDoctor, safeErrorMessage, saveDocument } from '../features/workspace.js'
-import { initializeWorkspace, inspectExternalReference, openWorkspace } from '../storage/workspace.js'
+import { LANGUAGES, t } from '../config/i18n.js'
+import { documentFields, documentPath, isSafeName } from '../config/model.js'
+import { doctorLabel, identifyDocument, loadDocuments, logicalFiles, runDoctor, safeErrorMessage, saveDocument } from '../features/workspace.js'
+import { loadPreferences, savePreferences } from '../storage/preferences.js'
+import { inspectExternalReference, openWorkspace } from '../storage/workspace.js'
 import { CATEGORIES, categoryFor, closeModal, editDocument, editText, fieldValue, isDirty, layoutMode, openModal, PLATFORM_KINDS, setField } from './state.js'
 
 /** Owns drafts, focus, async transitions, and dispatch; disk effects stay in storage. */
 export class Application {
-  constructor(projectDir, render, exit) {
+  constructor(projectDir, render, exit, { preferences = { load: loadPreferences, save: savePreferences } } = {}) {
     this.projectDir = resolve(projectDir)
     this.render = render
     this.exit = exit
-    this.state = { root: join(this.projectDir, 'lazyapp'), documents: [], category: 0, selected: 0, focus: 'list', editor: null, modal: null, status: 'Reading workspace…', busy: null, error: false, search: '', gg: 0, width: 100, height: 24, doctor: [], doctorIndex: 0, doctorLoaded: false, detailScroll: 0, files: null, wizard: null }
+    this.preferences = preferences
+    this.state = { language: 'en', settingsIndex: 1, root: join(this.projectDir, 'lazyapp'), documents: [], category: 0, selected: 0, focus: 'list', editor: null, modal: null, status: 'Reading workspace…', busy: null, error: false, search: '', gg: 0, width: 100, height: 24, doctor: [], doctorIndex: 0, doctorLoaded: false, detailScroll: 0, files: null }
     this.generation = 0
     this.closed = false
+  }
+
+  t(key, params) {
+    return t(this.state.language, key, params)
+  }
+
+  async setLanguage(language) {
+    if (!LANGUAGES.some(item => item.id === language) || this.state.busy)
+      return false
+    return this.operation(this.t('Saving language preference'), async () => {
+      await this.preferences.save({ language })
+      this.state.language = language
+      this.state.settingsIndex = LANGUAGES.findIndex(item => item.id === language)
+      for (const result of this.state.doctor)
+        result.label = doctorLabel(result, language)
+      this.state.status = this.t('Language preference saved.')
+    }, true)
   }
 
   fields(editor = this.state.editor) {
     if (!editor)
       return []
-    return documentFields(editor.kind, { scope: identifyDocument(editor.path)?.scope || 'all' })
+    return documentFields(editor.kind, { scope: identifyDocument(editor.path)?.scope || 'all', language: this.state.language })
   }
 
   items() {
     const s = this.state
     const category = CATEGORIES[s.category]
+    if (category === 'Settings')
+      return []
     if (s.files)
-      return s.files.filter(path => path.toLowerCase().includes(s.search.toLowerCase())).map(path => ({ path, file: true }))
+      return logicalFiles(s.files).filter(item => item.path.toLowerCase().includes(s.search.toLowerCase()))
     return s.documents.filter(doc => categoryFor(doc.kind) === category && doc.path.toLowerCase().includes(s.search.toLowerCase()))
   }
 
@@ -41,9 +63,10 @@ export class Application {
     this.inFlight = new Promise((resolveSettled) => {
       settled = resolveSettled
     })
+    label = this.t(label)
     this.state.busy = label
-    const loadingStatus = `${label} — ${commit ? 'commit cannot be interrupted; quit waits for completion' : 'reading; quit waits for completion'}`
-    const slowStatus = `${label} — still executing; please wait`
+    const loadingStatus = this.t('{label} — {activity}', { label, activity: this.t(commit ? 'commit cannot be interrupted; quit waits for completion' : 'reading; quit waits for completion') })
+    const slowStatus = this.t('{label} — still executing; please wait', { label })
     this.state.status = loadingStatus
     const timer = setTimeout(() => {
       this.state.status = slowStatus
@@ -54,11 +77,11 @@ export class Application {
       await action()
       this.state.error = false
       if (this.state.status === loadingStatus || this.state.status === slowStatus)
-        this.state.status = `${label}: complete.`
+        this.state.status = this.t('{label}: complete.', { label })
       return true
     }
     catch (error) {
-      this.state.status = `${safeErrorMessage(error)} Retry explicitly; drafts retained.`
+      this.state.status = this.t('{error} Retry explicitly; drafts retained.', { error: safeErrorMessage(error, this.state.language) })
       this.state.error = true
       return false
     }
@@ -75,40 +98,39 @@ export class Application {
   }
 
   async start() {
-    await this.operation('Opening workspace', async () => {
+    let preferenceError
+    const opened = await this.operation('Opening workspace', async () => {
       try {
-        this.session = await openWorkspace(this.projectDir)
+        const preferences = await this.preferences.load()
+        this.state.language = preferences.language
+        this.state.settingsIndex = LANGUAGES.findIndex(item => item.id === preferences.language)
       }
       catch (error) {
-        if (error.code !== 'WORKSPACE_MISSING')
-          throw error
-        this.state.status = 'No configuration found. Initialization writes only after final Create.'
-        this.confirm('Create a new workspace?', ['Cancel', 'Start wizard'], index => index ? this.startWizard() : this.exit(0))
-        return
+        preferenceError = error
       }
-      this.state.documents = await loadDocuments(this.session)
-      this.state.status = 'Ready. Secrets are plaintext on disk, masked here; this is not an encrypted vault.'
+      this.session = await openWorkspace(this.projectDir)
+      this.state.documents = await loadDocuments(this.session, { includeExamples: true })
+      this.state.status = this.t('Ready. Secrets are plaintext on disk, masked here; this is not an encrypted vault.')
     })
+    if (preferenceError && opened) {
+      this.state.status = this.t('Preferences could not be loaded. Settings were not changed. {error}', { error: safeErrorMessage(preferenceError, this.state.language) })
+      this.state.error = true
+      this.update()
+    }
   }
 
   confirm(title, options, action, detail = '') {
-    openModal(this.state, { type: 'choice', title, options, action, detail })
+    openModal(this.state, { type: 'choice', title: this.t(title), options: options.map(option => this.t(option)), action, detail })
     this.update()
   }
 
   prompt(title, action, value = '', detail = '') {
-    openModal(this.state, { type: 'input', title, value, cursor: Array.from(value).length, action, detail })
+    openModal(this.state, { type: 'input', title: this.t(title), value, cursor: Array.from(value).length, action, detail })
     this.update()
   }
 
   leave(action) {
-    if (this.state.wizard) {
-      return this.confirm('Cancel initialization? No files will be created.', ['Cancel', 'Discard wizard'], (index) => {
-        if (index)
-          this.exit(0)
-      })
-    }
-    else if (isDirty(this.state.editor)) {
+    if (isDirty(this.state.editor)) {
       return this.confirm('Unsaved changes', ['Cancel', 'Save', 'Discard'], async (index) => {
         if (index === 1) {
           if (await this.save())
@@ -116,7 +138,7 @@ export class Application {
         }
         if (index === 2)
           return action()
-      }, 'Save commits this document; Discard loses this draft only.')
+      }, this.t('Save commits this document; Discard loses this draft only.'))
     }
     else {
       return action()
@@ -126,7 +148,7 @@ export class Application {
   requestQuit() {
     if (this.state.busy) {
       this.quitPending = true
-      this.state.status = 'Quit requested; waiting for current commit.'
+      this.state.status = this.t('Quit requested; waiting for current commit.')
       this.update()
       return
     }
@@ -137,16 +159,17 @@ export class Application {
     return this.operation('Refreshing workspace', async () => {
       const id = this.items()[this.state.selected]?.path
       const previousIndex = this.state.selected
-      const documents = await loadDocuments(this.session)
+      const documents = await loadDocuments(this.session, { includeExamples: true })
       this.state.documents = documents
       if (this.state.files)
         this.state.files = await this.session.list()
+      this.invalidateDoctor()
       const items = this.items()
       const matched = items.findIndex(item => item.path === id)
       this.state.selected = matched >= 0 ? matched : Math.min(previousIndex, Math.max(0, items.length - 1))
       this.state.editor = null
       this.state.detailScroll = 0
-      this.state.status = 'Refreshed; existing selection restored where available.'
+      this.state.status = this.t('Refreshed; existing selection restored where available.')
     })
   }
 
@@ -199,6 +222,12 @@ export class Application {
 
   selectItem(index) {
     const s = this.state
+    if (CATEGORIES[s.category] === 'Settings') {
+      s.settingsIndex = index
+      s.detailScroll = 0
+      this.update()
+      return
+    }
     const doctor = CATEGORIES[s.category] === 'Doctor' && !s.files
     if (index === (doctor ? s.doctorIndex : s.selected))
       return
@@ -218,39 +247,48 @@ export class Application {
     const editor = this.state.editor
     if (!editor || this.state.busy)
       return false
-    if (this.state.wizard)
-      return this.nextWizard()
-    const success = await this.operation(`Saving ${editor.path}`, async () => {
+    const success = await this.operation(this.t('Saving {path}', { path: editor.path }), async () => {
       const saved = await saveDocument(this.session, editor.path, editor.kind, editor.draft, editor.revision)
       editor.snapshot = structuredClone(saved.data)
       editor.draft = structuredClone(saved.data)
       editor.revision = saved.revision
       editor.editing = false
+      editor.missing = false
       const index = this.state.documents.findIndex(item => item.path === editor.path)
-      const document = { path: editor.path, kind: editor.kind, ...saved }
+      const document = { path: editor.path, kind: editor.kind, ...saved, missing: false }
       if (index < 0)
         this.state.documents.push(document)
       else this.state.documents[index] = document
+      if (this.state.files && !this.state.files.includes(editor.path))
+        this.state.files.push(editor.path)
+      this.invalidateDoctor()
       this.state.category = CATEGORIES.indexOf(categoryFor(editor.kind))
       if (!this.items().some(item => item.path === editor.path))
         this.state.search = ''
       this.state.selected = this.items().findIndex(item => item.path === editor.path)
-      this.state.status = `Saved ${editor.path}. Doctor can check completeness.`
+      this.state.status = this.t('Saved {path}. Doctor can check completeness.', { path: editor.path })
     }, true)
     return success
+  }
+
+  invalidateDoctor() {
+    this.generation++
+    this.state.doctor = []
+    this.state.doctorLoaded = false
+    this.state.doctorIndex = 0
   }
 
   async doctor() {
     const generation = ++this.generation
     await this.operation('Checking configuration (read-only)', async () => {
-      const results = await runDoctor(this.session)
+      const results = await runDoctor(this.session, this.state.language)
       if (generation !== this.generation)
         return
       this.state.doctor = results
       this.state.doctorLoaded = true
       this.state.detailScroll = 0
       this.state.doctorIndex = Math.min(this.state.doctorIndex, Math.max(0, results.length - 1))
-      this.state.status = 'Doctor complete. File existence is not certificate validity or release readiness.'
+      this.state.status = this.t('Doctor complete. File existence is not certificate validity or release readiness.')
     })
   }
 
@@ -289,19 +327,19 @@ export class Application {
           if (choice === 1)
             this.newDocument(kind, {})
           if (choice === 2)
-            this.prompt('Environment name', environment => this.newDocument(kind, { environment }), '', 'Use a single safe name. Mark production targets deliberately.')
+            this.prompt('Environment name', environment => this.newDocument(kind, { environment }), '', this.t('Use a single safe name. Mark production targets deliberately.'))
         })
       })
       return
     }
     const kind = { Services: 'service', Environments: 'environment', Store: 'store' }[category]
     if (kind)
-      this.prompt(`New ${kind} name`, name => this.newDocument(kind, { name }), '', 'Single directory-safe name; environment names can be custom. Add enabled names to App metadata too.')
+      this.prompt(this.t('New {kind} name', { kind: this.t(kind) }), name => this.newDocument(kind, { name }), '', this.t('Single directory-safe name; environment names can be custom. Add enabled names to App metadata too.'))
   }
 
   newDocument(kind, options) {
     if (Object.values(options).some(value => !isSafeName(value))) {
-      this.state.status = 'Use a nonempty single name without separators, traversal, reserved names, or trailing dots.'
+      this.state.status = this.t('Use a nonempty single name without separators, traversal, reserved names, or trailing dots.')
       this.update()
       return
     }
@@ -312,78 +350,14 @@ export class Application {
       return this.open(existing || { path, kind, data, revision: null }, !existing)
     }
     catch (error) {
-      this.state.status = safeErrorMessage(error)
+      this.state.status = safeErrorMessage(error, this.state.language)
       this.update()
     }
-  }
-
-  startWizard() {
-    const app = createApp({ name: basename(this.projectDir) || 'My App', platforms: [], environments: [] })
-    this.state.wizard = { pages: [{ path: 'app.json', kind: 'app', data: app }], index: 0, imports: [] }
-    this.showWizardPage()
-  }
-
-  showWizardPage() {
-    const wizard = this.state.wizard
-    const page = wizard.pages[wizard.index]
-    this.state.editor = editDocument({ ...page, revision: null })
-    this.state.focus = 'form'
-    this.state.status = `Initialization ${wizard.index + 1}/${wizard.pages.length}: ${page.path}. Enter edits; Tab selects Continue; no files written.`
-    this.update()
-  }
-
-  nextWizard() {
-    const wizard = this.state.wizard
-    const editor = this.state.editor
-    const empty = editor.kind !== 'app' && Object.keys(editor.draft).every(key => key === 'schemaVersion' || editor.draft[key] === '')
-    const issues = empty ? [] : validateDocument(editor.kind, editor.draft, { scope: identifyDocument(editor.path)?.scope || 'all' })
-    if (issues.length) {
-      this.state.status = issues.map(issue => issue.message).join('; ')
-      this.update()
-      return false
-    }
-    wizard.pages[wizard.index].data = structuredClone(editor.draft)
-    wizard.pages[wizard.index].skip = empty
-    if (wizard.index === 0) {
-      const app = editor.draft
-      const previous = new Map(wizard.pages.map(page => [page.path, page]))
-      const pages = [{ path: 'assets/config.json', kind: 'assets' }]
-      for (const kind of app.platforms) {
-        pages.push({ path: documentPath(kind), kind })
-        for (const environment of app.environments) pages.push({ path: documentPath(kind, { environment }), kind })
-      }
-      wizard.pages = [wizard.pages[0], ...pages.map(page => previous.get(page.path) || { ...page, data: { schemaVersion: 1 } })]
-    }
-    if (wizard.index < wizard.pages.length - 1) {
-      wizard.index++
-      this.showWizardPage()
-      return true
-    }
-    const configured = wizard.pages.filter(page => !page.skip)
-    this.confirm('Final confirmation: create workspace?', ['Cancel', 'Back', 'Create'], async (index) => {
-      if (index === 0)
-        return
-      if (index === 1) {
-        this.showWizardPage()
-        return
-      }
-      await this.operation('Creating staged workspace', async () => {
-        const app = wizard.pages[0].data
-        const documents = configured.filter(page => page.kind !== 'app').map(({ path, data }) => ({ path, data }))
-        this.session = await initializeWorkspace(this.projectDir, app, { documents, imports: wizard.imports })
-        this.state.wizard = null
-        this.state.editor = null
-        this.state.focus = 'nav'
-        this.state.documents = await loadDocuments(this.session)
-        this.state.status = 'Workspace created. Secrets are stored in plaintext; .gitignore is not a security boundary.'
-      }, true)
-    }, `${this.state.root}\n${configured.map(page => page.path).join('\n')}\n${wizard.imports.length} file copies. Unconfigured steps are omitted.\nLocal plaintext is not encrypted. Backups and forced Git adds can expose secrets.`)
-    return true
   }
 
   filePicker(field) {
     const editor = this.state.editor
-    this.confirm(`${field.label}: file action`, ['Cancel', 'Copy into workspace', 'Reference external file', 'Remove reference'], (index) => {
+    this.confirm(this.t('{field}: file action', { field: field.label }), ['Cancel', 'Copy into workspace', 'Reference external file', 'Remove reference'], (index) => {
       if (index === 3) {
         setField(editor, field, '')
         this.update()
@@ -403,33 +377,18 @@ export class Application {
           this.confirm('Use read-only external reference?', ['Cancel', 'Use reference'], (selected) => {
             if (selected) {
               setField(editor, field, source)
-              this.state.status = 'External file is read-only and will not move with this workspace.'
+              this.state.status = this.t('External file is read-only and will not move with this workspace.')
               this.update()
             }
           }, source)
           return
         }
-        this.prompt('Destination relative to workspace', destination => this.confirmCopy(source, destination, editor, field), join(dirname(editor.path), basename(source)), 'No traversal. Copy never modifies the source file.')
+        this.prompt('Destination relative to workspace', destination => this.confirmCopy(source, destination, editor, field), join(dirname(editor.path), basename(source)), this.t('No traversal. Copy never modifies the source file.'))
       })
-    }, 'External references are read-only. Removing a reference never deletes its source.')
+    }, this.t('External references are read-only. Removing a reference never deletes its source.'))
   }
 
   async confirmCopy(source, destination, editor, field) {
-    if (this.state.wizard) {
-      const imports = this.state.wizard.imports
-      const existing = imports.find(item => item.destination === destination)
-      this.confirm(existing ? 'Replace pending wizard copy?' : 'Stage file copy for final Create?', ['Cancel', 'Stage copy'], (index) => {
-        if (!index)
-          return
-        if (existing)
-          existing.source = source
-        else imports.push({ source, destination })
-        setField(editor, field, destination)
-        this.state.status = 'Copy staged; disk untouched until final Create.'
-        this.update()
-      }, `${source}\n-> ${destination}`)
-      return
-    }
     let exists = false
     const checked = await this.operation('Checking copy destination', async () => {
       if (isAbsolute(destination))
@@ -441,51 +400,71 @@ export class Application {
     this.confirm(exists ? 'Overwrite this workspace file?' : 'Copy file now?', ['Cancel', exists ? 'Overwrite file' : 'Copy file'], async (index) => {
       if (!index)
         return
-      await this.operation(`Copying to ${destination}`, async () => {
+      await this.operation(this.t('Copying to {path}', { path: destination }), async () => {
         const reference = await this.session.importFile(source, destination, { overwrite: exists })
-        setField(editor, field, reference)
-        this.state.status = 'File copy committed. Save the draft to link it; discarding the draft retains this independently imported file.'
+        if (editor && field)
+          setField(editor, field, reference)
+        if (this.state.files && !this.state.files.includes(destination))
+          this.state.files.push(destination)
+        this.invalidateDoctor()
+        if (identifyDocument(destination))
+          this.state.documents = await loadDocuments(this.session, { includeExamples: true })
+        this.state.status = this.t(editor ? 'File copy committed. Save the draft to link it; discarding the draft retains this independently imported file.' : 'Imported {path}. Presence does not imply credential validity.', { path: destination })
       }, true)
-    }, `${source}\n-> ${destination}\nThis is an independent file commit. Canceling later form edits will NOT undo this copy.`)
+    }, this.t('{source}\n-> {destination}\nThis is an independent file commit. Canceling later form edits will NOT undo this copy.', { source, destination }))
+  }
+
+  openFile(item) {
+    const document = this.state.documents.find(document => document.path === item.path)
+    if (document)
+      return this.open(document)
+    if (item.missing && !item.instructionOnly)
+      return this.prompt('Source file: absolute path', source => this.confirmCopy(source, item.path), '', this.t('Import a real file to {path}. The example instructions remain unchanged.', { path: item.path }))
+    this.confirm('Managed file', ['Close'], () => {}, item.instructionOnly
+      ? this.t('Legacy credential instructions have no typed destination. Use a configuration file field to import the correct credential.')
+      : item.path)
   }
 
   async showFiles() {
     return this.leave(async () => {
       await this.operation('Listing managed files', async () => {
         this.state.files = await this.session.list()
+        this.state.documents = await loadDocuments(this.session, { includeExamples: true })
+        this.invalidateDoctor()
         this.state.editor = null
         this.state.selected = 0
         this.state.search = ''
         this.state.detailScroll = 0
         this.state.focus = 'list'
-        this.state.status = 'Managed files: panel 3 previews the path; d deletes one file after confirmation. External files are never listed.'
+        this.state.status = this.t('Managed files: panel 3 previews the path; d deletes one file after confirmation. External files are never listed.')
       })
     })
   }
 
   deleteSelected() {
     const item = this.items()[this.state.selected]
-    if (!item)
+    if (!item || item.missing)
       return
     if (item.path === 'app.json') {
-      this.state.status = 'The App document cannot be deleted inside an open workspace.'
+      this.state.status = this.t('The App document cannot be deleted inside an open workspace.')
       this.update()
       return
     }
     return this.leave(() => this.confirm('Delete this one workspace file?', ['Cancel', 'Delete file'], async (index) => {
       if (!index)
         return
-      await this.operation(`Deleting ${item.path}`, async () => {
+      await this.operation(this.t('Deleting {path}', { path: item.path }), async () => {
         await this.session.removeFile(item.path)
-        this.state.documents = this.state.documents.filter(doc => doc.path !== item.path)
+        this.state.documents = await loadDocuments(this.session, { includeExamples: true })
         if (this.state.files)
-          this.state.files = this.state.files.filter(path => path !== item.path)
+          this.state.files = await this.session.list()
+        this.invalidateDoctor()
         this.state.selected = Math.min(this.state.selected, Math.max(0, this.items().length - 1))
         this.state.editor = null
         this.state.detailScroll = 0
-        this.state.status = 'Deleted selected file only. References may now be missing; run Doctor.'
+        this.state.status = this.t('Deleted selected file only. References may now be missing; run Doctor.')
       }, true)
-    }, `${item.path}\nNo directories are recursively deleted. This cannot be undone.`))
+    }, this.t('{path}\nNo directories are recursively deleted. This cannot be undone.', { path: item.path })))
   }
 
   async key(key) {
@@ -555,15 +534,8 @@ export class Application {
       }
       else if (['return', 'enter', 'tab'].includes(key.name)) {
         editor.editing = false
-        if (key.name === 'tab') {
-          if (s.wizard) {
-            const count = this.fields().length + 1
-            editor.index = (editor.index + (key.shift ? count - 1 : 1)) % count
-          }
-          else {
-            this.cyclePanel(key.shift ? -1 : 1)
-          }
-        }
+        if (key.name === 'tab')
+          this.cyclePanel(key.shift ? -1 : 1)
       }
       else {
         const edited = editText(editor.input, editor.cursor, key)
@@ -588,25 +560,11 @@ export class Application {
       return
     }
     if (key.name === '?') {
-      this.confirm('Keyboard help', ['Close'], () => {}, '1/2/3: categories / list / details; Tab / Shift+Tab: next / previous panel\nh/l or Left/Right: previous / next panel; j/k or Up/Down: move in focused panel\nCategories and list selections preview immediately; Enter: focus list / details / edit field\nEsc: details → list → categories → quit; switching panels retains drafts\nChanging category, item, or search asks Save / Discard / Cancel when dirty\ng g (500ms) / G: first / last; /: search document paths from list\nCtrl+s: save; n: create from categories/list; r: refresh or reload focused detail\nf: managed files; d: delete selected file from list; v: full non-secret field in details\nq: quit; Ctrl+c: request quit; Ctrl+w: cancel wizard\nWizard Tab steps fields; h/Esc goes back. Text mode keeps all printable shortcuts, including 123jq/?.\nFile imports are independent confirmed commits. Doctor is read-only.\nPageUp/PageDown scroll details and long dialogs.')
+      this.confirm('Keyboard help', ['Close'], () => {}, this.t('1/2/3: categories / list / details; Tab / Shift+Tab: next / previous panel\nh/l or Left/Right: previous / next panel; j/k or Up/Down: move in focused panel\nCategories and list selections preview immediately; Enter: focus list / details / edit field\nEsc: details → list → categories → quit; switching panels retains drafts\nChanging category, item, or search asks Save / Discard / Cancel when dirty\ng g (500ms) / G: first / last; /: search document paths from list\nCtrl+s: save; n: create from categories/list; r: refresh or reload focused detail\nf: managed files; d: delete selected file from list; v: full non-secret field in details\nq: quit; Ctrl+c: request quit\nRed means missing; green means present, not valid credentials. Enter on missing configs edits a clean draft; Enter on missing resources imports a real file.\nText mode keeps all printable shortcuts, including 123jq/?.\nFile imports are independent confirmed commits. Doctor is read-only.\nPageUp/PageDown scroll details and long dialogs.\nSettings / 设置: choose 中文 / English; Enter applies and saves. Document shortcuts are disabled in Settings.'))
       return
     }
-    if (s.wizard && key.ctrl && key.name === 'w') {
-      this.requestQuit()
-      return
-    }
-    if (key.name === 'escape' || (s.wizard && ['h', 'left'].includes(key.name))) {
-      if (s.wizard) {
-        if (s.wizard.index > 0) {
-          s.wizard.pages[s.wizard.index].data = structuredClone(editor.draft)
-          s.wizard.index--
-          this.showWizardPage()
-        }
-        else {
-          this.requestQuit()
-        }
-      }
-      else if (s.focus === 'nav') {
+    if (key.name === 'escape') {
+      if (s.focus === 'nav') {
         this.requestQuit()
       }
       else {
@@ -616,17 +574,11 @@ export class Application {
     }
     if (key.name === 'tab') {
       s.gg = 0
-      if (s.wizard) {
-        const count = this.fields().length + 1
-        editor.index = (editor.index + (key.shift ? count - 1 : 1)) % count
-      }
-      else {
-        this.cyclePanel(key.shift ? -1 : 1)
-      }
+      this.cyclePanel(key.shift ? -1 : 1)
       this.update()
       return
     }
-    if (!s.wizard && !key.ctrl && !key.meta) {
+    if (!key.ctrl && !key.meta) {
       if (['1', '2', '3'].includes(key.name)) {
         this.focusPanel(['nav', 'list', 'form'][Number(key.name) - 1])
         return
@@ -636,7 +588,12 @@ export class Application {
         return
       }
     }
-    if (key.name === '/' && s.focus === 'list') {
+    if (CATEGORIES[s.category] === 'Settings' && ['/', 'r', 'n', 'f', 'd', 'v'].includes(key.name))
+      return
+    if (key.name === '/' && ['nav', 'list'].includes(s.focus)) {
+      // Searching from the categories panel scrolls the filtered list instead of leaving the workflow.
+      if (s.focus === 'nav')
+        this.focusPanel('list')
       this.prompt('Search document paths (secrets excluded)', (value) => {
         if (value === s.search)
           return
@@ -650,20 +607,21 @@ export class Application {
       }, s.search)
       return
     }
-    if (key.name === 'r' && !this.session && !s.wizard) {
+    if (key.name === 'r' && !this.session) {
       await this.start()
       return
     }
-    if (key.name === 'r' && this.session && !s.wizard) {
+    if (key.name === 'r' && this.session) {
       if (s.focus === 'form' && editor) {
         await this.leave(async () => {
-          await this.operation(`Reloading ${editor.path}`, async () => {
-            const loaded = await this.session.read(editor.path)
-            s.editor = editDocument({ path: editor.path, kind: editor.kind, ...loaded })
-            const index = s.documents.findIndex(item => item.path === editor.path)
-            if (index >= 0)
-              s.documents[index] = { path: editor.path, kind: editor.kind, ...loaded }
-            s.status = 'Reloaded disk version. You can edit and save again.'
+          await this.operation(this.t('Reloading {path}', { path: editor.path }), async () => {
+            s.documents = await loadDocuments(this.session, { includeExamples: true })
+            const document = s.documents.find(item => item.path === editor.path)
+            s.editor = document ? editDocument(document) : null
+            if (s.files)
+              s.files = await this.session.list()
+            this.invalidateDoctor()
+            s.status = this.t('Reloaded disk version. You can edit and save again.')
           })
         })
       }
@@ -675,11 +633,11 @@ export class Application {
       }
       return
     }
-    if (key.name === 'f' && this.session && !s.wizard) {
+    if (key.name === 'f' && this.session) {
       await this.showFiles()
       return
     }
-    if (key.name === 'n' && ['nav', 'list'].includes(s.focus) && this.session && !s.files && !s.wizard) {
+    if (key.name === 'n' && ['nav', 'list'].includes(s.focus) && this.session && !s.files) {
       this.createDocument()
       return
     }
@@ -693,12 +651,19 @@ export class Application {
         this.confirm(field.label, ['Close'], () => {}, fieldValue(editor, field))
       return
     }
-    if (['return', 'enter'].includes(key.name) || (s.wizard && ['l', 'right'].includes(key.name))) {
+    if (['return', 'enter'].includes(key.name)) {
       if (s.focus === 'nav') {
         this.focusPanel('list')
       }
+      else if (CATEGORIES[s.category] === 'Settings') {
+        await this.setLanguage(LANGUAGES[s.settingsIndex].id)
+      }
       else if (s.focus === 'list') {
-        this.focusPanel('form')
+        const item = this.items()[s.selected]
+        if (item?.file && (item.missing || identifyDocument(item.path)))
+          this.openFile(item)
+        else
+          this.focusPanel('form')
       }
       else if (s.focus === 'form' && editor) {
         const field = this.fields()[editor.index]
@@ -720,12 +685,12 @@ export class Application {
       else if (CATEGORIES[s.category] === 'Doctor' && !s.files) {
         const item = s.doctor[s.doctorIndex]
         if (item)
-          this.confirm(item.status, ['Close'], () => {}, `${item.label}\n${item.path || ''}`)
+          this.confirm(this.t(item.status), ['Close'], () => {}, `${doctorLabel(item, s.language)}\n${item.path || ''}`)
       }
       else {
         const item = this.items()[s.selected]
         if (item?.file)
-          this.confirm('Managed file', ['Close'], () => {}, item.path)
+          this.openFile(item)
         else if (item)
           this.open(item)
       }
@@ -759,6 +724,8 @@ export class Application {
     const move = (index, count) => edge === 'first' ? 0 : edge === 'last' ? Math.max(0, count - 1) : Math.max(0, Math.min(count - 1, index + delta))
     if (s.focus === 'nav')
       await this.selectCategory(move(s.category, CATEGORIES.length))
+    else if (CATEGORIES[s.category] === 'Settings')
+      await this.selectItem(move(s.settingsIndex, LANGUAGES.length))
     else if (s.focus === 'form' && editor)
       editor.index = move(editor.index, this.fields().length + 1)
     else if (s.focus === 'form')

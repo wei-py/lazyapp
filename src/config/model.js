@@ -1,4 +1,5 @@
 import { isAbsolute } from 'node:path'
+import { t } from './i18n.js'
 
 /** Supported editor kinds. Platform names are also their directory names. */
 export const documentKinds = Object.freeze(['app', 'android', 'ios', 'harmony', 'windows', 'macos', 'miniprogram', 'service', 'environment', 'assets', 'store'])
@@ -57,6 +58,7 @@ const FIELDS = {
 }
 for (const fields of Object.values(FIELDS)) Object.freeze(fields)
 Object.freeze(FIELDS)
+const CHINESE_FIELDS = Object.fromEntries(Object.entries(FIELDS).map(([kind, fields]) => [kind, Object.freeze(fields.map(item => Object.freeze({ ...item, label: t('zh', item.label) })))]))
 
 /** A portable single directory name; never a path. */
 export function isSafeName(name) {
@@ -67,8 +69,8 @@ export function isSafeName(name) {
 }
 
 /** Fields are immutable. Scope separates platform identity from per-environment signing. */
-export function documentFields(kind, { scope = 'all' } = {}) {
-  const fields = FIELDS[kind]
+export function documentFields(kind, { scope = 'all', language = 'en' } = {}) {
+  const fields = (language === 'zh' ? CHINESE_FIELDS : FIELDS)[kind]
   if (!Object.hasOwn(FIELDS, kind))
     throw new Error('Unsupported document kind')
   if (!['all', 'platform', 'signing'].includes(scope))
@@ -102,42 +104,46 @@ function validReference(value) {
 /** Validate without mutation; issues contain field labels, never submitted values. */
 export function validateDocument(kind, data, options = {}) {
   const fields = documentFields(kind, options)
+  const language = options.language || 'en'
   if (!data || typeof data !== 'object' || Array.isArray(data))
-    return [{ key: '', message: 'Configuration must be a JSON object' }]
+    return [{ key: '', message: t(language, 'Configuration must be a JSON object') }]
   const issues = []
-  const issue = (key, message) => issues.push({ key, message })
+  const issue = (key, messageKey, params = {}) => issues.push({ key, message: t(language, messageKey, params), ...(options.messages ? { messageKey, params } : {}) })
   if (data.schemaVersion !== 1)
     issue('schemaVersion', 'Unsupported or missing schema version; expected 1')
   for (const { key, label, type, required } of fields) {
     const value = data[key]
     if (value === undefined || value === null || value === '') {
       if (required)
-        issue(key, `${label} is required`)
+        issue(key, '{label} is required', { label })
       continue
     }
     if (kind === 'app' && ['platforms', 'environments'].includes(key))
       continue
     if (type === 'number') {
       if (!Number.isSafeInteger(value) || value < 1)
-        issue(key, `${label} must be a positive safe integer`)
+        issue(key, '{label} must be a positive safe integer', { label })
     }
     else if (typeof value !== 'string') {
-      issue(key, `${label} must be text`)
+      issue(key, '{label} must be text', { label })
     }
     else if (required && !value.trim()) {
-      issue(key, `${label} is required`)
+      issue(key, '{label} is required', { label })
     }
     else if (type === 'file' && !validReference(value)) {
-      issue(key, `${label} must be an absolute external path or a workspace-relative path without hidden components, traversal, colons, or backslashes`)
+      issue(key, '{label} must be an absolute external path or a workspace-relative path without hidden components, traversal, colons, or backslashes', { label })
+    }
+    else if (type === 'file' && value.toLowerCase().endsWith('.example')) {
+      issue(key, '{label} refers to an example placeholder; import a real file before saving', { label })
     }
   }
   if (kind === 'app') {
     for (const key of ['platforms', 'environments']) {
       const values = data[key]
       if (!Array.isArray(values) || values.some(value => !isSafeName(value)))
-        issue(key, `${key === 'platforms' ? 'Platforms' : 'Environments'} must be an array of safe names`)
+        issue(key, '{label} must be an array of safe names', { label: t(language, key === 'platforms' ? 'Platforms' : 'Environments') })
       else if (new Set(values.map(value => value.normalize('NFC').toLowerCase())).size !== values.length)
-        issue(key, `${key === 'platforms' ? 'Platforms' : 'Environments'} must not contain duplicate or case-conflicting names`)
+        issue(key, '{label} must not contain duplicate or case-conflicting names', { label: t(language, key === 'platforms' ? 'Platforms' : 'Environments') })
     }
     if (Array.isArray(data.platforms) && data.platforms.some(value => !platformKinds.includes(value)))
       issue('platforms', 'Enabled platforms must use supported platform names')
