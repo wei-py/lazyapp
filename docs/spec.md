@@ -206,8 +206,25 @@ src/
 - 已验证 macOS arm64，Bun `1.4.2`、`@opentui/core` `0.5.11`；版本固定在 `package.json` 与 `bun.lock`。
 - 先确保 `bun` 在 `PATH` 中，再运行 `bun install --frozen-lockfile`。
 - 在源码目录执行 `bun run dev /absolute/project`，管理 `/absolute/project/lazyapp/`；省略参数则只使用当前目录。不要把源码目录误当作要管理的 App 项目。
-- `bun src/main.js --help` 无需 TTY；实际 TUI 必须有交互式 stdin/stdout。包声明了 `lazyapp` 可执行入口，但未制作或验证单文件原生分发包。
+- `bun src/main.js --help` 无需 TTY；实际 TUI 必须有交互式 stdin/stdout。macOS arm64 发行包内置 Bun 与 OpenTUI 原生依赖，使用发行包不需要另外安装 Bun。
 - 本次环境最初未配置 Bun 命令，验证使用临时引导的 Bun `1.4.2` 并为开发脚本显式设置 `PATH`；仓库不自动修改用户全局运行时配置。
+
+### mise 安装与 GitHub Release
+
+- 发布仓库为 `wei-py/lazyapp`，当前只提供 macOS Apple Silicon（arm64）发行包，不声明 Intel Mac、Linux 或 Windows 支持。
+- 在 macOS arm64 使用固定版本 Bun 执行 `bun install --frozen-lockfile`、`bun run build`、`bun run smoke:release`。构建输出 `dist/lazyapp-darwin-arm64.tar.gz` 和 `dist/SHA256SUMS`；压缩包包含 `bin/lazyapp` 与第三方依赖许可。`dist/` 不提交 Git。
+- 构建禁用工作目录的 `.env` 与 `bunfig.toml` 自动加载。运行仍以当前目录或显式项目路径发现工作区，不以可执行文件安装目录发现工作区。
+- `.github/workflows/release.yml` 在推送 `v*` tag 时运行 lint、行为测试、构建与真实 PTY 发行包冒烟验证；全部成功后才创建 GitHub Release 并上传压缩包与 SHA-256 校验文件。tag 必须严格等于 `v` 加 `package.json` 的版本，例如当前 `v0.1.0`，不匹配会拒绝构建。
+- 首次发布：先提交并推送这些改动，再执行 `git tag v0.1.0` 和 `git push origin v0.1.0`。后续发布先更新 `package.json` 版本，再推送对应新 tag；不要移动已发布 tag。GitHub Actions 的手动运行只验证并保留构建附件，不创建 Release。
+- Release 成功发布后执行：
+
+  ```sh
+  mise use -g github:wei-py/lazyapp@latest
+  mise exec github:wei-py/lazyapp@latest -- lazyapp --help
+  ```
+
+  已激活 mise 的终端可直接执行 `lazyapp /absolute/project`。固定版本可改用 `github:wei-py/lazyapp@0.1.0`。`github:` 后端安装上传的 Release 附件，不会克隆源码执行构建；仅推送源码或创建无附件的 tag 不足以安装。
+- 当前二进制未做 Apple Developer ID 签名或公证，不宣称已通过 Gatekeeper 分发验证。
 
 ### 已落地的数据契约
 
@@ -253,4 +270,5 @@ src/
 - 120×35 实际屏幕确认存在的 `app.json` 为绿色 `#87d787`，缺失配置／资源为红色 `#e06c75`，选中行蓝底 `#87afff` 仍保留状态前景色。进入缺失服务编辑器不标脏；保存创建真实配置并立即变绿；删除后恢复红色。缺失图片通过路径询问与确认导入后变绿，删除真实图片保留 `.example` 并恢复红色。80×20 resize 保留「缺失」标记。
 - 正常退出及重新打开均返回 `0`，重开已有工作区不再询问初始化；SIGTERM 返回 `143`。正常退出与 SIGTERM 均确认恢复终端输入属性、离开备用屏幕、释放工作区锁。此次脚本只使用临时项目、虚构资源与隔离的 `XDG_CONFIG_HOME`，未修改用户工作区或个人语言偏好。
 - 前次独立语言验证曾覆盖设置切换即时应用、退出重开持久化、80×20 中文帮助、`jq/?` 文本输入、中文脏草稿确认与 Doctor 文案。该记录不代表本次重新执行了所有旧版布局场景；已移除的初始化向导不再作为当前验收流程。
-- 未声明 Linux、Windows 运行时、真实签名凭据或单文件打包已经验证。
+- 发行包新增本地验证：Bun `1.4.2` 构建 macOS arm64 独立程序；从 tar.gz 解压到临时目录，在 `sandbox-exec` 禁止读取源码仓库且 `PATH` 不含 Bun 的环境执行 `--help`、真实 120×40 PTY 初始化、进入原生 TUI、正常退出与重新打开。确认退出离开备用屏幕、重开不再次询问初始化且不改写 `app.json`。发行工作流复用 `bun run smoke:release` 验证这些行为。
+- GitHub 托管工作流及远端 `mise use` 必须在实际推送和发布后验证；本地通过不代表远端 Release 已发布。未声明 Linux、Windows 运行时或真实签名凭据已经验证。

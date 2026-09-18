@@ -4,7 +4,7 @@
 
 lazyapp is a personal, offline TUI for organizing App metadata, assets, platform credentials, services, environments, and store materials. Initial scope: prompt-first initialization, configuration editing, file management, and read-only Doctor checks. No cloud service, telemetry, database, or build/sign/release execution.
 
-**Current state:** first-stage application implemented in JavaScript with Bun and direct OpenTUI Core. The workspace uses a narrow left column (workspace, categories, list) and a large right detail pane with status below. Numbered inset titles, rounded borders (ASCII for `TERM=dumb`), green focus borders, full-row blue selections, and position counters follow the supplied lazygit visual reference. Missing file/configuration rows are red; existing rows are green, including selected rows. Panel switching uses `Tab`/`Shift+Tab`, `1/2/3`, and `h`/`l`; `Enter` descends categories → list → detail editor → field. The 60–99-column layout stacks the focused panel and related preview beneath workspace information, with numbers in border titles rather than a separate tab strip. Includes a pre-render terminal initialization prompt, configuration editors, managed file imports/deletion, external read-only references, and read-only Doctor. No standalone native executable packaging or Linux/Windows runtime compatibility is claimed.
+**Current state:** first-stage application implemented in JavaScript with Bun and direct OpenTUI Core. The workspace uses a narrow left column (workspace, categories, list) and a large right detail pane with status below. Numbered inset titles, rounded borders (ASCII for `TERM=dumb`), green focus borders, full-row blue selections, and position counters follow the supplied lazygit visual reference. Missing file/configuration rows are red; existing rows are green, including selected rows. Panel switching uses `Tab`/`Shift+Tab`, `1/2/3`, and `h`/`l`; `Enter` descends categories → list → detail editor → field. The 60–99-column layout stacks the focused panel and related preview beneath workspace information, with numbers in border titles rather than a separate tab strip. Includes a pre-render terminal initialization prompt, configuration editors, managed file imports/deletion, external read-only references, and read-only Doctor. Standalone macOS arm64 packaging is verified locally; Linux/Windows runtime compatibility is not claimed.
 
 ## Architecture & Data Flow
 
@@ -40,8 +40,10 @@ Install with `bun install --frozen-lockfile`; Bun must be on `PATH`.
 | `bun run lint` | ESLint checks |
 | `bun run lint:fix` | ESLint fixes |
 | `bun test` | Behavior tests using `bun:test` |
+| `bun run build` | Build macOS arm64 executable, release archive, and SHA256SUMS |
+| `bun run smoke:release` | Exercise the extracted release in a PTY with checkout access denied |
 
-`package.json` declares `lazyapp` as the executable entry point. `bun src/main.js --help` prints usage without requiring a TTY. No build or distribution command is defined; choose one only after validating native dependency packaging.
+`package.json` declares `lazyapp` as the executable entry point. `bun src/main.js --help` prints usage without requiring a TTY. `scripts/build.js` bundles Bun and OpenTUI native assets; `dist/` is ignored. `.github/workflows/release.yml` validates and publishes GitHub Release assets on `v*` tags matching `package.json`; manual runs validate without publishing. After publication, install with `mise use -g github:wei-py/lazyapp@latest`. See `docs/spec.md` for release instructions and verification limits.
 
 ## Code Conventions & Common Patterns
 
