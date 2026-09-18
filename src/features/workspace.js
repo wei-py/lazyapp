@@ -1,3 +1,4 @@
+import { t } from '../config/i18n.js'
 import { documentFields, documentPath, isSafeName, platformKinds, validateDocument } from '../config/model.js'
 
 /** Identify only supported configuration documents, not imported JSON credentials. */
@@ -21,8 +22,10 @@ export function identifyDocument(path) {
 }
 
 /** Safe user-facing summaries: unknown exception messages may contain secrets and are not echoed. */
-export function safeErrorMessage(error) {
+export function safeErrorMessage(error, language = 'en') {
   const messages = {
+    PREFERENCES_INVALID: 'The language preference is invalid or unsafe. Repair the settings file before retrying; it was not overwritten.',
+    PREFERENCES_BUSY: 'Language preferences are being saved by another instance. Retry when it finishes.',
     VALIDATION_FAILED: 'Configuration validation failed. Check the highlighted fields.',
     REVISION_CONFLICT: 'The file changed outside this editor. Reload before saving; your draft was retained.',
     WORKSPACE_MISSING: 'No workspace exists. Initialize this project first.',
@@ -40,17 +43,39 @@ export function safeErrorMessage(error) {
     EPERM: 'The operation is not permitted. Check the file permissions and retry.',
     EEXIST: 'The destination already exists. Confirm overwrite or choose another destination.',
   }
-  return Object.hasOwn(messages, error?.code) ? messages[error.code] : 'The operation failed. Check the workspace, file access, and configuration, then retry.'
+  return t(language, Object.hasOwn(messages, error?.code) ? messages[error.code] : 'The operation failed. Check the workspace, file access, and configuration, then retry.')
 }
 
-/** Load actual documents and their storage revisions. Parse/read failures propagate, never become empty drafts. */
-export async function loadDocuments(session) {
-  const paths = (await session.list()).filter(path => identifyDocument(path)).sort()
+/** Coalesce example instructions with their canonical targets; real files always win. */
+export function logicalFiles(paths) {
+  const actual = new Set(paths.filter(path => !path.endsWith('.example')))
+  const entries = new Map([...actual].map(path => [path, { path, file: true, missing: false }]))
+  for (const examplePath of paths.filter(path => path.endsWith('.example'))) {
+    const path = examplePath.slice(0, -8)
+    if (!entries.has(path))
+      entries.set(path, { path, file: true, missing: true, examplePath, instructionOnly: path.split('/').at(-1) === 'credentials' })
+  }
+  return [...entries.values()].sort((a, b) => a.path.localeCompare(b.path))
+}
+
+/** Doctor reads actual documents only. UI may also expose clean, missing example targets. */
+export async function loadDocuments(session, { includeExamples = false } = {}) {
+  const paths = await session.list()
+  const entries = includeExamples
+    ? logicalFiles(paths)
+    : paths.map(path => ({ path, missing: false }))
   const documents = []
-  for (const path of paths) {
-    const { data, revision } = await session.read(path)
+  for (const entry of entries.sort((a, b) => a.path.localeCompare(b.path))) {
+    const identified = identifyDocument(entry.path)
+    if (!identified)
+      continue
+    if (entry.missing) {
+      documents.push({ path: entry.path, ...identified, data: null, revision: null, missing: true, examplePath: entry.examplePath })
+      continue
+    }
+    const { data, revision } = await session.read(entry.path)
     if (data !== null)
-      documents.push({ path, kind: identifyDocument(path).kind, data, revision })
+      documents.push({ path: entry.path, ...identified, data, revision, missing: false })
   }
   return documents
 }
@@ -85,9 +110,20 @@ export async function saveDocument(session, path, kind, draft, revision) {
 }
 
 /** Read-only completeness check. Existence never implies that a credential can sign or publish. */
-export async function runDoctor(session) {
+export function doctorLabel(result, language = 'en') {
+  if (!result.message)
+    return result.label
+  const { key, params } = result.message
+  return t(language, key, params.label ? { ...params, label: t(language, params.label) } : params)
+}
+
+export async function runDoctor(session, language = 'en') {
   const results = []
-  const report = (status, label, path) => results.push({ status, label, path })
+  const report = (status, key, path, params = {}) => {
+    const result = { status, path, message: { key, params } }
+    result.label = doctorLabel(result, language)
+    results.push(result)
+  }
   let paths
   try {
     paths = (await session.list()).filter(path => identifyDocument(path)).sort()
@@ -137,11 +173,11 @@ export async function runDoctor(session) {
     const disabled = platformKinds.includes(kind) && !enabled.includes(kind)
     if (disabled)
       report('warning', 'Configuration belongs to a platform not enabled in App; completeness is not required', path)
-    const issues = validateDocument(kind, data, { scope })
+    const issues = validateDocument(kind, data, { scope, messages: true })
     for (const issue of issues) {
-      const missing = issue.message.endsWith(' is required')
+      const missing = issue.messageKey === '{label} is required'
       if (!disabled || !missing)
-        report(missing ? 'missing' : 'error', issue.message, path)
+        report(missing ? 'missing' : 'error', issue.messageKey || issue.message, path, issue.params)
     }
     if (!issues.length && !disabled)
       report('pass', 'Required fields are complete; credentials are not validated', path)
@@ -158,22 +194,22 @@ export async function runDoctor(session) {
       try {
         const info = await session.inspectReference(reference)
         if (!info.exists) {
-          report(disabled ? 'warning' : 'missing', `${field.label}: referenced file is missing`, path)
+          report(disabled ? 'warning' : 'missing', '{label}: referenced file is missing', path, { label: field.label })
         }
         else if (!info.regular) {
-          report('error', `${field.label}: reference is not a regular file`, path)
+          report('error', '{label}: reference is not a regular file', path, { label: field.label })
         }
         else {
-          report('pass', `${field.label}: file exists (existence only)`, path)
-          report('unchecked', `${field.label}: content, validity, expiry, and compatibility have not been checked`, path)
+          report('pass', '{label}: file exists (existence only)', path, { label: field.label })
+          report('unchecked', '{label}: content, validity, expiry, and compatibility have not been checked', path, { label: field.label })
         }
         if (info.external)
-          report('warning', `${field.label}: external read-only reference is not portable with this workspace`, path)
+          report('warning', '{label}: external read-only reference is not portable with this workspace', path, { label: field.label })
         if (info.permissionsWarning)
-          report('warning', `${field.label}: file permissions allow access by other users`, path)
+          report('warning', '{label}: file permissions allow access by other users', path, { label: field.label })
       }
       catch {
-        report('error', `${field.label}: cannot inspect reference; check path safety and permissions`, path)
+        report('error', '{label}: cannot inspect reference; check path safety and permissions', path, { label: field.label })
       }
     }
     if (documentFields(kind, { scope }).some(field => field.type === 'secret' && typeof data[field.key] === 'string' && data[field.key].length > 0)) {
