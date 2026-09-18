@@ -6,7 +6,7 @@ import { prepareStartup } from './app/startup.js'
 /** Start only in an interactive terminal; renderer and workspace cleanup are idempotent. */
 export async function main(args = process.argv.slice(2)) {
   if (args.includes('--help') || args.includes('-h')) {
-    process.stdout.write('lazyapp — local App configuration manager\n\nUsage: lazyapp [project-directory]\n\nOpens <project-directory>/lazyapp (default: current directory).\nRequires an interactive stdin/stdout terminal and Bun.\nNo cloud, build, signing, or publishing operations. Secrets are stored locally in plaintext.\n')
+    process.stdout.write('lazyapp — local App configuration manager\n\nUsage: lazyapp [project-directory]\n\nOpens <project-directory>/lazyapp (default: current directory).\nRequires an interactive stdin/stdout terminal. Source checkout requires Bun; release binaries bundle it.\nNo cloud, build, signing, or publishing operations. Secrets are stored locally in plaintext.\n')
     return 0
   }
   if (args.length > 1 || args.some(arg => arg.startsWith('-'))) {
@@ -104,7 +104,7 @@ export async function main(args = process.argv.slice(2)) {
     await app.start()
   }
   catch {
-    await finish(1, 'Unable to start the terminal application. Check Bun, native OpenTUI support, and workspace permissions.')
+    await finish(1, 'Unable to start the terminal application. Check native OpenTUI support and workspace permissions; source checkouts also require Bun.')
   }
   return await done
 }

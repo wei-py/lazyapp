@@ -8,6 +8,8 @@
     "lazyapp": "./src/main.js"
   },
   "scripts": {
+    "build": "bun scripts/build.js",
+    "smoke:release": "bun scripts/smoke-release.js",
     "dev": "bun src/main.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
