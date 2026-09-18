@@ -1,4 +1,6 @@
-export const CATEGORIES = ['App', 'Assets', 'Platforms', 'Services', 'Environments', 'Store', 'Doctor']
+import { t } from '../config/i18n.js'
+
+export const CATEGORIES = ['App', 'Assets', 'Platforms', 'Services', 'Environments', 'Store', 'Doctor', 'Settings']
 export const PLATFORM_KINDS = ['android', 'ios', 'harmony', 'windows', 'macos', 'miniprogram']
 
 /** Layout decisions retain editing state across terminal resizes. */
@@ -12,7 +14,8 @@ export function layoutMode(width, height) {
 
 /** A disk snapshot and editable draft never share mutable values. */
 export function editDocument(document) {
-  return { ...document, snapshot: structuredClone(document.data), draft: structuredClone(document.data ?? { schemaVersion: 1 }), index: 0, editing: false, cursor: 0 }
+  const draft = structuredClone(document.data ?? { schemaVersion: 1, ...(document.name ? { name: document.name } : {}) })
+  return { ...document, snapshot: structuredClone(document.missing ? draft : document.data), draft, index: 0, editing: false, cursor: 0 }
 }
 
 export function isDirty(editor) {
@@ -70,26 +73,28 @@ export function categoryFor(kind) {
 }
 
 /** Secret field values never enter ordinary view text, search, or status messages. */
-export function displayValue(field, value) {
+export function displayValue(field, value, language = 'en') {
   if (field.type === 'secret')
-    return value ? '********' : '(not set)'
+    return value ? '********' : t(language, '(not set)')
   if (Array.isArray(value))
-    return value.join(', ') || '(not set)'
-  return String(value ?? '') || '(not set)'
+    return value.join(', ') || t(language, '(not set)')
+  return String(value ?? '') || t(language, '(not set)')
 }
 
 /** Modal state owns focus until closed, with cancel selected by default. */
 export function openModal(state, modal) {
   state.gg = 0
-  state.modal = { ...modal, index: 0, returnFocus: state.focus }
+  state.modal = { ...modal, index: 0, returnFocus: state.focus, returnEditor: Boolean(state.editor) }
   state.focus = 'modal'
 }
 
 export function closeModal(state) {
-  const target = state.modal?.returnFocus || 'list'
+  const modal = state.modal
+  const target = modal?.returnFocus || 'list'
   state.modal = null
-  // docs/spec.md section 5: closing restores the original focus, but the editor panel is no
-  // longer a usable target once its document is gone, so fall back to the list instead.
-  state.focus = target === 'form' && !state.editor ? 'list' : target
+  // docs/spec.md section 5: closing restores the original focus. Only when that focus was the
+  // document editor and the document is gone does it fall back to the list; an editor-free
+  // details panel (file or Doctor preview) stays usable and keeps focus.
+  state.focus = target === 'form' && modal?.returnEditor && !state.editor ? 'list' : target
   state.gg = 0
 }

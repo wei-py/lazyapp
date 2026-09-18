@@ -1,9 +1,16 @@
-import { TextRenderable } from '@opentui/core'
+import process from 'node:process'
+import { fg, StyledText, TextRenderable } from '@opentui/core'
 import stringWidth from 'string-width'
+import { LANGUAGES, t } from '../config/i18n.js'
+import { doctorLabel } from '../features/workspace.js'
 import { CATEGORIES, displayValue, isDirty, layoutMode } from './state.js'
 
-const COLORS = { text: '#e4e4e7', muted: '#a1a1aa', accent: '#38bdf8', success: '#4ade80', warning: '#facc15', error: '#fb7185', border: '#52525b', focus: '#bae6fd', background: '#18181b' }
+const COLORS = { text: '#d4d4d4', muted: '#999999', warning: '#e5c07b', error: '#e06c75', present: '#87d787', border: '#767676', focus: '#87d787', background: '#101010', selection: '#87afff', selectionText: '#101010' }
 const SEGMENTS = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
+const PANEL_IDS = ['nav', 'list', 'detail']
+const PANEL_FOCUS = { nav: 'nav', list: 'list', detail: 'form' }
+// Modal nodes are created last so an open dialog paints above every panel.
+const NODE_IDS = ['keys', 'message', ...['workspace', ...PANEL_IDS, 'status', 'modal'].flatMap(id => [`${id}Frame`, `${id}Inner`, `${id}Selection`])]
 
 /** Clip terminal columns, not JavaScript code units, preserving grapheme boundaries. */
 export function clipColumns(value, width) {
@@ -56,111 +63,301 @@ function editingValue(value, cursor, secret, width) {
   return clipColumns(`${visible}|${after}`, width)
 }
 
+/** Frame rows are exactly the panel width so a stale row can never survive a repaint. */
+function padColumns(value, width) {
+  const clipped = clipColumns(value, width)
+  return `${clipped}${' '.repeat(Math.max(0, width - stringWidth(clipped)))}`
+}
+
+function pathTail(value, width) {
+  if (stringWidth(value) <= width)
+    return value
+  const segments = Array.from(SEGMENTS.segment(value), item => item.segment)
+  let tail = ''
+  let columns = 1
+  for (let index = segments.length - 1; index >= 0; index--) {
+    const size = stringWidth(segments[index])
+    if (columns + size > width)
+      break
+    tail = segments[index] + tail
+    columns += size
+  }
+  return `…${tail}`
+}
+
+function workspaceContent(s, width, compact = false) {
+  const name = s.documents.find(document => document.path === 'app.json')?.data?.name || t(s.language, 'Workspace')
+  const label = `${name}${isDirty(s.editor) ? ` · ${t(s.language, 'unsaved')}` : ''}`
+  return {
+    title: 'lazyapp',
+    lines: compact
+      ? [`${clipColumns(label, Math.floor(width / 2))} · ${pathTail(s.root, width - Math.min(stringWidth(label), Math.floor(width / 2)) - 3)}`]
+      : [label, pathTail(s.root, width)],
+  }
+}
+
+/** Keep the selected row visible and retain its position for the highlight and counter. */
+function windowContent(lines, index, size) {
+  const count = Math.max(0, size)
+  const start = Math.min(Math.max(0, index - Math.floor(count / 2)), Math.max(0, lines.length - count))
+  return {
+    lines: lines.slice(start, start + count),
+    start,
+    selected: lines.length ? index - start : -1,
+    counter: `${lines.length ? index + 1 : 0}/${lines.length}`,
+  }
+}
+
+function navContent(s, rows) {
+  return { title: t(s.language, 'Categories'), ...windowContent(CATEGORIES.map(category => category === 'Settings' ? 'Settings / 设置' : t(s.language, category)), s.category, rows) }
+}
+
+function listTitle(s) {
+  if (s.files)
+    return t(s.language, 'Managed files')
+  if (CATEGORIES[s.category] === 'Doctor')
+    return t(s.language, 'Doctor results')
+  if (CATEGORIES[s.category] === 'Settings')
+    return 'Language / 语言'
+  return t(s.language, '{category} documents', { category: t(s.language, CATEGORIES[s.category]) })
+}
+
+function listContent(s, app, rows) {
+  if (CATEGORIES[s.category] === 'Settings') {
+    const entries = LANGUAGES.map(item => `${item.id === s.language ? '* ' : '  '}${item.label}`)
+    return { title: 'Language / 语言', ...windowContent(entries, s.settingsIndex, rows) }
+  }
+  const items = app.items()
+  const doctor = CATEGORIES[s.category] === 'Doctor' && !s.files
+  const index = doctor ? s.doctorIndex : s.selected
+  const entries = doctor
+    ? s.doctor.map(entry => `[${t(s.language, entry.status)}] ${doctorLabel(entry, s.language)}${entry.path ? ` ${entry.path}` : ''}`)
+    : items.map(item => `[${t(s.language, item.missing ? 'missing' : 'present')}] ${item.path}`)
+  const prefix = s.search ? [t(s.language, 'Search: {query}', { query: s.search })] : []
+  const content = windowContent(entries, index, rows - prefix.length)
+  if (!entries.length) {
+    const empty = doctor ? (s.busy ? 'Checking…' : 'No checks yet. Press r to run Doctor.') : s.files ? 'No matching files.' : 'No documents. Press n to create.'
+    content.lines.push(t(s.language, empty))
+  }
+  const colors = doctor ? undefined : [...prefix.map(() => COLORS.text), ...items.slice(content.start, content.start + content.lines.length).map(item => item.missing ? COLORS.error : COLORS.present)]
+  return { title: listTitle(s), ...content, colors, lines: [...prefix, ...content.lines].slice(0, rows), selected: content.selected < 0 ? -1 : content.selected + prefix.length }
+}
+
+function editorContent(s, app, rows, width) {
+  const editor = s.editor
+  const fields = app.fields()
+  const text = Math.max(1, width - 5)
+  const head = rows >= 4 ? [editor.path.includes('/production/') ? `${editor.path} [${t(s.language, 'PRODUCTION')}]` : editor.path, ''] : []
+  const count = fields.length + 1
+  const visible = Math.max(1, Math.floor(Math.max(0, rows - head.length) / 2))
+  const start = Math.min(Math.max(0, editor.index - Math.floor(visible / 2)), Math.max(0, count - visible))
+  const lines = [...head]
+  let selected = -1
+  for (let index = start; index < Math.min(count, start + visible); index++) {
+    const field = fields[index]
+    if (editor.index === index)
+      selected = lines.length
+    if (!field) {
+      lines.push(`[ ${t(s.language, 'Save document')} ]`, '')
+      continue
+    }
+    lines.push(`${field.label}${field.required ? ' *' : ''}${field.type === 'file' ? `  ${t(s.language, '[file actions]')}` : ''}`)
+    const value = editor.index === index && editor.editing
+      ? editingValue(editor.input, editor.cursor, field.type === 'secret', text)
+      : displayValue(field, editor.draft[field.key], s.language)
+    lines.push(`  ${value}`)
+  }
+  const title = `${t(s.language, '{kind} details', { kind: t(s.language, editor.kind) })}${isDirty(editor) ? ` — ${t(s.language, 'unsaved')}` : ''}${editor.editing ? ` — ${t(s.language, 'editing')}` : ''}`
+  return { title, lines, selected, counter: `${editor.index + 1}/${count}` }
+}
+
+/** Preview text never reads file contents; it only restates state the controller already holds. */
+function previewContent(s, app, rows, width) {
+  const items = app.items()
+  const item = items[s.files || CATEGORIES[s.category] !== 'Doctor' ? s.selected : s.doctorIndex]
+  let title = t(s.language, 'Preview')
+  let text = []
+  if (s.files) {
+    title = t(s.language, 'File preview')
+    const config = item && s.documents.some(document => document.path === item.path)
+    text = item
+      ? [t(s.language, 'Path: {path}', { path: item.path }), '', t(s.language, item.missing ? 'Missing — only example instructions exist.' : 'Present — existence only; contents and credentials are not validated.'), ...(item.missing ? [t(s.language, item.instructionOnly ? 'Legacy credential instructions have no typed destination. Use a configuration file field to import the correct credential.' : config ? 'Press Enter to edit a clean document. Save creates the real file; example instructions are never copied.' : 'Press Enter to import a real source file.')] : [])]
+      : [t(s.language, 'No managed file selected.')]
+  }
+  else if (CATEGORIES[s.category] === 'Doctor' && !s.files) {
+    title = t(s.language, 'Check details')
+    const entry = s.doctor[s.doctorIndex]
+    const count = status => s.doctor.filter(result => result.status === status).length
+    text = entry
+      ? [`[${t(s.language, entry.status)}] ${doctorLabel(entry, s.language)}`, entry.path ? t(s.language, 'Path: {path}', { path: entry.path }) : '', '', t(s.language, 'Checks: {total} | pass {pass} | missing {missing} | warning {warning} | error {error} | unchecked {unchecked}', { total: s.doctor.length, pass: count('pass'), missing: count('missing'), warning: count('warning'), error: count('error'), unchecked: count('unchecked') }), '', t(s.language, 'File existence is not certificate validity or release readiness.')]
+      : [t(s.language, s.busy ? 'Checking…' : 'No checks yet.')]
+  }
+  else if (CATEGORIES[s.category] === 'Settings') {
+    title = 'Settings / 设置'
+    text = [
+      t(s.language, 'Current language: {language}', { language: LANGUAGES.find(item => item.id === s.language).label }),
+      t(s.language, 'Selected language: {language}', { language: LANGUAGES[s.settingsIndex].label }),
+      '',
+      t(s.language, 'Press Enter to apply and save your language preference.'),
+      t(s.language, 'Only interface text changes. Your workspace data is untouched.'),
+    ]
+  }
+  else if (item) {
+    title = t(s.language, 'Document preview')
+    text = [t(s.language, 'Path: {path}', { path: item.path }), t(s.language, 'Kind: {kind}', { kind: t(s.language, item.kind) }), '']
+    text.push(t(s.language, item.missing ? 'Missing — only example instructions exist.' : 'Present — existence only; contents and credentials are not validated.'))
+    if (item.missing)
+      text.push(t(s.language, 'Press Enter to edit a clean document. Save creates the real file; example instructions are never copied.'))
+    for (const field of app.fields(item))
+      text.push(`${field.label}${field.required ? ' *' : ''}`, `  ${displayValue(field, item.data?.[field.key], s.language)}`, '')
+  }
+  else {
+    title = t(s.language, 'Document preview')
+    text = [t(s.language, 'Nothing selected.')]
+  }
+  const wrapped = text.flatMap(line => wrap(line, Math.max(8, width)))
+  const start = Math.min(Math.max(0, s.detailScroll), Math.max(0, wrapped.length - rows))
+  return { title, lines: wrapped.slice(start, start + rows), counter: `${wrapped.length ? start + 1 : 0}/${wrapped.length}` }
+}
+
+function detailContent(s, app, rows, width) {
+  if (s.editor)
+    return editorContent(s, app, rows, width)
+  return previewContent(s, app, rows, width)
+}
+
+function keyHints(s) {
+  if (s.modal?.type === 'input')
+    return t(s.language, 'TEXT DIALOG: Enter submit | Esc cancel | arrows move cursor')
+  if (s.modal)
+    return t(s.language, 'DIALOG: Enter confirms | Esc cancels | arrows/Tab choose | PgUp/PgDn details')
+  if (s.editor?.editing)
+    return t(s.language, 'TEXT INPUT: Enter accept | Esc restore | Ctrl+s save | shortcuts type normally')
+  if (CATEGORIES[s.category] === 'Settings')
+    return s.focus === 'nav' ? t(s.language, 'j/k category | Enter to list | Tab/1/2/3 panel | ? help | q quit') : t(s.language, 'j/k language | Enter apply | Tab/1/2/3 panel | Esc back | ? help | q quit')
+  if (s.focus === 'form' && s.editor)
+    return t(s.language, 'Enter edit field | j/k field | Ctrl+s save | v full value | Esc to list | ? help | q quit')
+  if (s.focus === 'form')
+    return t(s.language, 'j/k scroll preview | Enter open | Esc to list | r refresh | ? help | q quit')
+  if (s.focus === 'nav')
+    return t(s.language, 'j/k category | Enter to list | Tab/1/2/3 panel | n new | / search | f files | ? help | q quit')
+  if (s.files)
+    return t(s.language, 'j/k move | Enter open/import | d delete | / search | r refresh | Esc to categories | q quit')
+  if (CATEGORIES[s.category] === 'Doctor')
+    return t(s.language, 'j/k result | Enter details | r rerun | f files | Esc to categories | ? help | q quit')
+  return t(s.language, 'j/k move | Enter details | n new | / search | f files | r refresh | ? help | q quit')
+}
+
 /** Stable native renderables; only visible rows are constructed on each state change. */
 export function createView(renderer) {
   const nodes = {}
-  for (const id of ['header', 'nav', 'body', 'status', 'keys', 'modal']) {
+  const border = process.env.TERM === 'dumb'
+    ? { topLeft: '+', topRight: '+', bottomLeft: '+', bottomRight: '+', horizontal: '-', vertical: '|' }
+    : { topLeft: '╭', topRight: '╮', bottomLeft: '╰', bottomRight: '╯', horizontal: '─', vertical: '│' }
+  for (const id of NODE_IDS) {
     nodes[id] = new TextRenderable(renderer, { id, position: 'absolute', left: 0, top: 0, width: 1, height: 1, content: '', fg: COLORS.text, bg: COLORS.background, wrapMode: 'none', selectable: false })
     renderer.root.add(nodes[id])
   }
-  function show(id, left, top, width, height, lines, color = COLORS.text) {
+  function show(id, left, top, width, height, lines, color = COLORS.text, background = COLORS.background, colors) {
     const node = nodes[id]
     node.visible = width > 0 && height > 0
     if (!node.visible)
       return
-    Object.assign(node, { left, top, width, height, fg: color })
-    node.content = lines.slice(0, height).map(line => clipColumns(line, width)).join('\n')
+    Object.assign(node, { left, top, width, height, fg: color, bg: background })
+    const visible = lines.slice(0, height).map(line => clipColumns(line, width))
+    node.content = colors
+      ? new StyledText(visible.map((line, index) => fg(colors[index] || color)(`${index ? '\n' : ''}${line}`)))
+      : visible.join('\n')
+  }
+  function box(id, left, top, width, height, content, frameColor = COLORS.border, color = COLORS.text) {
+    if (width < 4 || height < 2)
+      return
+    const innerWidth = width - 2
+    const innerHeight = height - 2
+    const label = clipColumns(` ${content.title} `, innerWidth)
+    const counter = content.counter ? clipColumns(` ${content.counter} `, innerWidth) : ''
+    const frame = [
+      `${border.topLeft}${label}${border.horizontal.repeat(innerWidth - stringWidth(label))}${border.topRight}`,
+      ...Array.from({ length: innerHeight }, () => `${border.vertical}${' '.repeat(innerWidth)}${border.vertical}`),
+      `${border.bottomLeft}${border.horizontal.repeat(innerWidth - stringWidth(counter))}${counter}${border.bottomRight}`,
+    ]
+    show(`${id}Frame`, left, top, width, height, frame, frameColor)
+    show(`${id}Inner`, left + 1, top + 1, innerWidth, innerHeight, content.lines.map(line => ` ${line}`), color, COLORS.background, content.colors)
+    if (content.selected >= 0 && content.selected < innerHeight && content.selected < content.lines.length)
+      show(`${id}Selection`, left + 1, top + 1 + content.selected, innerWidth, 1, [padColumns(` ${content.lines[content.selected]}`, innerWidth)], content.colors?.[content.selected] || COLORS.selectionText, COLORS.selection)
+  }
+  function panel(id, left, top, width, height, content, s) {
+    const focused = PANEL_FOCUS[id] === s.focus
+    const number = PANEL_IDS.indexOf(id) + 1
+    box(id, left, top, width, height, { ...content, title: `[${number}] ${content.title}` }, focused ? COLORS.focus : COLORS.border)
+  }
+  function panelContent(id, s, app, rows, width) {
+    if (id === 'nav')
+      return navContent(s, rows)
+    if (id === 'list')
+      return listContent(s, app, rows)
+    return detailContent(s, app, rows, width)
   }
   return (s, app) => {
     s.width = renderer.width
     s.height = renderer.height
     const { width, height } = s
     const mode = layoutMode(width, height)
+    for (const node of Object.values(nodes)) node.visible = false
     if (mode === 'small') {
-      for (const node of Object.values(nodes)) node.visible = false
-      show('body', 0, 0, width, height, ['Terminal too small.', 'Need 60 columns x 16 rows.', 'Resize, q or Ctrl+c to quit.'])
-      if (s.modal)
-        show('body', 0, 0, width, height, [s.modal.title, s.modal.type === 'choice' ? `> ${s.modal.options[s.modal.index]}` : 'Resize to edit this input.', 'Arrows choose; Enter confirms.', 'Esc cancels; SIGTERM exits.'])
+      const content = s.modal
+        ? [s.modal.title, ...(s.modal.type === 'choice' ? [`> ${s.modal.options[s.modal.index]}`] : [t(s.language, 'Too small to edit this input.')]), t(s.language, 'Arrows choose; Enter confirms; Esc cancels.')]
+        : [t(s.language, 'Terminal too small.'), t(s.language, 'Need 60 columns x 16 rows.'), t(s.language, 'Resize, or q / Ctrl+c to quit.')]
+      show('message', 0, 0, width, height, content, s.modal ? COLORS.focus : COLORS.warning)
+      renderer.requestRender()
       return
     }
-    show('header', 0, 0, width, 2, [`lazyapp | ${s.root}`, `${s.wizard ? 'INITIALIZATION — no disk writes before Create' : CATEGORIES[s.category]} | ${mode} | focus: ${s.focus}${isDirty(s.editor) ? ' | UNSAVED' : ''}`], COLORS.accent)
-    const navWidth = mode === 'dual' && !s.wizard ? 23 : 0
-    const contentTop = 3
-    const contentHeight = height - 7
-    const navShown = !s.wizard && (mode === 'dual' || s.focus === 'nav')
-    show('nav', 0, contentTop, navShown ? (navWidth || width) : 0, contentHeight, ['NAVIGATION', '', ...CATEGORIES.map((name, index) => `${index === s.category ? (s.focus === 'nav' ? '> ' : '* ') : '  '}${name}`), '', 'Enter: open category'], s.focus === 'nav' ? COLORS.focus : COLORS.muted)
-    const left = navWidth ? navWidth + 1 : 0
-    const bodyWidth = width - left
-    const bodyShown = s.wizard || mode === 'dual' || s.focus !== 'nav'
-    let lines = []
-    if (s.editor) {
-      const editor = s.editor
-      const fields = app.fields()
-      const count = fields.length + 1
-      const visible = Math.max(1, Math.floor((contentHeight - 3) / 2))
-      const start = Math.min(Math.max(0, editor.index - visible + 1), Math.max(0, count - visible))
-      lines = [editor.path, `${editor.editing ? 'TEXT INPUT — Enter accepts / Esc restores field' : 'FORM — Enter edits / Tab selects next / v full value'}${editor.path.includes('/production/') ? ' [PRODUCTION]' : ''}`, '']
-      for (let index = start; index < Math.min(count, start + visible); index++) {
-        const field = fields[index]
-        const selected = editor.index === index
-        if (!field) {
-          lines.push(`${selected ? '> ' : '  '}[ ${s.wizard ? 'Continue / final confirmation' : 'Save document'} ]`, '')
-          continue
-        }
-        lines.push(`${selected ? '> ' : '  '}${field.label}${field.required ? ' *' : ''}${field.type === 'file' ? ' [file actions]' : ''}`)
-        const value = selected && editor.editing ? editingValue(editor.input, editor.cursor, field.type === 'secret', bodyWidth - 4) : displayValue(field, editor.draft[field.key])
-        lines.push(`    ${value}`)
-      }
-    }
-    else if (CATEGORIES[s.category] === 'Doctor' && !s.files) {
-      const start = Math.max(0, s.doctorIndex - contentHeight + 4)
-      lines = ['DOCTOR — read-only; r reruns', 'Existence does not establish validity.', '', ...s.doctor.slice(start, start + contentHeight - 3).map((item, index) => `${start + index === s.doctorIndex ? '> ' : '  '}[${item.status}] ${item.label} ${item.path || ''}`)]
-      if (!s.doctor.length)
-        lines.push(s.busy ? 'Checking…' : 'No checks yet. Press r.')
+    if (mode === 'dual') {
+      const panelHeight = height - 1
+      const leftWidth = Math.floor(width * 0.32)
+      const detailLeft = leftWidth + 1
+      const detailWidth = width - detailLeft
+      const workspaceHeight = 4
+      const statusHeight = 4
+      const navRows = CATEGORIES.length
+      const navHeight = Math.max(4, Math.min(panelHeight - workspaceHeight - 5, navRows + 2))
+      const listHeight = panelHeight - workspaceHeight - navHeight
+      box('workspace', 0, 0, leftWidth, workspaceHeight, workspaceContent(s, leftWidth - 3))
+      panel('nav', 0, workspaceHeight, leftWidth, navHeight, navContent(s, navHeight - 2), s)
+      panel('list', 0, workspaceHeight + navHeight, leftWidth, listHeight, listContent(s, app, listHeight - 2), s)
+      const detailHeight = panelHeight - statusHeight
+      panel('detail', detailLeft, 0, detailWidth, detailHeight, detailContent(s, app, detailHeight - 2, detailWidth - 3), s)
+      box('status', detailLeft, detailHeight, detailWidth, statusHeight, { title: t(s.language, s.error ? 'Error' : s.busy ? 'Working' : 'Status'), lines: wrap(s.status, detailWidth - 3) }, COLORS.border, s.error ? COLORS.error : s.busy ? COLORS.warning : COLORS.muted)
     }
     else {
-      const items = app.items()
-      const start = Math.max(0, s.selected - contentHeight + 4)
-      lines = [s.files ? 'MANAGED FILES — d deletes one selected file' : `${CATEGORIES[s.category]} — n creates a configuration`, s.search ? `Search: ${s.search} (/ to change)` : 'Enter opens; / searches paths only', '', ...items.slice(start, start + contentHeight - 3).map((item, index) => `${start + index === s.selected ? '> ' : '  '}${item.path}`)]
-      if (!items.length)
-        lines.push(s.files ? 'No managed files match. Use / to change the filter.' : 'Not configured. Press n to add, or Enter to start.')
+      const panelTop = 3
+      const panelHeight = height - 5
+      box('workspace', 0, 0, width, panelTop, workspaceContent(s, width - 3, true))
+      const focus = s.modal?.returnFocus || s.focus
+      const focusId = PANEL_IDS.find(id => PANEL_FOCUS[id] === focus) || 'detail'
+      const previewId = focusId === 'detail' ? 'list' : 'detail'
+      const topHeight = Math.max(4, Math.min(panelHeight - 4, focus === 'form' ? Math.floor(panelHeight * 0.66) : Math.floor(panelHeight * 0.55)))
+      const bottomHeight = panelHeight - topHeight
+      panel(focusId, 0, panelTop, width, topHeight, panelContent(focusId, s, app, topHeight - 2, width - 3), s)
+      panel(previewId, 0, panelTop + topHeight, width, bottomHeight, panelContent(previewId, s, app, bottomHeight - 2, width - 3), s)
+      show('message', 0, height - 2, width, 1, [s.status], s.error ? COLORS.error : s.busy ? COLORS.warning : COLORS.muted)
     }
-    show('body', left, contentTop, bodyShown ? bodyWidth : 0, contentHeight, lines)
-    show('status', 0, height - 3, width, 2, wrap(s.status, width), s.error ? COLORS.error : s.busy ? COLORS.warning : COLORS.success)
-    let keys
-    if (s.modal?.type === 'input')
-      keys = 'TEXT DIALOG: Enter submit | Esc cancel | arrows move cursor'
-    else if (s.modal)
-      keys = 'DIALOG: Enter confirms | Esc cancels | arrows/Tab choose | PgUp/PgDn details'
-    else if (s.editor?.editing)
-      keys = 'TEXT INPUT: Enter accept | Esc restore | Ctrl+s save | shortcuts type normally'
-    else if (s.wizard)
-      keys = 'Enter edit/continue | Tab next | Esc previous | Ctrl+w cancel wizard | ? help'
-    else if (s.editor)
-      keys = 'Enter edit | Tab next | Ctrl+s save | Esc back | ? help | q quit'
-    else if (s.focus === 'nav')
-      keys = 'j/k move | Enter category | Tab details | f files | ? help | q quit'
-    else if (s.files)
-      keys = 'j/k move | d delete | Enter path | / search | r refresh | Esc back | q quit'
-    else if (CATEGORIES[s.category] === 'Doctor')
-      keys = 'j/k move | Enter details | r rerun | f files | Esc back | ? help | q quit'
-    else
-      keys = 'j/k move | Enter open | n new | / search | f files | r refresh | ? help | q quit'
-    show('keys', 0, height - 1, width, 1, [keys], COLORS.muted)
-    nodes.modal.visible = Boolean(s.modal)
+    show('keys', 0, height - 1, width, 1, [keyHints(s)], COLORS.muted)
     if (s.modal) {
       const modal = s.modal
       const modalWidth = Math.min(width - 4, 84)
-      const detailWidth = modalWidth - 4
-      const available = height - 8
+      const detailWidth = modalWidth - 3
+      // Dialog nodes are last, including their selection, and never cover the footer.
+      const available = height - 3
       const detail = wrap(modal.detail || '', detailWidth)
-      const optionLines = modal.type === 'input' ? [editingValue(modal.value, modal.cursor, false, detailWidth), '', 'Enter submits | Esc cancels'] : modal.options.map((option, index) => `${index === modal.index ? '> ' : '  '}${option}`)
+      const optionLines = modal.type === 'input' ? [editingValue(modal.value, modal.cursor, false, detailWidth)] : modal.options
       const detailCount = Math.max(0, available - optionLines.length - 4)
       const start = Math.min(modal.scroll || 0, Math.max(0, detail.length - detailCount))
-      const content = [modal.title, '', ...detail.slice(start, start + detailCount), ...(detail.length > detailCount ? ['[PgUp/PgDn: more details]'] : []), '', ...optionLines]
-      const border = `+${'-'.repeat(modalWidth - 2)}+`
-      const bordered = [border, ...content.map(line => `| ${clipColumns(line, detailWidth).padEnd(detailWidth + clipColumns(line, detailWidth).length - stringWidth(clipColumns(line, detailWidth)))} |`), border]
-      show('modal', Math.floor((width - modalWidth) / 2), 3, modalWidth, Math.min(height - 4, bordered.length), bordered, COLORS.focus)
+      const content = [...detail.slice(start, start + detailCount), ...(detail.length > detailCount ? [t(s.language, '[PgUp/PgDn: more details]')] : []), '']
+      const selected = modal.type === 'choice' ? content.length + modal.index : -1
+      content.push(...optionLines)
+      const modalHeight = Math.min(available, content.length + 2)
+      box('modal', Math.floor((width - modalWidth) / 2), Math.max(1, Math.floor((height - 1 - modalHeight) / 2)), modalWidth, modalHeight, { title: modal.title, lines: content, selected }, COLORS.focus)
     }
     renderer.requestRender()
   }
