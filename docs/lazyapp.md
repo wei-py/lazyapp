@@ -34,6 +34,8 @@ App
 
 我建议第一版直接这样：
 
+当前首次启动先在普通终端询问是否创建工作区 `(y/N)`，默认拒绝；回答 `y` 后原子创建最小 `app.json` 与 `.example` 占位结构并直接进入 TUI，不要求填写初始化表单或提供真实图片／签名凭据。下方目录树描述补齐资料后的目标结构；首次创建时配置使用 `*.json.example`，资源／签名说明使用对应目标名，如 `source.png.example`、`certificate.p12.example`。默认准备全部平台及 development／production 示例，但 App 尚未启用任何平台或环境。TUI 中缺失的逻辑条目显示红色，真实文件存在显示绿色（不代表验证有效）；Enter 编辑缺失配置或导入资源后立即更新颜色。具体行为以 `docs/spec.md` 第 12 节为准。
+
 ```text
 my-app/
 └── lazyapp/
