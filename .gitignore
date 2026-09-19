@@ -18,7 +18,14 @@ coverage/
 # Local environment files with credentials
 .env
 .env.*
-!.env.example
+
+# Assistant-skill assets: managed by the agent environment, not application source.
+# `.claude/skills/*` are symlinks into `.agents/skills/*`; skills-lock.json pins
+# their versions for the local harness only.
+.agents/
+.claude/
+skills-lock.json
 
 # Editor and OS noise
 .DS_Store
+._*

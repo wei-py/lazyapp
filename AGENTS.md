@@ -68,7 +68,6 @@ Install with `bun install --frozen-lockfile`; Bun must be on `PATH`.
 - `docs/lazyapp.md`: product proposal and data organization examples; defer to `spec.md` for conflicting security, Git-ignore, or path guidance.
 - `docs/other-spec.md`: reference from a different Web project, not this project's technology or coding policy.
 - `docs/skill.md`: brief TUI interaction notes; `docs/todo.md`: planning checklist, not implementation evidence.
-- `skills-lock.json`: assistant-skill metadata, not an application dependency lock or runtime version pin.
 - `jsconfig.json`: editor/IntelliSense config only (no `tsc` step, `checkJs` off); it does not make the project TypeScript or add a build.
 - `src/main.js`: startup, argument parsing, TTY guard, signal handling, and idempotent terminal cleanup.
 
