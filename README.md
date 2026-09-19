@@ -12,14 +12,14 @@ No cloud, no telemetry, no database. Data lives in plain JSON and raw files insi
 
 All of your app's configuration in a single, browsable structure:
 
-| Category | What it holds |
-| --- | --- |
-| App | name, description, version, enabled platforms & environments |
-| Assets | icon, splash, screenshots, promo images |
-| Platforms | Android / iOS / HarmonyOS / Windows / macOS / mini-program identity and signing credentials per environment |
-| Services | third-party credentials (Apple, Google, Huawei, WeChat, maps, push, …) |
-| Environments | per-environment API/Web/CDN endpoints and variables |
-| Store | store listings, copy, links, and images |
+| Category     | What it holds                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------- |
+| App          | name, description, version, enabled platforms & environments                                                |
+| Assets       | icon, splash, screenshots, promo images                                                                     |
+| Platforms    | Android / iOS / HarmonyOS / Windows / macOS / mini-program identity and signing credentials per environment |
+| Services     | third-party credentials (Apple, Google, Huawei, WeChat, maps, push, …)                                      |
+| Environments | per-environment API/Web/CDN endpoints and variables                                                         |
+| Store        | store listings, copy, links, and images                                                                     |
 
 Environments are created on demand with custom names — nothing forces `development`/`production` on a platform that doesn't need it.
 
@@ -49,7 +49,7 @@ Missing resources (`source.png`, `certificate.p12`, …) show red. Press `Enter`
 
 ### Read-only Doctor
 
-One keypress runs an integrity check across field completeness, reference existence, and config consistency. It distinguishes *exists* from *valid*, and reports "not checked" rather than "pass" when a credential can't actually be parsed.
+One keypress runs an integrity check across field completeness, reference existence, and config consistency. It distinguishes _exists_ from _valid_, and reports "not checked" rather than "pass" when a credential can't actually be parsed.
 
 ### `中文` / `English`
 
@@ -79,25 +79,25 @@ lazyapp /absolute/project
 
 ### Navigation
 
-| Key | Action |
-| --- | --- |
-| `j`/`k`, `↓`/`↑` | move selection in the focused panel |
+| Key                                              | Action                                           |
+| ------------------------------------------------ | ------------------------------------------------ |
+| `j`/`k`, `↓`/`↑`                                 | move selection in the focused panel              |
 | `h`/`l`, `←`/`→`, `Tab`/`Shift+Tab`, `1`/`2`/`3` | switch focus between category/list/detail panels |
-| `Enter` | descend: category → list → detail editor → field |
-| `Esc` | walk back detail → list → category |
-| `?` | context help |
+| `Enter`                                          | descend: category → list → detail editor → field |
+| `Esc`                                            | walk back detail → list → category               |
+| `?`                                              | context help                                     |
 
 ### Editing & files
 
-| Key | Action |
-| --- | --- |
-| `n` | create a new config |
-| `v` | view full field value |
-| `f` | open the managed file list |
-| `d` | delete the selected file |
-| `/` | path search |
-| `Ctrl+s` | save the current draft |
-| `q` | quit (with unsaved-check) |
+| Key      | Action                     |
+| -------- | -------------------------- |
+| `n`      | create a new config        |
+| `v`      | view full field value      |
+| `f`      | open the managed file list |
+| `d`      | delete the selected file   |
+| `/`      | path search                |
+| `Ctrl+s` | save the current draft     |
+| `q`      | quit (with unsaved-check)  |
 
 While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters — Vim-style navigation only applies outside text input.
 
@@ -119,13 +119,13 @@ While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters —
 
 ## Docs & development
 
-| Command | Purpose |
-| --- | --- |
-| `bun run dev` | run the TUI |
-| `bun run lint` / `bun run lint:fix` | ESLint checks / fixes |
-| `bun test` | behavior tests using `bun:test` |
-| `bun run build` | build macOS arm64 executable + release archive + SHA256SUMS |
-| `bun run smoke:release` | exercise the extracted release in a PTY |
+| Command                             | Purpose                                                     |
+| ----------------------------------- | ----------------------------------------------------------- |
+| `bun run dev`                       | run the TUI                                                 |
+| `bun run lint` / `bun run lint:fix` | ESLint checks / fixes                                       |
+| `bun test`                          | behavior tests using `bun:test`                             |
+| `bun run build`                     | build macOS arm64 executable + release archive + SHA256SUMS |
+| `bun run smoke:release`             | exercise the extracted release in a PTY                     |
 
 - `docs/spec.md` — authoritative development contract (keyboard, layout, storage, safety, acceptance).
 - `docs/lazyapp.md` — product proposal and data-organization examples.
