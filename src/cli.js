@@ -19,7 +19,7 @@ function fail(message, code = 1) {
 async function cmdInit(projectDir, options = {}) {
   const dir = resolve(projectDir)
   if (await workspaceExists(dir))
-    return fail(`Workspace already exists at ${dir}/lazyapp; use the TUI or other CLI commands to manage it.`, 1)
+    return fail(`Workspace already exists at ${dir}/.lazyapp; use the TUI or other CLI commands to manage it.`, 1)
   const name = options.name || basename(dir) || 'My App'
   try {
     const { app, examples } = defaultInitialization(name)
@@ -168,8 +168,7 @@ async function cmdValidate(projectDir, docPath) {
 function printUsage() {
   process.stdout.write(`lazyapp — local App configuration manager
 
-Usage:
-  lazyapp [project-directory]           Open the TUI (requires interactive terminal)
+Usage: lazyapp [project-directory]      Open the TUI (requires interactive terminal)
   lazyapp init <project-dir>            Initialize a new workspace
            [--name <name>]              App name (default: directory name)
   lazyapp doctor <project-dir>          Run completeness checks (JSON output)

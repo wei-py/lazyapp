@@ -112,8 +112,8 @@ describe('language settings interactions', () => {
       },
       save: async () => {},
     })
-    await fs.mkdir(join(root, 'project', 'lazyapp'), { recursive: true })
-    await fs.writeFile(join(root, 'project', 'lazyapp', 'app.json'), '{broken')
+    await fs.mkdir(join(root, 'project', '.lazyapp'), { recursive: true })
+    await fs.writeFile(join(root, 'project', '.lazyapp', 'app.json'), '{broken')
     await app.start()
     expect(app.state.error).toBe(true)
     expect(app.state.status).toContain('malformed JSON')

@@ -63,10 +63,10 @@ try {
   }
 
   await exercise(true)
-  const saved = await readFile(join(temporary, 'lazyapp/app.json'), 'utf8')
+  const saved = await readFile(join(temporary, '.lazyapp/app.json'), 'utf8')
   assert.ok(JSON.parse(saved).name, 'Initialization must persist valid App metadata')
   await exercise(false)
-  assert.equal(await readFile(join(temporary, 'lazyapp/app.json'), 'utf8'), saved, 'Reopening must not rewrite configuration')
+  assert.equal(await readFile(join(temporary, '.lazyapp/app.json'), 'utf8'), saved, 'Reopening must not rewrite configuration')
   process.stdout.write('Release smoke passed: archive, help, native TUI, initialization, reopen, terminal exit; no Bun on PATH or checkout access.\n')
 }
 finally {

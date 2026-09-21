@@ -115,7 +115,7 @@ export async function inspectExternalReference(reference) {
 
 async function workspaceLocation(projectDir) {
   const project = await fs.realpath(path.resolve(projectDir))
-  return { project, root: path.join(project, 'lazyapp') }
+  return { project, root: path.join(project, '.lazyapp') }
 }
 
 /** Read-only discovery: any existing target is reserved, including corrupt files and symbolic links. */
@@ -422,7 +422,7 @@ async function createSession(root, owner) {
   }
 }
 
-/** Open only projectDir/lazyapp; missing/invalid workspaces and existing locks are explicit errors. */
+/** Open only projectDir/.lazyapp; missing/invalid workspaces and existing locks are explicit errors. */
 export async function openWorkspace(projectDir) {
   const { root } = await workspaceLocation(projectDir)
   const info = await statOrNull(root)

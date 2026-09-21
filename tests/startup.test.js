@@ -62,7 +62,7 @@ describe('plain-terminal startup', () => {
         return answer
       } })).toBeNull()
       expect(asked).toBe(1)
-      expect(await fs.readdir(project)).toEqual(['lazyapp'])
+      expect(await fs.readdir(project)).toEqual(['.lazyapp'])
       const session = await openWorkspace(project)
       try {
         const app = (await session.read('app.json')).data
@@ -115,7 +115,7 @@ describe('plain-terminal startup', () => {
 
   for (const kind of ['file', 'directory', 'symlink', 'corrupt']) {
     test(`reserves an existing ${kind} without prompting or adopting it`, async () => {
-      const root = join(project, 'lazyapp')
+      const root = join(project, '.lazyapp')
       if (kind === 'file') {
         await fs.writeFile(root, 'untouched')
       }
@@ -135,7 +135,7 @@ describe('plain-terminal startup', () => {
       })).toBeNull()
       expect(errors).toEqual([])
       await expect(openWorkspace(project)).rejects.toThrow()
-      expect(await fs.readdir(project)).toEqual(['lazyapp'])
+      expect(await fs.readdir(project)).toEqual(['.lazyapp'])
       if (kind === 'file')
         expect(await fs.readFile(root, 'utf8')).toBe('untouched')
       else if (kind === 'directory')
@@ -153,11 +153,11 @@ describe('plain-terminal startup', () => {
       throw new Error('Must not prompt twice')
     } })).toBeNull()
     expect(errors).toEqual([])
-    expect(await fs.readdir(project)).toEqual(['lazyapp'])
+    expect(await fs.readdir(project)).toEqual(['.lazyapp'])
   })
 
   test('does not adopt a parent workspace', async () => {
-    await fs.mkdir(join(project, 'lazyapp'))
+    await fs.mkdir(join(project, '.lazyapp'))
     const child = join(project, 'child')
     await fs.mkdir(child)
     expect(await workspaceExists(child)).toBe(false)
@@ -172,10 +172,10 @@ describe('plain-terminal startup', () => {
 
   test('never overwrites a target appearing after confirmation', async () => {
     expect(await prepareStartup(project, { ...options, prompt: async () => {
-      await fs.mkdir(join(project, 'lazyapp'))
+      await fs.mkdir(join(project, '.lazyapp'))
       return 'yes'
     } })).toBe(1)
-    expect(await fs.readdir(join(project, 'lazyapp'))).toEqual([])
+    expect(await fs.readdir(join(project, '.lazyapp'))).toEqual([])
     expect(errors.join('')).toContain('already exists')
   })
 
@@ -262,6 +262,6 @@ describe('plain-terminal startup', () => {
     expect(signals.listenerCount('SIGTERM')).toBe(0)
     const session = await openWorkspace(project)
     await session.close()
-    expect((await fs.readdir(join(project, 'lazyapp'))).includes('.lazyapp.lock')).toBe(false)
+    expect((await fs.readdir(join(project, '.lazyapp'))).includes('.lazyapp.lock')).toBe(false)
   })
 })

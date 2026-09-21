@@ -83,11 +83,11 @@ describe('workspace persistence and initialization', () => {
       documents: [{ path: 'app.json', data: APP }],
     })).rejects.toMatchObject({ code: 'FILE_EXISTS' })
     expect(await fs.readdir(project)).toEqual([])
-    await fs.mkdir(path.join(project, 'lazyapp'))
-    await fs.writeFile(path.join(project, 'lazyapp', 'keep.txt'), 'keep')
+    await fs.mkdir(path.join(project, '.lazyapp'))
+    await fs.writeFile(path.join(project, '.lazyapp', 'keep.txt'), 'keep')
     await expect(openWorkspace(project)).rejects.toMatchObject({ code: 'WORKSPACE_CONFLICT' })
     await expect(initializeWorkspace(project, APP)).rejects.toMatchObject({ code: 'WORKSPACE_CONFLICT' })
-    expect(await fs.readFile(path.join(project, 'lazyapp', 'keep.txt'), 'utf8')).toBe('keep')
+    expect(await fs.readFile(path.join(project, '.lazyapp', 'keep.txt'), 'utf8')).toBe('keep')
   })
 
   test('corrupt JSON and unsupported versions cannot be overwritten or treated as missing', async () => {
@@ -200,14 +200,14 @@ describe('file boundaries and external read-only references', () => {
     await expect(session.inspectReference('file.key')).rejects.toMatchObject({ code: 'PATH_ESCAPE' })
     await expect(session.importFile(external, 'file.key', { overwrite: true })).rejects.toMatchObject({ code: 'PATH_ESCAPE' })
     expect(await fs.readFile(external, 'utf8')).toBe('original')
-    expect(await fs.readdir(project)).toEqual(expect.arrayContaining(['lazyapp', 'outside.key']))
+    expect(await fs.readdir(project)).toEqual(expect.arrayContaining(['.lazyapp', 'outside.key']))
   })
 
   test('refuses symlink workspace roots without adopting their destination', async () => {
     const outside = path.join(project, 'outside')
     await fs.mkdir(outside)
     await fs.writeFile(path.join(outside, 'app.json'), JSON.stringify(APP))
-    await fs.symlink(outside, path.join(project, 'lazyapp'))
+    await fs.symlink(outside, path.join(project, '.lazyapp'))
     await expect(openWorkspace(project)).rejects.toMatchObject({ code: 'WORKSPACE_CONFLICT' })
     await expect(initializeWorkspace(project, APP)).rejects.toMatchObject({ code: 'WORKSPACE_CONFLICT' })
     expect(await fs.readdir(outside)).toEqual(['app.json'])

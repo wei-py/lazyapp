@@ -13,7 +13,7 @@ export class Application {
     this.render = render
     this.exit = exit
     this.preferences = preferences
-    this.state = { language: 'en', settingsIndex: 1, root: join(this.projectDir, 'lazyapp'), documents: [], category: 0, selected: 0, focus: 'list', editor: null, modal: null, status: 'Reading workspace…', busy: null, error: false, search: '', gg: 0, width: 100, height: 24, doctor: [], doctorIndex: 0, doctorLoaded: false, detailScroll: 0, files: null }
+    this.state = { language: 'en', settingsIndex: 1, root: join(this.projectDir, '.lazyapp'), documents: [], category: 0, selected: 0, focus: 'list', editor: null, modal: null, status: 'Reading workspace…', busy: null, error: false, search: '', gg: 0, width: 100, height: 24, doctor: [], doctorIndex: 0, doctorLoaded: false, detailScroll: 0, files: null }
     this.generation = 0
     this.closed = false
   }
