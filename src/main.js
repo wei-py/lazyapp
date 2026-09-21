@@ -2,15 +2,15 @@
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { prepareStartup } from './app/startup.js'
+import { runCli } from './cli.js'
 
-/** Start only in an interactive terminal; renderer and workspace cleanup are idempotent. */
+/** CLI commands are handled first; TUI mode requires an interactive terminal. */
 export async function main(args = process.argv.slice(2)) {
-  if (args.includes('--help') || args.includes('-h')) {
-    process.stdout.write('lazyapp — local App configuration manager\n\nUsage: lazyapp [project-directory]\n\nOpens <project-directory>/lazyapp (default: current directory).\nRequires an interactive stdin/stdout terminal. Source checkout requires Bun; release binaries bundle it.\nNo cloud, build, signing, or publishing operations. Secrets are stored locally in plaintext.\n')
-    return 0
-  }
+  const cliResult = await runCli(args)
+  if (cliResult !== null)
+    return cliResult
   if (args.length > 1 || args.some(arg => arg.startsWith('-'))) {
-    process.stderr.write('Usage: lazyapp [project-directory]\n')
+    process.stderr.write('Usage: lazyapp [project-directory]\nRun lazyapp --help for all commands.\n')
     return 1
   }
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
