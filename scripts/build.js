@@ -30,6 +30,8 @@ await run([
   'build',
   '--compile',
   '--target=bun-darwin-arm64',
+  '--define',
+  `LAZYAPP_VERSION:"${pkg.version}"`,
   '--no-compile-autoload-dotenv',
   '--no-compile-autoload-bunfig',
   './src/main.js',

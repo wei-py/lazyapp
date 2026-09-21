@@ -18,6 +18,10 @@ try {
   assert.match(await new Response(help.stdout).text(), /Usage: lazyapp/)
   assert.equal(await help.exited, 0)
 
+  const version = Bun.spawn([...command, '--version'], { cwd: temporary, env, stdout: 'pipe', stderr: 'pipe' })
+  assert.match(await new Response(version.stdout).text(), /^lazyapp \d+\.\d+\.\d+/)
+  assert.equal(await version.exited, 0)
+
   async function exercise(initialize) {
     let output = ''
     let accepted = false

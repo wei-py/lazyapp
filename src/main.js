@@ -9,6 +9,19 @@ export async function main(args = process.argv.slice(2)) {
   const cliResult = await runCli(args)
   if (cliResult !== null)
     return cliResult
+
+  // Global flags — handled after CLI dispatch, before TUI guard.
+  if (args.includes('--help') || args.includes('-h')) {
+    const { printUsage } = await import('./cli.js')
+    printUsage()
+    return 0
+  }
+  if (args.includes('--version') || args.includes('-v')) {
+    const { VERSION } = await import('./config/version.js')
+    process.stdout.write(`lazyapp ${VERSION}\n`)
+    return 0
+  }
+
   if (args.length > 1 || args.some(arg => arg.startsWith('-'))) {
     process.stderr.write('Usage: lazyapp [project-directory]\nRun lazyapp --help for all commands.\n')
     return 1
