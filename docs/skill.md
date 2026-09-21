@@ -11,10 +11,10 @@ lazyapp is a local TUI for managing mobile App metadata, platform credentials, s
 
 ## Workspace Layout
 
-A lazyapp workspace lives at `<project>/lazyapp/`. Discovery: check `<cwd>/lazyapp/app.json`. Never scan parent directories.
+A lazyapp workspace lives at `<project>/.lazyapp/`. Discovery: check `<cwd>/lazyapp/app.json`. Never scan parent directories.
 
 ```
-<project>/lazyapp/
+<project>/.lazyapp/
 ├── app.json                          # App metadata (name, version, platforms, environments)
 ├── .gitignore                        # Contains "*" — workspace is local-only
 ├── .lazyapp.lock                     # Write lock (don't touch)
@@ -150,7 +150,7 @@ Derive paths with these rules (`name` must be a safe single directory name):
 
 ```javascript
 // Read app.json — if it parses with schemaVersion: 1, workspace exists
-const appJson = JSON.parse(await Bun.file('<project>/lazyapp/app.json').text())
+const appJson = JSON.parse(await Bun.file('<project>/.lazyapp/app.json').text())
 ```
 
 ### Load all documents
@@ -228,7 +228,7 @@ When asked to import a file into the workspace:
 
 To create a new workspace:
 
-1. Create `<project>/lazyapp/` directory (mode `0700`)
+1. Create `<project>/.lazyapp/` directory (mode `0700`)
 2. Write `app.json`:
 ```json
 {
