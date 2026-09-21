@@ -1,7 +1,10 @@
-import { basename, resolve } from 'node:path'
+import { chmod, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { basename, join, resolve } from 'node:path'
 import process from 'node:process'
 import { defaultInitialization } from './config/initialization.js'
 import { documentFields, documentKinds, platformKinds, validateDocument } from './config/model.js'
+import { VERSION } from './config/version.js'
 import { identifyDocument, loadDocuments, runDoctor } from './features/workspace.js'
 import { initializeWorkspace, openWorkspace, workspaceExists } from './storage/workspace.js'
 
@@ -165,10 +168,100 @@ async function cmdValidate(projectDir, docPath) {
   }
 }
 
-function printUsage() {
+async function cmdUpdate() {
+  // Refuse to self-update when running from source checkout.
+  if (basename(process.execPath) !== 'lazyapp') {
+    return fail(
+      '--update requires a compiled lazyapp binary. Run the compiled release or update manually.',
+      1,
+    )
+  }
+
+  const current = VERSION
+  process.stderr.write(`Current version: ${current}\nChecking for updates...\n`)
+
+  let release
+  try {
+    const res = await fetch('https://api.github.com/repos/wei-py/lazyapp/releases/latest', {
+      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'lazyapp-update' },
+    })
+    if (!res.ok) {
+      if (res.status === 403 || res.status === 429)
+        return fail('GitHub API rate-limited. Try again later or update manually.', 1)
+      return fail(`GitHub API returned ${res.status}.`, 1)
+    }
+    release = await res.json()
+  }
+  catch {
+    return fail('Network error fetching release info. Check your connection.', 1)
+  }
+
+  const latest = release.tag_name.replace(/^v/, '')
+  if (latest === current) {
+    process.stderr.write(`Already up to date (v${current}).\n`)
+    return 0
+  }
+
+  const assetName = 'lazyapp-darwin-arm64.tar.gz'
+  const asset = release.assets?.find(a => a.name === assetName)
+  if (!asset)
+    return fail(`No ${assetName} asset found in the latest release.`, 1)
+
+  if (process.execPath.includes('mise/installs/lazyapp')) {
+    return fail(
+      `lazyapp is managed by mise. Run:\n  mise upgrade lazyapp\nLatest: v${latest}  Current: v${current}`,
+      1,
+    )
+  }
+
+  process.stderr.write(`Updating from v${current} to v${latest}...\n`)
+
+  const tmpDir = join(tmpdir(), `lazyapp-update-${Date.now()}`)
+  const tarball = join(tmpDir, assetName)
+  try {
+    await mkdir(tmpDir, { recursive: true })
+
+    // Download
+    const blob = await fetch(asset.browser_download_url).then((r) => {
+      if (!r.ok)
+        throw new Error(`Download failed: ${r.status}`)
+      return r.blob()
+    })
+    await writeFile(tarball, new Uint8Array(await blob.arrayBuffer()))
+
+    // Extract
+    // eslint-disable-next-line no-undef
+    const extract = Bun.spawnSync(['tar', '-xzf', tarball, '-C', tmpDir])
+    if (extract.exitCode !== 0)
+      throw new Error('Extraction failed')
+
+    // Replace binary
+    const newBinary = join(tmpDir, 'bin/lazyapp')
+    const fileStat = await stat(newBinary).catch(() => null)
+    if (!fileStat?.isFile())
+      throw new Error('Binary not found in tarball')
+
+    await chmod(newBinary, 0o755)
+    await rename(newBinary, process.execPath)
+
+    process.stderr.write(`Updated to v${latest}.\n`)
+    return 0
+  }
+  catch (error) {
+    return fail(`Update failed: ${error.message}. Reinstall manually.`, 1)
+  }
+  finally {
+    await rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+export function printUsage() {
   process.stdout.write(`lazyapp — local App configuration manager
 
 Usage: lazyapp [project-directory]      Open the TUI (requires interactive terminal)
+  lazyapp --help, -h                    Show this help
+  lazyapp --version, -v                 Print version
+  lazyapp --update                      Check and install latest release
   lazyapp init <project-dir>            Initialize a new workspace
            [--name <name>]              App name (default: directory name)
   lazyapp doctor <project-dir>          Run completeness checks (JSON output)
@@ -278,6 +371,16 @@ const COMMANDS = {
       return cmdValidate(projectDir, docPath)
     },
   },
+  update: {
+    parse(args) {
+      if (args.length > 0)
+        return { error: 'Usage: lazyapp --update' }
+      return {}
+    },
+    async run() {
+      return cmdUpdate()
+    },
+  },
 }
 
 /** Parse args and run CLI command. Returns exit code, or null if args are for TUI mode. */
@@ -290,6 +393,9 @@ export async function runCli(args) {
   if (command === '--help' || command === '-h') {
     printUsage()
     return 0
+  }
+  if (command === '--update') {
+    return cmdUpdate()
   }
 
   const handler = COMMANDS[command]
