@@ -3,25 +3,56 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import { Application } from '../src/app/controller.js'
-import { closeModal, displayValue, editDocument, editText, isDirty, layoutMode, openModal } from '../src/app/state.js'
+import {
+  closeModal,
+  displayValue,
+  editDocument,
+  editText,
+  isDirty,
+  layoutMode,
+  openModal,
+} from '../src/app/state.js'
 import { defaultInitialization } from '../src/config/initialization.js'
 import { initializeWorkspace } from '../src/storage/workspace.js'
 
-const APP = { schemaVersion: 1, name: 'Example', description: '', version: '1.0.0', platforms: [], environments: [] }
+const APP = {
+  schemaVersion: 1,
+  name: 'Example',
+  description: '',
+  version: '1.0.0',
+  platforms: [],
+  environments: [],
+}
 function application() {
   const exits = []
-  const app = new Application('/tmp/fictional-lazyapp-ui', () => {}, code => exits.push(code))
+  const app = new Application(
+    '/tmp/fictional-lazyapp-ui',
+    () => {},
+    code => exits.push(code),
+  )
   app.state.documents = [{ path: 'app.json', kind: 'app', data: APP, revision: 'original' }]
-  app.state.editor = editDocument({ path: 'app.json', kind: 'app', data: APP, revision: 'original' })
+  app.state.editor = editDocument({
+    path: 'app.json',
+    kind: 'app',
+    data: APP,
+    revision: 'original',
+  })
   app.state.focus = 'form'
   return { app, exits }
 }
-const press = (app, name, extra = {}) => app.key({ name, text: name.length === 1 ? name : undefined, ...extra })
+function press(app, name, extra = {}) {
+  return app.key({ name, text: name.length === 1 ? name : undefined, ...extra })
+}
 
 function serviceApplication() {
   const result = application()
   const { app } = result
-  const documents = ['alpha', 'beta'].map(name => ({ path: `services/${name}.json`, kind: 'service', data: { schemaVersion: 1, name }, revision: 'original' }))
+  const documents = ['alpha', 'beta'].map(name => ({
+    path: `services/${name}.json`,
+    kind: 'service',
+    data: { schemaVersion: 1, name },
+    revision: 'original',
+  }))
   app.state.documents.push(...documents)
   app.state.category = 3
   app.state.editor = null
@@ -61,14 +92,24 @@ describe('input ownership and draft transitions', () => {
 
   test('canceling absent or non-normalized fields restores the exact snapshot', async () => {
     const { app } = application()
-    app.state.editor = editDocument({ path: 'services/push.json', kind: 'service', data: { schemaVersion: 1, name: 'Push' }, revision: 'r' })
+    app.state.editor = editDocument({
+      path: 'services/push.json',
+      kind: 'service',
+      data: { schemaVersion: 1, name: 'Push' },
+      revision: 'r',
+    })
     app.state.editor.index = 1
     await press(app, 'return')
     await press(app, 'q')
     await press(app, 'escape')
     expect(Object.hasOwn(app.state.editor.draft, 'provider')).toBe(false)
     expect(isDirty(app.state.editor)).toBe(false)
-    app.state.editor = editDocument({ path: 'app.json', kind: 'app', data: { ...APP, environments: [' custom '] }, revision: 'r' })
+    app.state.editor = editDocument({
+      path: 'app.json',
+      kind: 'app',
+      data: { ...APP, environments: [' custom '] },
+      revision: 'r',
+    })
     app.state.editor.index = 4
     await press(app, 'return')
     await press(app, 'escape')
@@ -121,7 +162,10 @@ describe('input ownership and draft transitions', () => {
   })
 
   test('text editing operates on Unicode codepoints, including pasted shortcut characters', () => {
-    expect(editText('中文', 1, { name: 'paste', text: 'jq/?' })).toEqual({ value: '中jq/?文', cursor: 5 })
+    expect(editText('中文', 1, { name: 'paste', text: 'jq/?' })).toEqual({
+      value: '中jq/?文',
+      cursor: 5,
+    })
     expect(editText('a😀b', 2, { name: 'backspace' })).toEqual({ value: 'ab', cursor: 1 })
   })
 
@@ -361,14 +405,18 @@ describe('persistent three-panel navigation', () => {
     expect(app.state.editor).toBe(previous)
     app.newDocument('service', { name: 'gamma' })
     await choose(app, 'Save')
-    expect(app.state.documents.find(item => item.path === previous.path).data.name).toBe('Retained alpha')
+    expect(app.state.documents.find(item => item.path === previous.path).data.name).toBe(
+      'Retained alpha',
+    )
     expect(app.state.editor.path).toBe('services/gamma.json')
     expect(isDirty(app.state.editor)).toBe(true)
     expect(app.state.selected).toBe(-1)
     expect(await app.save()).toBe(true)
     expect(app.items()[app.state.selected].path).toBe('services/gamma.json')
     expect(isDirty(app.state.editor)).toBe(false)
-    expect(app.state.documents.find(item => item.path === previous.path).data.name).toBe('Retained alpha')
+    expect(app.state.documents.find(item => item.path === previous.path).data.name).toBe(
+      'Retained alpha',
+    )
   })
 
   test('Save before changing items commits only the old target and constructs the new editor later', async () => {
@@ -378,7 +426,9 @@ describe('persistent three-panel navigation', () => {
     await press(app, '2')
     await press(app, 'j')
     await choose(app, 'Save')
-    expect(app.state.documents.find(item => item.path === 'services/alpha.json').data.name).toBe('Changed alpha')
+    expect(app.state.documents.find(item => item.path === 'services/alpha.json').data.name).toBe(
+      'Changed alpha',
+    )
     expect(app.state.editor).toBeNull()
     expect(app.items()[app.state.selected].path).toBe('services/beta.json')
     await press(app, '3')
@@ -439,7 +489,10 @@ describe('persistent three-panel navigation', () => {
     expect(app.state.focus).toBe('nav')
     app.state.category = 6
     app.state.doctorLoaded = true
-    app.state.doctor = [{ status: 'pass', label: 'First' }, { status: 'missing', label: 'Second' }]
+    app.state.doctor = [
+      { status: 'pass', label: 'First' },
+      { status: 'missing', label: 'Second' },
+    ]
     app.state.detailScroll = 8
     await app.selectItem(1)
     expect(app.state.doctorIndex).toBe(1)
@@ -493,9 +546,10 @@ describe('persistent three-panel navigation', () => {
     await app.selectCategory(6)
     expect(reads).toBe(1)
     let release
-    app.session.list = () => new Promise((resolve) => {
-      release = resolve
-    })
+    app.session.list = () =>
+      new Promise((resolve) => {
+        release = resolve
+      })
     const previous = app.state.doctor
     const pending = app.doctor()
     app.generation++
@@ -550,12 +604,19 @@ describe('persistent three-panel navigation', () => {
 
 async function withWorkspace(action) {
   const project = await fs.mkdtemp(join(tmpdir(), 'lazyapp-presence-'))
-  const app = new Application(project, () => {}, () => {}, {
-    preferences: { load: async () => ({ language: 'en' }), save: async () => {} },
-  })
+  const app = new Application(
+    project,
+    () => {},
+    () => {},
+    {
+      preferences: { load: async () => ({ language: 'en' }), save: async () => {} },
+    },
+  )
   try {
     const scaffold = defaultInitialization('Example')
-    const session = await initializeWorkspace(project, scaffold.app, { examples: scaffold.examples })
+    const session = await initializeWorkspace(project, scaffold.app, {
+      examples: scaffold.examples,
+    })
     await session.close()
     await app.start()
     expect(app.state.error).toBe(false)
@@ -576,7 +637,12 @@ describe('logical file presence', () => {
       app.state.selected = app.items().findIndex(item => item.path === path)
       const examplePath = join(project, '.lazyapp', `${path}.example`)
       const example = await fs.readFile(examplePath, 'utf8')
-      expect(app.items()[app.state.selected]).toMatchObject({ path, missing: true, data: null, revision: null })
+      expect(app.items()[app.state.selected]).toMatchObject({
+        path,
+        missing: true,
+        data: null,
+        revision: null,
+      })
       await press(app, 'return')
       expect(app.state.editor.draft).toEqual({ schemaVersion: 1, name: 'development' })
       expect(isDirty(app.state.editor)).toBe(false)
@@ -589,14 +655,23 @@ describe('logical file presence', () => {
       await press(app, 's', { ctrl: true })
       expect(app.state.error).toBe(false)
       expect(app.items().find(item => item.path === path).missing).toBe(false)
-      expect(JSON.parse(await fs.readFile(join(project, '.lazyapp', path), 'utf8'))).toEqual({ schemaVersion: 1, name: 'development', apiUrl: 'https://example.test' })
+      expect(JSON.parse(await fs.readFile(join(project, '.lazyapp', path), 'utf8'))).toEqual({
+        schemaVersion: 1,
+        name: 'development',
+        apiUrl: 'https://example.test',
+      })
       expect(await fs.readFile(examplePath, 'utf8')).toBe(example)
       await press(app, '2')
       await press(app, 'd')
       await choose(app, 'Delete file')
       expect(app.items().find(item => item.path === path).missing).toBe(true)
-      await expect(fs.stat(join(project, '.lazyapp', path))).rejects.toMatchObject({ code: 'ENOENT' })
-      await fs.writeFile(join(project, '.lazyapp', path), JSON.stringify({ schemaVersion: 1, name: 'development' }))
+      await expect(fs.stat(join(project, '.lazyapp', path))).rejects.toMatchObject({
+        code: 'ENOENT',
+      })
+      await fs.writeFile(
+        join(project, '.lazyapp', path),
+        JSON.stringify({ schemaVersion: 1, name: 'development' }),
+      )
       await press(app, 'r')
       expect(app.items().find(item => item.path === path).missing).toBe(false)
       await press(app, 'return')
@@ -626,7 +701,9 @@ describe('logical file presence', () => {
       expect(app.state.modal.detail).toContain(path)
       expect(app.state.modal.options[app.state.modal.index]).toBe('Cancel')
       await press(app, 'return')
-      await expect(fs.stat(join(project, '.lazyapp', path))).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(fs.stat(join(project, '.lazyapp', path))).rejects.toMatchObject({
+        code: 'ENOENT',
+      })
       await press(app, 'return')
       app.state.modal.value = source
       await press(app, 'return')
@@ -651,12 +728,17 @@ describe('logical file presence', () => {
       await fs.writeFile(join(project, '.lazyapp', path), 'Instructions only')
       await app.showFiles()
       app.state.selected = app.items().findIndex(item => item.path === path.slice(0, -8))
-      expect(app.items()[app.state.selected]).toMatchObject({ missing: true, instructionOnly: true })
+      expect(app.items()[app.state.selected]).toMatchObject({
+        missing: true,
+        instructionOnly: true,
+      })
       await press(app, 'return')
       expect(app.state.modal.type).toBe('choice')
       expect(app.state.modal.options).toEqual(['Close'])
       expect(app.state.modal.detail).toContain('no typed destination')
-      await expect(fs.stat(join(project, '.lazyapp', path.slice(0, -8)))).rejects.toMatchObject({ code: 'ENOENT' })
+      await expect(fs.stat(join(project, '.lazyapp', path.slice(0, -8)))).rejects.toMatchObject({
+        code: 'ENOENT',
+      })
     })
   })
 })

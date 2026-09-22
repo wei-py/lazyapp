@@ -1,7 +1,16 @@
 import { LANGUAGES, t } from '../config/i18n.js'
 import { THEMES } from '../config/themes.js'
 
-export const CATEGORIES = ['App', 'Assets', 'Platforms', 'Services', 'Environments', 'Store', 'Doctor', 'Settings']
+export const CATEGORIES = [
+  'App',
+  'Assets',
+  'Platforms',
+  'Services',
+  'Environments',
+  'Store',
+  'Doctor',
+  'Settings',
+]
 export const PLATFORM_KINDS = ['android', 'ios', 'harmony', 'windows', 'macos', 'miniprogram']
 
 /** Layout decisions retain editing state across terminal resizes. */
@@ -23,8 +32,17 @@ export function preferenceItems() {
 
 /** A disk snapshot and editable draft never share mutable values. */
 export function editDocument(document) {
-  const draft = structuredClone(document.data ?? { schemaVersion: 1, ...(document.name ? { name: document.name } : {}) })
-  return { ...document, snapshot: structuredClone(document.missing ? draft : document.data), draft, index: 0, editing: false, cursor: 0 }
+  const draft = structuredClone(
+    document.data ?? { schemaVersion: 1, ...(document.name ? { name: document.name } : {}) },
+  )
+  return {
+    ...document,
+    snapshot: structuredClone(document.missing ? draft : document.data),
+    draft,
+    index: 0,
+    editing: false,
+    cursor: 0,
+  }
 }
 
 export function isDirty(editor) {
@@ -33,7 +51,10 @@ export function isDirty(editor) {
 
 export function setField(editor, field, value) {
   if (editor.kind === 'app' && ['platforms', 'environments'].includes(field.key)) {
-    editor.draft[field.key] = value.split(',').map(item => item.trim()).filter(Boolean)
+    editor.draft[field.key] = value
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
   }
   else if (field.type === 'number') {
     editor.draft[field.key] = value === '' ? '' : Number(value)
@@ -78,7 +99,13 @@ export function editText(value, cursor, key) {
 export function categoryFor(kind) {
   if (PLATFORM_KINDS.includes(kind))
     return 'Platforms'
-  return { app: 'App', assets: 'Assets', service: 'Services', environment: 'Environments', store: 'Store' }[kind]
+  return {
+    app: 'App',
+    assets: 'Assets',
+    service: 'Services',
+    environment: 'Environments',
+    store: 'Store',
+  }[kind]
 }
 
 /** Secret field values never enter ordinary view text, search, or status messages. */
@@ -93,7 +120,12 @@ export function displayValue(field, value, language = 'en') {
 /** Modal state owns focus until closed, with cancel selected by default. */
 export function openModal(state, modal) {
   state.gg = 0
-  state.modal = { ...modal, index: 0, returnFocus: state.focus, returnEditor: Boolean(state.editor) }
+  state.modal = {
+    ...modal,
+    index: 0,
+    returnFocus: state.focus,
+    returnEditor: Boolean(state.editor),
+  }
   state.focus = 'modal'
 }
 
