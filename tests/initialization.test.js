@@ -14,11 +14,12 @@ beforeEach(async () => {
   sessions = []
 })
 afterEach(async () => {
-  for (const session of sessions)
-    await session.close()
+  for (const session of sessions) await session.close()
   await fs.rm(project, { recursive: true, force: true })
 })
-const metadata = () => createApp({ name: '示例应用', platforms: ['ios', 'android'], environments: ['preview'] })
+function metadata() {
+  return createApp({ name: '示例应用', platforms: ['ios', 'android'], environments: ['preview'] })
+}
 
 describe('example-first initialization', () => {
   test('generates only selected platform/environment templates without modifying metadata', () => {
@@ -36,8 +37,12 @@ describe('example-first initialization', () => {
     expect(paths).toContain('platforms/ios/config.json.example')
     expect(paths).toContain('platforms/ios/preview/config.json.example')
     expect(paths).toContain('environments/preview.json.example')
-    expect(paths.some(path => path.includes('/production/') || path.includes('/harmony/'))).toBe(false)
-    const signing = examples.find(item => item.path === 'platforms/ios/preview/config.json.example').data
+    expect(paths.some(path => path.includes('/production/') || path.includes('/harmony/'))).toBe(
+      false,
+    )
+    const signing = examples.find(
+      item => item.path === 'platforms/ios/preview/config.json.example',
+    ).data
     expect(signing).toHaveProperty('certificate')
     expect(signing).not.toHaveProperty('bundleId')
     expect(signing.certificatePassword).toBe('')
@@ -58,15 +63,29 @@ describe('example-first initialization', () => {
       expect((await fs.stat(join(file, '..'))).mode & 0o777).toBe(0o700)
     }
     const report = await runDoctor(session)
-    expect(report.some(item => item.status === 'missing' && item.path === 'platforms/ios/config.json')).toBe(true)
-    expect(report.some(item => item.status === 'missing' && item.path === 'environments/preview.json')).toBe(true)
+    expect(
+      report.some(item => item.status === 'missing' && item.path === 'platforms/ios/config.json'),
+    ).toBe(true)
+    expect(
+      report.some(item => item.status === 'missing' && item.path === 'environments/preview.json'),
+    ).toBe(true)
     expect(report.some(item => item.path.endsWith('.example'))).toBe(false)
-    expect(report.some(item => item.status === 'pass' && item.label.includes('file exists'))).toBe(false)
+    expect(
+      report.some(item => item.status === 'pass' && item.label.includes('file exists')),
+    ).toBe(false)
   })
 
   test('rejects unsafe example paths and real-file destinations without publishing a workspace', async () => {
-    for (const path of ['../escape.example', 'platforms/ios/config.json', 'assets/../outside.example']) {
-      await expect(initializeWorkspace(project, metadata(), { examples: [{ path, data: { schemaVersion: 1 } }] })).rejects.toThrow()
+    for (const path of [
+      '../escape.example',
+      'platforms/ios/config.json',
+      'assets/../outside.example',
+    ]) {
+      await expect(
+        initializeWorkspace(project, metadata(), {
+          examples: [{ path, data: { schemaVersion: 1 } }],
+        }),
+      ).rejects.toThrow()
       expect(await fs.readdir(project)).toEqual([])
     }
     expect(initializationExamples(createApp({ name: 'Example' }))).toBeArray()
@@ -75,9 +94,16 @@ describe('example-first initialization', () => {
 
   test('duplicate examples and failed staged imports leave no partial scaffold', async () => {
     const example = { path: 'services/service.json.example', data: { schemaVersion: 1 } }
-    await expect(initializeWorkspace(project, metadata(), { examples: [example, example] })).rejects.toMatchObject({ code: 'FILE_EXISTS' })
+    await expect(
+      initializeWorkspace(project, metadata(), { examples: [example, example] }),
+    ).rejects.toMatchObject({ code: 'FILE_EXISTS' })
     expect(await fs.readdir(project)).toEqual([])
-    await expect(initializeWorkspace(project, metadata(), { examples: [example], imports: [{ source: join(project, 'absent'), destination: 'assets/real.png' }] })).rejects.toThrow()
+    await expect(
+      initializeWorkspace(project, metadata(), {
+        examples: [example],
+        imports: [{ source: join(project, 'absent'), destination: 'assets/real.png' }],
+      }),
+    ).rejects.toThrow()
     expect(await fs.readdir(project)).toEqual([])
   })
 
@@ -85,21 +111,36 @@ describe('example-first initialization', () => {
     const app = metadata()
     const session = await initializeWorkspace(project, app)
     sessions.push(session)
-    await expect(initializeWorkspace(project, app, { examples: initializationExamples(app) })).rejects.toMatchObject({ code: 'WORKSPACE_CONFLICT' })
+    await expect(
+      initializeWorkspace(project, app, { examples: initializationExamples(app) }),
+    ).rejects.toMatchObject({ code: 'WORKSPACE_CONFLICT' })
     expect(await session.list()).toEqual(['app.json'])
     expect((await session.read('app.json')).data).toEqual(app)
   })
 
   test('an existing example credential cannot count as a usable file reference', async () => {
-    const example = { path: 'platforms/ios/preview/certificate.p12.example', data: { schemaVersion: 1, note: 'Not a certificate' } }
-    const document = { path: 'platforms/ios/preview/config.json', data: { schemaVersion: 1, certificate: example.path, provisioningProfile: example.path } }
-    const session = await initializeWorkspace(project, metadata(), { examples: [example], documents: [document] })
+    const example = {
+      path: 'platforms/ios/preview/certificate.p12.example',
+      data: { schemaVersion: 1, note: 'Not a certificate' },
+    }
+    const document = {
+      path: 'platforms/ios/preview/config.json',
+      data: { schemaVersion: 1, certificate: example.path, provisioningProfile: example.path },
+    }
+    const session = await initializeWorkspace(project, metadata(), {
+      examples: [example],
+      documents: [document],
+    })
     sessions.push(session)
     const issues = validateDocument('ios', document.data, { scope: 'signing', language: 'zh' })
-    expect(issues.some(issue => issue.key === 'certificate' && issue.message.includes('占位'))).toBe(true)
+    expect(
+      issues.some(issue => issue.key === 'certificate' && issue.message.includes('占位')),
+    ).toBe(true)
     const report = await runDoctor(session)
     const results = report.filter(item => item.path === document.path)
-    expect(results.some(item => item.status === 'error' && item.label.includes('example placeholder'))).toBe(true)
+    expect(
+      results.some(item => item.status === 'error' && item.label.includes('example placeholder')),
+    ).toBe(true)
     expect(results.some(item => item.status === 'pass')).toBe(false)
   })
 
@@ -109,12 +150,26 @@ describe('example-first initialization', () => {
     expect(app.platforms).toEqual([])
     expect(app.environments).toEqual([])
     for (const kind of platformKinds) {
-      expect(examples.some(item => item.path === `platforms/${kind}/config.json.example`)).toBe(true)
-      expect(examples.some(item => item.path === `platforms/${kind}/development/config.json.example`)).toBe(true)
+      expect(examples.some(item => item.path === `platforms/${kind}/config.json.example`)).toBe(
+        true,
+      )
+      expect(
+        examples.some(item => item.path === `platforms/${kind}/development/config.json.example`),
+      ).toBe(true)
     }
-    expect(examples.some(item => item.path === 'platforms/ios/development/certificate.p12.example')).toBe(true)
-    expect(examples.some(item => item.path === 'platforms/android/production/signing.keystore.example')).toBe(true)
-    expect(examples.some(item => item.path.includes('undefined') || item.path.endsWith('/credentials.example'))).toBe(false)
+    expect(
+      examples.some(item => item.path === 'platforms/ios/development/certificate.p12.example'),
+    ).toBe(true)
+    expect(
+      examples.some(
+        item => item.path === 'platforms/android/production/signing.keystore.example',
+      ),
+    ).toBe(true)
+    expect(
+      examples.some(
+        item => item.path.includes('undefined') || item.path.endsWith('/credentials.example'),
+      ),
+    ).toBe(false)
     expect(await fs.readdir(project)).toEqual([])
   })
 })
