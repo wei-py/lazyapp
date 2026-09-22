@@ -12,33 +12,143 @@
   ],
   "mainPath": ["launch", "browse", "detail", "edit", "save", "quit"],
   "nodes": [
-    { "id": "launch", "lane": "main", "col": 0, "type": "external", "label": "启动 lazyapp", "sublabel": "终端运行" },
-    { "id": "init", "lane": "main", "col": 1, "type": "security", "label": "初始化询问", "sublabel": "无工作区时" },
-    { "id": "browse", "lane": "main", "col": 2, "type": "frontend", "label": "浏览分类与列表", "sublabel": "j/k 移动" },
-    { "id": "detail", "lane": "main", "col": 3, "type": "frontend", "label": "打开详情", "sublabel": "查看字段" },
-    { "id": "edit", "lane": "main", "col": 4, "type": "backend", "label": "编辑字段", "sublabel": "输入·遮蔽" },
-    { "id": "save", "lane": "main", "col": 5, "type": "database", "label": "保存", "sublabel": "Ctrl+s" },
-    { "id": "create", "lane": "branch", "col": 2, "type": "backend", "label": "新建配置", "sublabel": "平台·命名" },
-    { "id": "files", "lane": "branch", "col": 3, "type": "cloud", "label": "文件管理", "sublabel": "导入/引用/删除" },
-    { "id": "confirm", "lane": "branch", "col": 4, "type": "security", "label": "未保存确认", "sublabel": "保存/放弃/取消" },
-    { "id": "quit", "lane": "branch", "col": 5, "type": "external", "label": "退出", "sublabel": "释放工作区" }
+    {
+      "id": "launch",
+      "lane": "main",
+      "col": 0,
+      "type": "external",
+      "label": "启动 lazyapp",
+      "sublabel": "终端运行"
+    },
+    {
+      "id": "init",
+      "lane": "main",
+      "col": 1,
+      "type": "security",
+      "label": "初始化询问",
+      "sublabel": "无工作区时"
+    },
+    {
+      "id": "browse",
+      "lane": "main",
+      "col": 2,
+      "type": "frontend",
+      "label": "浏览分类与列表",
+      "sublabel": "j/k 移动"
+    },
+    {
+      "id": "detail",
+      "lane": "main",
+      "col": 3,
+      "type": "frontend",
+      "label": "打开详情",
+      "sublabel": "查看字段"
+    },
+    {
+      "id": "edit",
+      "lane": "main",
+      "col": 4,
+      "type": "backend",
+      "label": "编辑字段",
+      "sublabel": "输入·遮蔽"
+    },
+    {
+      "id": "save",
+      "lane": "main",
+      "col": 5,
+      "type": "database",
+      "label": "保存",
+      "sublabel": "Ctrl+s"
+    },
+    {
+      "id": "create",
+      "lane": "branch",
+      "col": 2,
+      "type": "backend",
+      "label": "新建配置",
+      "sublabel": "平台·命名"
+    },
+    {
+      "id": "files",
+      "lane": "branch",
+      "col": 3,
+      "type": "cloud",
+      "label": "文件管理",
+      "sublabel": "导入/引用/删除"
+    },
+    {
+      "id": "confirm",
+      "lane": "branch",
+      "col": 4,
+      "type": "security",
+      "label": "未保存确认",
+      "sublabel": "保存/放弃/取消"
+    },
+    {
+      "id": "quit",
+      "lane": "branch",
+      "col": 5,
+      "type": "external",
+      "label": "退出",
+      "sublabel": "释放工作区"
+    }
   ],
   "edges": [
-    { "from": "launch", "to": "init", "label": "无工作区", "variant": "security", "role": "branch" },
-    { "from": "launch", "to": "browse", "label": "有工作区", "variant": "emphasis", "role": "main" },
+    {
+      "from": "launch",
+      "to": "init",
+      "label": "无工作区",
+      "variant": "security",
+      "role": "branch"
+    },
+    {
+      "from": "launch",
+      "to": "browse",
+      "label": "有工作区",
+      "variant": "emphasis",
+      "role": "main"
+    },
     { "from": "init", "to": "browse", "label": "创建后进入" },
     { "from": "browse", "to": "detail", "label": "Enter", "variant": "emphasis", "role": "main" },
     { "from": "browse", "to": "create", "label": "n 新建", "role": "branch" },
     { "from": "create", "to": "edit", "label": "直接编辑", "role": "branch" },
-    { "from": "detail", "to": "edit", "label": "Enter 改字段", "variant": "emphasis", "role": "main" },
+    {
+      "from": "detail",
+      "to": "edit",
+      "label": "Enter 改字段",
+      "variant": "emphasis",
+      "role": "main"
+    },
     { "from": "edit", "to": "save", "label": "Ctrl+s", "variant": "emphasis", "role": "main" },
-    { "from": "edit", "to": "confirm", "label": "离开有改动", "variant": "security", "role": "branch" },
+    {
+      "from": "edit",
+      "to": "confirm",
+      "label": "离开有改动",
+      "variant": "security",
+      "role": "branch"
+    },
     { "from": "confirm", "to": "save", "label": "保存", "role": "branch" },
     { "from": "save", "to": "quit", "label": "q 退出", "variant": "emphasis", "role": "main" },
     { "from": "browse", "to": "files", "label": "f", "role": "branch" }
   ],
   "cards": [
-    { "dot": "emerald", "title": "主流程", "items": ["启动 → 浏览 → 编辑 → 保存 → 退出，一条清晰的主路径", "移动选中项实时刷新详情，切换面板不打断草稿", "只有改变分类、条目、搜索或新建目标时才检查未保存改动"] },
-    { "dot": "rose", "title": "保护与提示", "items": ["未保存确认默认停在取消；放弃/取消永不写盘，保存失败保留草稿", "Doctor 只读检查；敏感值本地明文、界面遮蔽", "文件存在不等于证书有效；设置里切换中文 / English"] }
+    {
+      "dot": "emerald",
+      "title": "主流程",
+      "items": [
+        "启动 → 浏览 → 编辑 → 保存 → 退出，一条清晰的主路径",
+        "移动选中项实时刷新详情，切换面板不打断草稿",
+        "只有改变分类、条目、搜索或新建目标时才检查未保存改动"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "保护与提示",
+      "items": [
+        "未保存确认默认停在取消；放弃/取消永不写盘，保存失败保留草稿",
+        "Doctor 只读检查；敏感值本地明文、界面遮蔽",
+        "文件存在不等于证书有效；设置里切换中文 / English"
+      ]
+    }
   ]
 }
