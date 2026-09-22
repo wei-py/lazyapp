@@ -28,15 +28,15 @@ updated: "2026-07-20"
 ## 层级规范
 
 | 层级 | 语义           | 使用场景                                   |
-| --- | -------------- | ------------------------------------------ |
-|    0 | base           | 普通页面内容                               |
-|   10 | raised         | 卡片 hover、轻微浮起元素                   |
-|  100 | sticky         | sticky 表头、吸顶筛选栏                    |
-|  200 | local-floating | 页面局部浮动按钮、局部工具栏               |
-|  300 | fixed-nav      | 顶部导航、移动端底部导航                   |
-|  400 | dropdown       | Dropdown、Select、DatePicker、Autocomplete |
-|  500 | popover        | Popover、Tooltip、HoverCard                |
-|  800 | overlay-local  | 页面局部遮罩、局部 loading                 |
+| ---- | -------------- | ------------------------------------------ |
+| 0    | base           | 普通页面内容                               |
+| 10   | raised         | 卡片 hover、轻微浮起元素                   |
+| 100  | sticky         | sticky 表头、吸顶筛选栏                    |
+| 200  | local-floating | 页面局部浮动按钮、局部工具栏               |
+| 300  | fixed-nav      | 顶部导航、移动端底部导航                   |
+| 400  | dropdown       | Dropdown、Select、DatePicker、Autocomplete |
+| 500  | popover        | Popover、Tooltip、HoverCard                |
+| 800  | overlay-local  | 页面局部遮罩、局部 loading                 |
 | 1000 | overlay        | 全局遮罩                                   |
 | 1100 | drawer         | Drawer、侧边抽屉                           |
 | 1200 | modal          | Modal、Dialog                              |

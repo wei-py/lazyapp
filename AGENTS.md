@@ -20,13 +20,13 @@ Dependency direction: `src/main.js → app → features → storage / config`. L
 
 `docs/` holds specifications and product notes. Current source organization:
 
-| Path | Responsibility |
-| --- | --- |
-| `src/app/` | Application shell, navigation, focus, lifecycle |
-| `src/features/` | Document loading, validated saves, safe errors, read-only Doctor |
-| `src/storage/` | Configuration I/O, imports, paths, write protection |
-| `src/config/` | Shared schema, field definitions, defaults, canonical document paths |
-| `tests/` | Bun behavioral tests for models, storage, features, and interactions |
+| Path            | Responsibility                                                       |
+| --------------- | -------------------------------------------------------------------- |
+| `src/app/`      | Application shell, navigation, focus, lifecycle                      |
+| `src/features/` | Document loading, validated saves, safe errors, read-only Doctor     |
+| `src/storage/`  | Configuration I/O, imports, paths, write protection                  |
+| `src/config/`   | Shared schema, field definitions, defaults, canonical document paths |
+| `tests/`        | Bun behavioral tests for models, storage, features, and interactions |
 
 Avoid parallel pages/components/layouts/stores hierarchies that duplicate these responsibilities. Assistant-skill assets are not application source or application tests.
 
@@ -34,14 +34,14 @@ Avoid parallel pages/components/layouts/stores hierarchies that duplicate these 
 
 Install with `bun install --frozen-lockfile`; Bun must be on `PATH`.
 
-| Command | Purpose |
-| --- | --- |
-| `bun run dev /absolute/project` | Open that project's TUI; omit the path to use cwd |
-| `bun run lint` | ESLint checks |
-| `bun run lint:fix` | ESLint fixes |
-| `bun test` | Behavior tests using `bun:test` |
-| `bun run build` | Build macOS arm64 executable, release archive, and SHA256SUMS |
-| `bun run smoke:release` | Exercise the extracted release in a PTY with checkout access denied |
+| Command                         | Purpose                                                             |
+| ------------------------------- | ------------------------------------------------------------------- |
+| `bun run dev /absolute/project` | Open that project's TUI; omit the path to use cwd                   |
+| `bun run lint`                  | ESLint checks                                                       |
+| `bun run lint:fix`              | ESLint fixes                                                        |
+| `bun test`                      | Behavior tests using `bun:test`                                     |
+| `bun run build`                 | Build macOS arm64 executable, release archive, and SHA256SUMS       |
+| `bun run smoke:release`         | Exercise the extracted release in a PTY with checkout access denied |
 
 `package.json` declares `lazyapp` as the executable entry point. `bun src/main.js --help` prints usage without requiring a TTY. `scripts/build.js` bundles Bun and OpenTUI native assets; `dist/` is ignored. `.github/workflows/release.yml` validates and publishes GitHub Release assets on `v*` tags matching `package.json`; manual runs validate without publishing. After publication, install with `mise use -g github:wei-py/lazyapp@latest`. See `docs/spec.md` for release instructions and verification limits.
 

@@ -72,49 +72,52 @@ All configs are JSON with `schemaVersion: 1`. Every document has a `kind` determ
 Field types: `text`, `number`, `file`, `secret`. `file` = workspace-relative or absolute path to a real file. `secret` = plaintext credential (masked in UI, never logged).
 
 **app** (`app.json`)
-| Key | Type | Required | Note |
-|-----|------|----------|------|
-| `name` | text | yes | |
-| `description` | text | | |
-| `version` | text | | |
-| `platforms` | text | | comma-separated: android,ios,harmony,windows,macos,miniprogram |
-| `environments` | text | | comma-separated names, e.g. "development,production" |
+
+| Key            | Type | Required | Note                                                           |
+| -------------- | ---- | -------- | -------------------------------------------------------------- |
+| `name`         | text | yes      |                                                                |
+| `description`  | text |          |                                                                |
+| `version`      | text |          |                                                                |
+| `platforms`    | text |          | comma-separated: android,ios,harmony,windows,macos,miniprogram |
+| `environments` | text |          | comma-separated names, e.g. "development,production"           |
 
 **assets** (`assets/config.json`)
 All `file` type: `icon`, `splash`, `screenshots`, `promotionalImage`.
 
 **android** (`platforms/android/config.json` — platform scope)
-| Key | Type | Required |
-|-----|------|----------|
-| `applicationId` | text | yes |
-| `versionCode` | number | |
-| `versionName` | text | |
-| `keystore` | file | yes (signing) |
-| `storePassword` | secret | yes (signing) |
-| `alias` | text | yes (signing) |
-| `keyPassword` | secret | yes (signing) |
-| `serviceAccount` | file | |
-| `googleServices` | file | |
-| `firebaseAppId` | text | |
-| `fcmCredentials` | secret | |
+
+| Key              | Type   | Required      |
+| ---------------- | ------ | ------------- |
+| `applicationId`  | text   | yes           |
+| `versionCode`    | number |               |
+| `versionName`    | text   |               |
+| `keystore`       | file   | yes (signing) |
+| `storePassword`  | secret | yes (signing) |
+| `alias`          | text   | yes (signing) |
+| `keyPassword`    | secret | yes (signing) |
+| `serviceAccount` | file   |               |
+| `googleServices` | file   |               |
+| `firebaseAppId`  | text   |               |
+| `fcmCredentials` | secret |               |
 
 Signing fields live in `platforms/android/<env>/config.json` per environment.
 
 **ios** (`platforms/ios/config.json` — platform scope)
-| Key | Type | Required |
-|-----|------|----------|
-| `bundleId` | text | yes |
-| `teamId` | text | yes |
-| `appleId` | text | |
-| `capabilities` | text | |
-| `certificate` | file | yes (signing) |
-| `certificatePassword` | secret | |
-| `provisioningProfile` | file | yes (signing) |
-| `issuerId` | text | |
-| `keyId` | text | |
-| `privateKey` | file | App Store Connect .p8 |
-| `apnsKey` | file | APNs .p8 |
-| `apnsKeyId` | text | |
+
+| Key                   | Type   | Required              |
+| --------------------- | ------ | --------------------- |
+| `bundleId`            | text   | yes                   |
+| `teamId`              | text   | yes                   |
+| `appleId`             | text   |                       |
+| `capabilities`        | text   |                       |
+| `certificate`         | file   | yes (signing)         |
+| `certificatePassword` | secret |                       |
+| `provisioningProfile` | file   | yes (signing)         |
+| `issuerId`            | text   |                       |
+| `keyId`               | text   |                       |
+| `privateKey`          | file   | App Store Connect .p8 |
+| `apnsKey`             | file   | APNs .p8              |
+| `apnsKeyId`           | text   |                       |
 
 **harmony** — `bundleName`, `bundleType`, `certificate` (.cer), `profile` (.p7b), `keystore` (.p12), `alias`, `storePassword`, `keyPassword`.
 
@@ -136,6 +139,7 @@ Signing fields live in `platforms/android/<env>/config.json` per environment.
 ### Canonical Paths
 
 Derive paths with these rules (`name` must be a safe single directory name):
+
 - `app` → `app.json`
 - `assets` → `assets/config.json`
 - Platform `kind` platform scope → `platforms/<kind>/config.json`
@@ -150,7 +154,7 @@ Derive paths with these rules (`name` must be a safe single directory name):
 
 ```javascript
 // Read app.json — if it parses with schemaVersion: 1, workspace exists
-const appJson = JSON.parse(await Bun.file('<project>/.lazyapp/app.json').text())
+const appJson = JSON.parse(await Bun.file("<project>/.lazyapp/app.json").text());
 ```
 
 ### Load all documents
@@ -213,6 +217,7 @@ Report each check as: pass (exists + valid), fail (missing/invalid), or unchecke
 ## File Import
 
 When asked to import a file into the workspace:
+
 1. Copy the source file to the target workspace-relative path (never move)
 2. Update the referencing config's `file` field to the workspace-relative path
 3. External references (absolute paths) are valid but won't travel with the workspace
@@ -230,6 +235,7 @@ To create a new workspace:
 
 1. Create `<project>/.lazyapp/` directory (mode `0700`)
 2. Write `app.json`:
+
 ```json
 {
   "schemaVersion": 1,
@@ -240,6 +246,7 @@ To create a new workspace:
   "environments": ""
 }
 ```
+
 3. Write `.gitignore` containing `*`
 4. Create directory structure: `assets/icon/`, `assets/splash/`, `assets/screenshots/`, `assets/promotional/`, `platforms/<each>/`, `services/`, `environments/`, `store/`
 5. Platforms and environments start empty — user enables them in TUI later
@@ -247,21 +254,27 @@ To create a new workspace:
 ## Common Agent Tasks
 
 ### "Check my workspace health"
+
 → Read `app.json`, enumerate all docs, check existence + schemaVersion + required fields. Report missing/invalid/unchecked.
 
 ### "What's my iOS Bundle ID?"
+
 → Read `platforms/ios/config.json` → `bundleId` field.
 
 ### "Add a new environment called 'staging'"
+
 → Update `app.json` `environments` to include "staging", then create signing configs for each platform under `platforms/<kind>/staging/config.json` and `environments/staging.json`.
 
 ### "Update the production API URL"
+
 → Read `environments/production.json`, update `apiUrl`, write back preserving other fields.
 
 ### "Import a new keystore for Android production"
+
 → Copy keystore to `platforms/android/production/signing.keystore`, update `keystore` field in `platforms/android/production/config.json` to `platforms/android/production/signing.keystore`.
 
 ### "List all my third-party services"
+
 → List files in `services/` directory, read each `.json` for `name` and `provider` fields.
 
 ## Limitations
