@@ -7,7 +7,10 @@ import { loadPreferences } from '../storage/preferences.js'
 import { initializeWorkspace, workspaceExists } from '../storage/workspace.js'
 
 /** Read one cooked-terminal line without enabling raw mode or touching the alternate screen. */
-export function promptForInitialization(message, { input = process.stdin, output = process.stdout, signal } = {}) {
+export function promptForInitialization(
+  message,
+  { input = process.stdin, output = process.stdout, signal } = {},
+) {
   return new Promise((resolveAnswer, reject) => {
     let answer = ''
     let settled = false
@@ -23,8 +26,7 @@ export function promptForInitialization(message, { input = process.stdin, output
       input.pause()
       if (error)
         reject(error)
-      else
-        resolveAnswer(value)
+      else resolveAnswer(value)
     }
     function onData(chunk) {
       answer += chunk.toString()
@@ -54,21 +56,23 @@ export function promptForInitialization(message, { input = process.stdin, output
     signal?.addEventListener('abort', onAbort, { once: true })
     if (input.readableEnded || input.destroyed)
       onEnd()
-    else
-      input.resume()
+    else input.resume()
   })
 }
 
 /** Return null to enter the TUI, or an exit code. Signals wait for in-flight creation and session cleanup. */
-export async function prepareStartup(projectDir, {
-  input = process.stdin,
-  output = process.stdout,
-  errorOutput = process.stderr,
-  signals = process,
-  prompt = promptForInitialization,
-  preferences = { load: loadPreferences },
-  storage = { exists: workspaceExists, initialize: initializeWorkspace },
-} = {}) {
+export async function prepareStartup(
+  projectDir,
+  {
+    input = process.stdin,
+    output = process.stdout,
+    errorOutput = process.stderr,
+    signals = process,
+    prompt = promptForInitialization,
+    preferences = { load: loadPreferences },
+    storage = { exists: workspaceExists, initialize: initializeWorkspace },
+  } = {},
+) {
   let language = 'en'
   let interrupted = null
   const cancellation = new AbortController()
@@ -81,7 +85,10 @@ export async function prepareStartup(projectDir, {
   }
   const onSigint = () => interrupt(130)
   const onSigterm = () => interrupt(143)
-  const report = error => errorOutput.write(`lazyapp: ${t(language, 'Could not start lazyapp: {message}', { message: safeErrorMessage(error, language) })}\n`)
+  const report = error =>
+    errorOutput.write(
+      `lazyapp: ${t(language, 'Could not start lazyapp: {message}', { message: safeErrorMessage(error, language) })}\n`,
+    )
   signals.on('SIGINT', onSigint)
   signals.on('SIGTERM', onSigterm)
   try {
@@ -99,7 +106,11 @@ export async function prepareStartup(projectDir, {
     }
     if (interrupted !== null)
       return interrupted
-    const answer = await prompt(t(language, 'No lazyapp workspace found. Create one? (y/N): '), { input, output, signal: cancellation.signal })
+    const answer = await prompt(t(language, 'No lazyapp workspace found. Create one? (y/N): '), {
+      input,
+      output,
+      signal: cancellation.signal,
+    })
     if (interrupted !== null)
       return interrupted
     if (typeof answer !== 'string' || !/^(?:y|yes)$/i.test(answer.trim()))

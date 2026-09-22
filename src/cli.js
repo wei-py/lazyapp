@@ -21,8 +21,12 @@ function fail(message, code = 1) {
 
 async function cmdInit(projectDir, options = {}) {
   const dir = resolve(projectDir)
-  if (await workspaceExists(dir))
-    return fail(`Workspace already exists at ${dir}/.lazyapp; use the TUI or other CLI commands to manage it.`, 1)
+  if (await workspaceExists(dir)) {
+    return fail(
+      `Workspace already exists at ${dir}/.lazyapp; use the TUI or other CLI commands to manage it.`,
+      1,
+    )
+  }
   const name = options.name || basename(dir) || 'My App'
   try {
     const { app, examples } = defaultInitialization(name)
@@ -71,14 +75,19 @@ async function cmdList(projectDir, options = {}) {
   try {
     const documents = await loadDocuments(session, { includeExamples: false })
     const kindFilter = options.kind
-    const filtered = kindFilter
-      ? documents.filter(d => d.kind === kindFilter)
-      : documents
+    const filtered = kindFilter ? documents.filter(d => d.kind === kindFilter) : documents
 
     const items = []
     for (const doc of filtered) {
       if (!doc.data) {
-        items.push({ path: doc.path, kind: doc.kind, scope: doc.scope, name: doc.name, environment: doc.environment, missing: true })
+        items.push({
+          path: doc.path,
+          kind: doc.kind,
+          scope: doc.scope,
+          name: doc.name,
+          environment: doc.environment,
+          missing: true,
+        })
         continue
       }
       const summary = {}
@@ -88,11 +97,17 @@ async function cmdList(projectDir, options = {}) {
         if (value !== undefined && value !== null && value !== '') {
           if (field.type === 'secret')
             summary[field.key] = '***'
-          else
-            summary[field.key] = value
+          else summary[field.key] = value
         }
       }
-      items.push({ path: doc.path, kind: doc.kind, scope: doc.scope, name: doc.name, environment: doc.environment, fields: summary })
+      items.push({
+        path: doc.path,
+        kind: doc.kind,
+        scope: doc.scope,
+        name: doc.name,
+        environment: doc.environment,
+        fields: summary,
+      })
     }
     json(items)
     return 0
@@ -157,7 +172,13 @@ async function cmdValidate(projectDir, docPath) {
       json({ path: docPath, kind: identified.kind, scope: identified.scope, status: 'valid' })
       return 0
     }
-    json({ path: docPath, kind: identified.kind, scope: identified.scope, status: 'invalid', issues })
+    json({
+      path: docPath,
+      kind: identified.kind,
+      scope: identified.scope,
+      status: 'invalid',
+      issues,
+    })
     return 1
   }
   catch (error) {
@@ -341,8 +362,11 @@ const COMMANDS = {
       }
       if (positional.length !== 1)
         return { error: 'Usage: lazyapp list <project-dir> [--kind <kind>]' }
-      if (kind && !documentKinds.includes(kind))
-        return { error: `Unknown document kind: ${kind}. Valid kinds: ${documentKinds.join(', ')}` }
+      if (kind && !documentKinds.includes(kind)) {
+        return {
+          error: `Unknown document kind: ${kind}. Valid kinds: ${documentKinds.join(', ')}`,
+        }
+      }
       return { projectDir: positional[0], options: { kind } }
     },
     async run({ projectDir, options }) {

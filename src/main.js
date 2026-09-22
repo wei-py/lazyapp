@@ -23,11 +23,15 @@ export async function main(args = process.argv.slice(2)) {
   }
 
   if (args.length > 1 || args.some(arg => arg.startsWith('-'))) {
-    process.stderr.write('Usage: lazyapp [project-directory]\nRun lazyapp --help for all commands.\n')
+    process.stderr.write(
+      'Usage: lazyapp [project-directory]\nRun lazyapp --help for all commands.\n',
+    )
     return 1
   }
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
-    process.stderr.write('lazyapp requires interactive stdin and stdout TTYs. Run it directly in a terminal.\n')
+    process.stderr.write(
+      'lazyapp requires interactive stdin and stdout TTYs. Run it directly in a terminal.\n',
+    )
     return 1
   }
   const projectDir = resolve(args[0] || process.cwd())
@@ -70,17 +74,32 @@ export async function main(args = process.argv.slice(2)) {
     void finish(143)
   }
   function onFailure() {
-    void finish(1, 'Unexpected runtime failure. Terminal restored; unsaved changes were not committed.')
+    void finish(
+      1,
+      'Unexpected runtime failure. Terminal restored; unsaved changes were not committed.',
+    )
   }
   process.on('SIGINT', onSigint)
   process.on('SIGTERM', onSigterm)
   process.on('uncaughtException', onFailure)
   process.on('unhandledRejection', onFailure)
   try {
-    const [{ createCliRenderer }, { Application }, { createView }] = await Promise.all([import('@opentui/core'), import('./app/controller.js'), import('./app/view.js')])
+    const [{ createCliRenderer }, { Application }, { createView }] = await Promise.all([
+      import('@opentui/core'),
+      import('./app/controller.js'),
+      import('./app/view.js'),
+    ])
     if (cleanup)
       return await done
-    renderer = await createCliRenderer({ exitOnCtrlC: false, exitSignals: [], useMouse: false, consoleMode: 'disabled', openConsoleOnError: false, screenMode: 'alternate-screen', clearOnShutdown: true })
+    renderer = await createCliRenderer({
+      exitOnCtrlC: false,
+      exitSignals: [],
+      useMouse: false,
+      consoleMode: 'disabled',
+      openConsoleOnError: false,
+      screenMode: 'alternate-screen',
+      clearOnShutdown: true,
+    })
     if (cleanup) {
       renderer.destroy()
       return await done
@@ -104,20 +123,27 @@ export async function main(args = process.argv.slice(2)) {
         else if (Array.from(key.name).length === 1)
           text = key.shift ? key.name.toUpperCase() : key.name
       }
-      void app.key({ name: key.name, ctrl: key.ctrl, meta: key.meta, shift: key.shift, text }).catch(onFailure)
+      void app
+        .key({ name: key.name, ctrl: key.ctrl, meta: key.meta, shift: key.shift, text })
+        .catch(onFailure)
     })
     renderer.keyInput.on('paste', (event) => {
       event.preventDefault()
       event.stopPropagation()
       if (app.state.editor?.editing || app.state.modal?.type === 'input') {
-        void app.key({ name: 'paste', text: new TextDecoder().decode(event.bytes) }).catch(onFailure)
+        void app
+          .key({ name: 'paste', text: new TextDecoder().decode(event.bytes) })
+          .catch(onFailure)
       }
     })
     app.update()
     await app.start()
   }
   catch {
-    await finish(1, 'Unable to start the terminal application. Check native OpenTUI support and workspace permissions; source checkouts also require Bun.')
+    await finish(
+      1,
+      'Unable to start the terminal application. Check native OpenTUI support and workspace permissions; source checkouts also require Bun.',
+    )
   }
   return await done
 }

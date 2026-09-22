@@ -41,11 +41,14 @@ describe('plain-terminal startup', () => {
   for (const answer of ['', 'n', 'no', 'NO', 'anything', null]) {
     test(`declines ${JSON.stringify(answer)} without writes`, async () => {
       let asked = 0
-      const result = await prepareStartup(project, { ...options, prompt: async (message) => {
-        asked++
-        expect(message).toBe('No lazyapp workspace found. Create one? (y/N): ')
-        return answer
-      } })
+      const result = await prepareStartup(project, {
+        ...options,
+        prompt: async (message) => {
+          asked++
+          expect(message).toBe('No lazyapp workspace found. Create one? (y/N): ')
+          return answer
+        },
+      })
       expect(result).toBe(0)
       expect(asked).toBe(1)
       expect(await fs.readdir(project)).toEqual([])
@@ -57,10 +60,15 @@ describe('plain-terminal startup', () => {
   for (const answer of ['y', 'Y', 'yes', 'YeS']) {
     test(`accepts ${answer}, publishes examples and releases the lock before TUI entry`, async () => {
       let asked = 0
-      expect(await prepareStartup(project, { ...options, prompt: async () => {
-        asked++
-        return answer
-      } })).toBeNull()
+      expect(
+        await prepareStartup(project, {
+          ...options,
+          prompt: async () => {
+            asked++
+            return answer
+          },
+        }),
+      ).toBeNull()
       expect(asked).toBe(1)
       expect(await fs.readdir(project)).toEqual(['.lazyapp'])
       const session = await openWorkspace(project)
@@ -86,10 +94,15 @@ describe('plain-terminal startup', () => {
     const text = '{"schemaVersion":1,"language":"zh","retained":true}\n'
     await fs.writeFile(join(directory, 'settings.json'), text)
     let asked
-    expect(await prepareStartup(project, { ...options, prompt: async (message) => {
-      asked = message
-      return ''
-    } })).toBe(0)
+    expect(
+      await prepareStartup(project, {
+        ...options,
+        prompt: async (message) => {
+          asked = message
+          return ''
+        },
+      }),
+    ).toBe(0)
     expect(asked).toContain('(y/N): ')
     expect(asked).not.toContain('No lazyapp workspace found.')
     expect(await fs.readFile(join(directory, 'settings.json'), 'utf8')).toBe(text)
@@ -100,11 +113,18 @@ describe('plain-terminal startup', () => {
     const directory = join(project, 'preferences')
     await fs.mkdir(directory)
     await fs.writeFile(join(directory, 'settings.json'), 'invalid')
-    expect(await prepareStartup(project, {
-      ...options,
-      prompt: async () => 'yes',
-      storage: { exists: workspaceExists, initialize: async () => { throw Object.assign(new Error('secret-value'), { code: 'EACCES' }) } },
-    })).toBe(1)
+    expect(
+      await prepareStartup(project, {
+        ...options,
+        prompt: async () => 'yes',
+        storage: {
+          exists: workspaceExists,
+          initialize: async () => {
+            throw Object.assign(new Error('secret-value'), { code: 'EACCES' })
+          },
+        },
+      }),
+    ).toBe(1)
     expect(errors).toHaveLength(2)
     expect(errors[0]).toContain('preference is invalid')
     expect(errors[1]).toContain('Permission denied')
@@ -128,11 +148,19 @@ describe('plain-terminal startup', () => {
           await fs.writeFile(join(root, 'app.json'), 'invalid')
       }
       expect(await workspaceExists(project)).toBe(true)
-      expect(await prepareStartup(project, {
-        ...options,
-        preferences: { load: async () => { throw new Error('Existing startup must leave preference handling to the application') } },
-        prompt: async () => { throw new Error('Existing target must not prompt') },
-      })).toBeNull()
+      expect(
+        await prepareStartup(project, {
+          ...options,
+          preferences: {
+            load: async () => {
+              throw new Error('Existing startup must leave preference handling to the application')
+            },
+          },
+          prompt: async () => {
+            throw new Error('Existing target must not prompt')
+          },
+        }),
+      ).toBeNull()
       expect(errors).toEqual([])
       await expect(openWorkspace(project)).rejects.toThrow()
       expect(await fs.readdir(project)).toEqual(['.lazyapp'])
@@ -142,16 +170,20 @@ describe('plain-terminal startup', () => {
         expect(await fs.readdir(root)).toEqual([])
       else if (kind === 'corrupt')
         expect(await fs.readFile(join(root, 'app.json'), 'utf8')).toBe('invalid')
-      else
-        expect(await fs.readlink(root)).toBe(join(project, 'absent'))
+      else expect(await fs.readlink(root)).toBe(join(project, 'absent'))
     })
   }
 
   test('opens an existing valid workspace without confirmation or preference writes', async () => {
     expect(await prepareStartup(project, { ...options, prompt: async () => 'yes' })).toBeNull()
-    expect(await prepareStartup(project, { ...options, prompt: async () => {
-      throw new Error('Must not prompt twice')
-    } })).toBeNull()
+    expect(
+      await prepareStartup(project, {
+        ...options,
+        prompt: async () => {
+          throw new Error('Must not prompt twice')
+        },
+      }),
+    ).toBeNull()
     expect(errors).toEqual([])
     expect(await fs.readdir(project)).toEqual(['.lazyapp'])
   })
@@ -162,19 +194,29 @@ describe('plain-terminal startup', () => {
     await fs.mkdir(child)
     expect(await workspaceExists(child)).toBe(false)
     let asked = 0
-    expect(await prepareStartup(child, { ...options, prompt: async () => {
-      asked++
-      return 'n'
-    } })).toBe(0)
+    expect(
+      await prepareStartup(child, {
+        ...options,
+        prompt: async () => {
+          asked++
+          return 'n'
+        },
+      }),
+    ).toBe(0)
     expect(asked).toBe(1)
     expect(await fs.readdir(child)).toEqual([])
   })
 
   test('never overwrites a target appearing after confirmation', async () => {
-    expect(await prepareStartup(project, { ...options, prompt: async () => {
-      await fs.mkdir(join(project, '.lazyapp'))
-      return 'yes'
-    } })).toBe(1)
+    expect(
+      await prepareStartup(project, {
+        ...options,
+        prompt: async () => {
+          await fs.mkdir(join(project, '.lazyapp'))
+          return 'yes'
+        },
+      }),
+    ).toBe(1)
     expect(await fs.readdir(join(project, '.lazyapp'))).toEqual([])
     expect(errors.join('')).toContain('already exists')
   })
@@ -192,11 +234,15 @@ describe('plain-terminal startup', () => {
 
   test('input closing before a complete line declines without creating files', async () => {
     const input = lineInput()
-    const pending = prepareStartup(project, { ...options, input, prompt: (message, streams) => {
-      const answer = promptForInitialization(message, streams)
-      input.destroy()
-      return answer
-    } })
+    const pending = prepareStartup(project, {
+      ...options,
+      input,
+      prompt: (message, streams) => {
+        const answer = promptForInitialization(message, streams)
+        input.destroy()
+        return answer
+      },
+    })
     expect(await pending).toBe(0)
     expect(messages.at(-1)).toBe('\n')
     expect(await fs.readdir(project)).toEqual([])
@@ -215,11 +261,15 @@ describe('plain-terminal startup', () => {
   test('Ctrl+C cancels the pending prompt with newline and no writes', async () => {
     const input = lineInput()
     const asked = Promise.withResolvers()
-    const pending = prepareStartup(project, { ...options, input, prompt: (message, streams) => {
-      const result = promptForInitialization(message, streams)
-      asked.resolve()
-      return result
-    } })
+    const pending = prepareStartup(project, {
+      ...options,
+      input,
+      prompt: (message, streams) => {
+        const result = promptForInitialization(message, streams)
+        asked.resolve()
+        return result
+      },
+    })
     await asked.promise
     signals.emit('SIGINT')
     expect(await pending).toBe(130)
@@ -237,15 +287,20 @@ describe('plain-terminal startup', () => {
     const pending = prepareStartup(project, {
       ...options,
       prompt: async () => 'yes',
-      storage: { exists: workspaceExists, initialize: async (...args) => {
-        entered.resolve()
-        await resume.promise
-        const session = await initializeWorkspace(...args)
-        return { close: async () => {
-          await session.close()
-          closed = true
-        } }
-      } },
+      storage: {
+        exists: workspaceExists,
+        initialize: async (...args) => {
+          entered.resolve()
+          await resume.promise
+          const session = await initializeWorkspace(...args)
+          return {
+            close: async () => {
+              await session.close()
+              closed = true
+            },
+          }
+        },
+      },
     })
     pending.then(() => {
       settled = true
