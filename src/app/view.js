@@ -2,10 +2,12 @@ import process from 'node:process'
 import { fg, StyledText, TextRenderable } from '@opentui/core'
 import stringWidth from 'string-width'
 import { LANGUAGES, t } from '../config/i18n.js'
+import { DEFAULT_THEME, themeColors, themeName } from '../config/themes.js'
 import { doctorLabel } from '../features/workspace.js'
-import { CATEGORIES, displayValue, isDirty, layoutMode } from './state.js'
+import { CATEGORIES, displayValue, isDirty, layoutMode, preferenceItems } from './state.js'
 
-const COLORS = { text: '#d4d4d4', muted: '#999999', warning: '#e5c07b', error: '#e06c75', present: '#87d787', border: '#767676', focus: '#87d787', background: '#101010', selection: '#87afff', selectionText: '#101010' }
+// One view per process; each render swaps in the palette before drawing.
+let COLORS = themeColors(DEFAULT_THEME)
 const SEGMENTS = new Intl.Segmenter(undefined, { granularity: 'grapheme' })
 const PANEL_IDS = ['nav', 'list', 'detail']
 const PANEL_FOCUS = { nav: 'nav', list: 'list', detail: 'form' }
@@ -117,15 +119,14 @@ function listTitle(s) {
     return t(s.language, 'Managed files')
   if (CATEGORIES[s.category] === 'Doctor')
     return t(s.language, 'Doctor results')
-  if (CATEGORIES[s.category] === 'Settings')
-    return 'Language / 语言'
   return t(s.language, '{category} documents', { category: t(s.language, CATEGORIES[s.category]) })
 }
 
 function listContent(s, app, rows) {
   if (CATEGORIES[s.category] === 'Settings') {
-    const entries = LANGUAGES.map(item => `${item.id === s.language ? '* ' : '  '}${item.label}`)
-    return { title: 'Language / 语言', ...windowContent(entries, s.settingsIndex, rows) }
+    const active = item => item.kind === 'theme' ? item.id === s.theme : item.id === s.language
+    const entries = preferenceItems().map(item => `${active(item) ? '●' : '○'} ${item.name}`)
+    return { title: 'Settings / 设置', ...windowContent(entries, s.settingsIndex, rows) }
   }
   const items = app.items()
   const doctor = CATEGORIES[s.category] === 'Doctor' && !s.files
@@ -196,10 +197,10 @@ function previewContent(s, app, rows, width) {
     title = 'Settings / 设置'
     text = [
       t(s.language, 'Current language: {language}', { language: LANGUAGES.find(item => item.id === s.language).label }),
-      t(s.language, 'Selected language: {language}', { language: LANGUAGES[s.settingsIndex].label }),
+      t(s.language, 'Current theme: {theme}', { theme: themeName(s.theme) }),
       '',
-      t(s.language, 'Press Enter to apply and save your language preference.'),
-      t(s.language, 'Only interface text changes. Your workspace data is untouched.'),
+      t(s.language, 'Press Enter to apply and save the selected setting.'),
+      t(s.language, 'Only interface language and colors change. Your workspace data is untouched.'),
     ]
   }
   else if (item) {
@@ -234,7 +235,7 @@ function keyHints(s) {
   if (s.editor?.editing)
     return t(s.language, 'TEXT INPUT: Enter accept | Esc restore | Ctrl+s save | shortcuts type normally')
   if (CATEGORIES[s.category] === 'Settings')
-    return s.focus === 'nav' ? t(s.language, 'j/k category | Enter to list | Tab/1/2/3 panel | ? help | q quit') : t(s.language, 'j/k language | Enter apply | Tab/1/2/3 panel | Esc back | ? help | q quit')
+    return s.focus === 'nav' ? t(s.language, 'j/k category | Enter to list | Tab/1/2/3 panel | ? help | q quit') : t(s.language, 'j/k setting | Enter apply | Tab/1/2/3 panel | Esc back | ? help | q quit')
   if (s.focus === 'form' && s.editor)
     return t(s.language, 'Enter edit field | j/k field | Ctrl+s save | v full value | Esc to list | ? help | q quit')
   if (s.focus === 'form')
@@ -302,6 +303,7 @@ export function createView(renderer) {
     s.width = renderer.width
     s.height = renderer.height
     const { width, height } = s
+    COLORS = themeColors(s.theme)
     const mode = layoutMode(width, height)
     for (const node of Object.values(nodes)) node.visible = false
     if (mode === 'small') {
@@ -313,21 +315,18 @@ export function createView(renderer) {
       return
     }
     if (mode === 'dual') {
-      const panelHeight = height - 1
-      const leftWidth = Math.floor(width * 0.32)
-      const detailLeft = leftWidth + 1
+      // 1:2:2 nav:list:detail columns, matching lazymise's dual geometry.
+      const navWidth = Math.floor((width - 2) / 5)
+      const listWidth = Math.floor((width - navWidth - 2) / 2)
+      const detailLeft = navWidth + listWidth + 2
       const detailWidth = width - detailLeft
-      const workspaceHeight = 4
-      const statusHeight = 4
-      const navRows = CATEGORIES.length
-      const navHeight = Math.max(4, Math.min(panelHeight - workspaceHeight - 5, navRows + 2))
-      const listHeight = panelHeight - workspaceHeight - navHeight
-      box('workspace', 0, 0, leftWidth, workspaceHeight, workspaceContent(s, leftWidth - 3))
-      panel('nav', 0, workspaceHeight, leftWidth, navHeight, navContent(s, navHeight - 2), s)
-      panel('list', 0, workspaceHeight + navHeight, leftWidth, listHeight, listContent(s, app, listHeight - 2), s)
-      const detailHeight = panelHeight - statusHeight
-      panel('detail', detailLeft, 0, detailWidth, detailHeight, detailContent(s, app, detailHeight - 2, detailWidth - 3), s)
-      box('status', detailLeft, detailHeight, detailWidth, statusHeight, { title: t(s.language, s.error ? 'Error' : s.busy ? 'Working' : 'Status'), lines: wrap(s.status, detailWidth - 3) }, COLORS.border, s.error ? COLORS.error : s.busy ? COLORS.warning : COLORS.muted)
+      const panelHeight = height - 9
+      const rows = panelHeight - 2
+      box('workspace', 0, 0, width, 4, workspaceContent(s, width - 3))
+      panel('nav', 1, 4, navWidth, panelHeight, navContent(s, rows), s)
+      panel('list', navWidth + 1, 4, listWidth, panelHeight, listContent(s, app, rows), s)
+      panel('detail', detailLeft, 4, detailWidth, panelHeight, detailContent(s, app, rows, detailWidth - 3), s)
+      box('status', 0, height - 5, width, 4, { title: t(s.language, s.error ? 'Error' : s.busy ? 'Working' : 'Status'), lines: wrap(s.status, width - 3) }, COLORS.border, s.error ? COLORS.error : s.busy ? COLORS.warning : COLORS.muted)
     }
     else {
       const panelTop = 3

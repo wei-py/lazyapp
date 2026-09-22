@@ -1,10 +1,11 @@
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { LANGUAGES, t } from '../config/i18n.js'
 import { documentFields, documentPath, isSafeName } from '../config/model.js'
+import { DEFAULT_THEME, isTheme } from '../config/themes.js'
 import { doctorLabel, identifyDocument, loadDocuments, logicalFiles, runDoctor, safeErrorMessage, saveDocument } from '../features/workspace.js'
 import { loadPreferences, savePreferences } from '../storage/preferences.js'
 import { inspectExternalReference, openWorkspace } from '../storage/workspace.js'
-import { CATEGORIES, categoryFor, closeModal, editDocument, editText, fieldValue, isDirty, layoutMode, openModal, PLATFORM_KINDS, setField } from './state.js'
+import { CATEGORIES, categoryFor, closeModal, editDocument, editText, fieldValue, isDirty, layoutMode, openModal, PLATFORM_KINDS, preferenceItems, setField } from './state.js'
 
 /** Owns drafts, focus, async transitions, and dispatch; disk effects stay in storage. */
 export class Application {
@@ -13,7 +14,7 @@ export class Application {
     this.render = render
     this.exit = exit
     this.preferences = preferences
-    this.state = { language: 'en', settingsIndex: 1, root: join(this.projectDir, '.lazyapp'), documents: [], category: 0, selected: 0, focus: 'list', editor: null, modal: null, status: 'Reading workspace…', busy: null, error: false, search: '', gg: 0, width: 100, height: 24, doctor: [], doctorIndex: 0, doctorLoaded: false, detailScroll: 0, files: null }
+    this.state = { language: 'en', theme: DEFAULT_THEME, settingsIndex: 1, root: join(this.projectDir, '.lazyapp'), documents: [], category: 0, selected: 0, focus: 'list', editor: null, modal: null, status: 'Reading workspace…', busy: null, error: false, search: '', gg: 0, width: 100, height: 24, doctor: [], doctorIndex: 0, doctorLoaded: false, detailScroll: 0, files: null }
     this.generation = 0
     this.closed = false
   }
@@ -26,12 +27,23 @@ export class Application {
     if (!LANGUAGES.some(item => item.id === language) || this.state.busy)
       return false
     return this.operation(this.t('Saving language preference'), async () => {
-      await this.preferences.save({ language })
+      await this.preferences.save({ language, theme: this.state.theme })
       this.state.language = language
-      this.state.settingsIndex = LANGUAGES.findIndex(item => item.id === language)
+      this.state.settingsIndex = preferenceItems().findIndex(item => item.kind === 'language' && item.id === language)
       for (const result of this.state.doctor)
         result.label = doctorLabel(result, language)
       this.state.status = this.t('Language preference saved.')
+    }, true)
+  }
+
+  async setTheme(id) {
+    if (!isTheme(id) || this.state.busy)
+      return false
+    return this.operation(this.t('Saving theme preference'), async () => {
+      await this.preferences.save({ language: this.state.language, theme: id })
+      this.state.theme = id
+      this.state.settingsIndex = preferenceItems().findIndex(item => item.kind === 'theme' && item.id === id)
+      this.state.status = this.t('Theme preference saved.')
     }, true)
   }
 
@@ -103,7 +115,8 @@ export class Application {
       try {
         const preferences = await this.preferences.load()
         this.state.language = preferences.language
-        this.state.settingsIndex = LANGUAGES.findIndex(item => item.id === preferences.language)
+        this.state.theme = preferences.theme ?? DEFAULT_THEME
+        this.state.settingsIndex = preferenceItems().findIndex(item => item.kind === 'language' && item.id === preferences.language)
       }
       catch (error) {
         preferenceError = error
@@ -656,7 +669,11 @@ export class Application {
         this.focusPanel('list')
       }
       else if (CATEGORIES[s.category] === 'Settings') {
-        await this.setLanguage(LANGUAGES[s.settingsIndex].id)
+        const item = preferenceItems()[s.settingsIndex]
+        if (item?.kind === 'theme')
+          await this.setTheme(item.id)
+        else if (item)
+          await this.setLanguage(item.id)
       }
       else if (s.focus === 'list') {
         const item = this.items()[s.selected]
@@ -725,7 +742,7 @@ export class Application {
     if (s.focus === 'nav')
       await this.selectCategory(move(s.category, CATEGORIES.length))
     else if (CATEGORIES[s.category] === 'Settings')
-      await this.selectItem(move(s.settingsIndex, LANGUAGES.length))
+      await this.selectItem(move(s.settingsIndex, preferenceItems().length))
     else if (s.focus === 'form' && editor)
       editor.index = move(editor.index, this.fields().length + 1)
     else if (s.focus === 'form')

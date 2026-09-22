@@ -1,4 +1,5 @@
-import { t } from '../config/i18n.js'
+import { LANGUAGES, t } from '../config/i18n.js'
+import { THEMES } from '../config/themes.js'
 
 export const CATEGORIES = ['App', 'Assets', 'Platforms', 'Services', 'Environments', 'Store', 'Doctor', 'Settings']
 export const PLATFORM_KINDS = ['android', 'ios', 'harmony', 'windows', 'macos', 'miniprogram']
@@ -10,6 +11,14 @@ export function layoutMode(width, height) {
   if (width >= 60 && width < 100 && height >= 16)
     return 'single'
   return 'small'
+}
+
+/** Settings list: languages first so their indexes stay stable, then theme palettes. */
+export function preferenceItems() {
+  return [
+    ...LANGUAGES.map(item => ({ kind: 'language', id: item.id, name: item.label })),
+    ...THEMES.map(theme => ({ kind: 'theme', id: theme.id, name: theme.name })),
+  ]
 }
 
 /** A disk snapshot and editable draft never share mutable values. */

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '../src/app/controller.js'
-import { CATEGORIES, editDocument, isDirty } from '../src/app/state.js'
+import { CATEGORIES, editDocument, isDirty, preferenceItems } from '../src/app/state.js'
 import { t } from '../src/config/i18n.js'
 import { doctorLabel, runDoctor, safeErrorMessage } from '../src/features/workspace.js'
 import { loadPreferences, savePreferences } from '../src/storage/preferences.js'
@@ -40,7 +40,7 @@ describe('language settings interactions', () => {
     app.state.settingsIndex = 0
     await press(app, 'return')
     expect(app.state.language).toBe('zh')
-    expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({ language: 'zh' })
+    expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({ language: 'zh', theme: 'default' })
     const reopened = application()
     await fs.mkdir(join(root, 'project'))
     const session = await initializeWorkspace(join(root, 'project'), APP)
@@ -52,7 +52,17 @@ describe('language settings interactions', () => {
     expect(reopened.state.status).toMatch(/[\u3400-\u9FFF]/u)
     await app.setLanguage('en')
     expect(app.state.language).toBe('en')
-    expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({ language: 'en' })
+    expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({ language: 'en', theme: 'default' })
+  })
+
+  test('theme rows apply and persist a palette without touching language', async () => {
+    const app = application()
+    await app.selectCategory(CATEGORIES.indexOf('Settings'))
+    app.state.settingsIndex = preferenceItems().findIndex(item => item.kind === 'theme' && item.id === 'gruvbox-dark')
+    await press(app, 'return')
+    expect(app.state.theme).toBe('gruvbox-dark')
+    expect(app.state.language).toBe('en')
+    expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({ language: 'en', theme: 'gruvbox-dark' })
   })
 
   test('missing workspace reports a localized error without an initialization dialog or writes', async () => {
