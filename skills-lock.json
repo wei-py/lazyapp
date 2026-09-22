@@ -8,10 +8,10 @@
       "computedHash": "f52b30468fcccabb55357ae19d531059ca460fbbca77727946287413cc5cc027"
     },
     "opentui": {
-      "source": "msmps/opentui-skill",
+      "source": "anomalyco/opentui",
       "sourceType": "github",
-      "skillPath": "skill/opentui/SKILL.md",
-      "computedHash": "7244056422f5d578beaffc95ae20a4b421923f70a8eb6a4decf49b3d79c0d2db"
+      "skillPath": "packages/web/src/content/SKILL.md",
+      "computedHash": "08c2eb10c691c467f9e13ececf375849b4ee045d9249342210a5b9f602872823"
     }
   }
 }
