@@ -106,7 +106,7 @@ describe('plain-terminal startup', () => {
       storage: { exists: workspaceExists, initialize: async () => { throw Object.assign(new Error('secret-value'), { code: 'EACCES' }) } },
     })).toBe(1)
     expect(errors).toHaveLength(2)
-    expect(errors[0]).toContain('language preference is invalid')
+    expect(errors[0]).toContain('preference is invalid')
     expect(errors[1]).toContain('Permission denied')
     expect(errors.join('')).not.toContain('secret-value')
     expect(await fs.readFile(join(directory, 'settings.json'), 'utf8')).toBe('invalid')

@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { isAbsolute, join } from 'node:path'
 import process from 'node:process'
+import { DEFAULT_THEME, isTheme } from '../config/themes.js'
 
 function directoryFor(options) {
   if (options.directory)
@@ -12,7 +13,7 @@ function directoryFor(options) {
 }
 
 function invalidPreferences() {
-  return Object.assign(new Error('Language settings are invalid; the existing file was not changed.'), { code: 'PREFERENCES_INVALID' })
+  return Object.assign(new Error('Settings are invalid; the existing file was not changed.'), { code: 'PREFERENCES_INVALID' })
 }
 
 async function readSettings(directory) {
@@ -33,13 +34,13 @@ async function readSettings(directory) {
         throw invalidPreferences()
       throw error
     }
-    if (!data || Array.isArray(data) || data.schemaVersion !== 1 || !['en', 'zh'].includes(data.language))
+    if (!data || Array.isArray(data) || data.schemaVersion !== 1 || !['en', 'zh'].includes(data.language) || (data.theme !== undefined && !isTheme(data.theme)))
       throw invalidPreferences()
     return data
   }
   catch (error) {
     if (error.code === 'ENOENT')
-      return { schemaVersion: 1, language: 'en' }
+      return { schemaVersion: 1, language: 'en', theme: DEFAULT_THEME }
     throw error
   }
 }
@@ -47,12 +48,12 @@ async function readSettings(directory) {
 /** Read personal UI preferences without creating files or touching App workspaces. */
 export async function loadPreferences(options = {}) {
   const data = await readSettings(directoryFor(options))
-  return { language: data.language }
+  return { language: data.language, theme: data.theme ?? DEFAULT_THEME }
 }
 
-/** Atomically persist a supported language; corrupt or unsupported files are never replaced. */
-export async function savePreferences({ language }, options = {}) {
-  if (!['en', 'zh'].includes(language))
+/** Atomically persist supported language and theme; corrupt or unsupported files are never replaced. */
+export async function savePreferences({ language, theme = DEFAULT_THEME }, options = {}) {
+  if (!['en', 'zh'].includes(language) || !isTheme(theme))
     throw invalidPreferences()
   const directory = directoryFor(options)
   await fs.mkdir(directory, { recursive: true, mode: 0o700 })
@@ -66,13 +67,13 @@ export async function savePreferences({ language }, options = {}) {
   }
   catch (error) {
     if (error.code === 'EEXIST')
-      throw Object.assign(new Error('Language settings are being written by another instance.'), { code: 'PREFERENCES_BUSY' })
+      throw Object.assign(new Error('Settings are being written by another instance.'), { code: 'PREFERENCES_BUSY' })
     throw error
   }
   const temporary = join(directory, `.settings-${randomUUID()}.tmp`)
   try {
     const data = await readSettings(directory)
-    await fs.writeFile(temporary, `${JSON.stringify({ ...data, language }, null, 2)}\n`, { flag: 'wx', mode: 0o600 })
+    await fs.writeFile(temporary, `${JSON.stringify({ ...data, language, theme }, null, 2)}\n`, { flag: 'wx', mode: 0o600 })
     await fs.rename(temporary, join(directory, 'settings.json'))
   }
   finally {

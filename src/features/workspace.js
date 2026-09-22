@@ -24,8 +24,8 @@ export function identifyDocument(path) {
 /** Safe user-facing summaries: unknown exception messages may contain secrets and are not echoed. */
 export function safeErrorMessage(error, language = 'en') {
   const messages = {
-    PREFERENCES_INVALID: 'The language preference is invalid or unsafe. Repair the settings file before retrying; it was not overwritten.',
-    PREFERENCES_BUSY: 'Language preferences are being saved by another instance. Retry when it finishes.',
+    PREFERENCES_INVALID: 'A saved preference is invalid or unsafe. Repair the settings file before retrying; it was not overwritten.',
+    PREFERENCES_BUSY: 'Preferences are being saved by another instance. Retry when it finishes.',
     VALIDATION_FAILED: 'Configuration validation failed. Check the highlighted fields.',
     REVISION_CONFLICT: 'The file changed outside this editor. Reload before saving; your draft was retained.',
     WORKSPACE_MISSING: 'No workspace exists. Initialize this project first.',
