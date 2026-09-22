@@ -13,7 +13,9 @@ function directoryFor(options) {
 }
 
 function invalidPreferences() {
-  return Object.assign(new Error('Settings are invalid; the existing file was not changed.'), { code: 'PREFERENCES_INVALID' })
+  return Object.assign(new Error('Settings are invalid; the existing file was not changed.'), {
+    code: 'PREFERENCES_INVALID',
+  })
 }
 
 async function readSettings(directory) {
@@ -34,8 +36,15 @@ async function readSettings(directory) {
         throw invalidPreferences()
       throw error
     }
-    if (!data || Array.isArray(data) || data.schemaVersion !== 1 || !['en', 'zh'].includes(data.language) || (data.theme !== undefined && !isTheme(data.theme)))
+    if (
+      !data
+      || Array.isArray(data)
+      || data.schemaVersion !== 1
+      || !['en', 'zh'].includes(data.language)
+      || (data.theme !== undefined && !isTheme(data.theme))
+    ) {
       throw invalidPreferences()
+    }
     return data
   }
   catch (error) {
@@ -66,14 +75,20 @@ export async function savePreferences({ language, theme = DEFAULT_THEME }, optio
     lock = await fs.open(lockPath, 'wx', 0o600)
   }
   catch (error) {
-    if (error.code === 'EEXIST')
-      throw Object.assign(new Error('Settings are being written by another instance.'), { code: 'PREFERENCES_BUSY' })
+    if (error.code === 'EEXIST') {
+      throw Object.assign(new Error('Settings are being written by another instance.'), {
+        code: 'PREFERENCES_BUSY',
+      })
+    }
     throw error
   }
   const temporary = join(directory, `.settings-${randomUUID()}.tmp`)
   try {
     const data = await readSettings(directory)
-    await fs.writeFile(temporary, `${JSON.stringify({ ...data, language, theme }, null, 2)}\n`, { flag: 'wx', mode: 0o600 })
+    await fs.writeFile(temporary, `${JSON.stringify({ ...data, language, theme }, null, 2)}\n`, {
+      flag: 'wx',
+      mode: 0o600,
+    })
     await fs.rename(temporary, join(directory, 'settings.json'))
   }
   finally {
