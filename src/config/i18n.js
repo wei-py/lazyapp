@@ -43,39 +43,53 @@ const chinese = {
   'warning': '警告',
   'error': '错误',
   'unchecked': '未检查',
-  'File existence is not certificate validity or release readiness.': '文件存在不代表证书有效或已准备好发布。',
+  'File existence is not certificate validity or release readiness.':
+    '文件存在不代表证书有效或已准备好发布。',
   '{category} documents': '{category}文档',
   'Search: {query}': '搜索：{query}',
   'Path: {path}': '路径：{path}',
   'Kind: {kind}': '类型：{kind}',
   '{kind} details': '{kind}详情',
-  'Checks: {total} | pass {pass} | missing {missing} | warning {warning} | error {error} | unchecked {unchecked}': '检查：{total} | 通过 {pass} | 缺失 {missing} | 警告 {warning} | 错误 {error} | 未检查 {unchecked}',
+  'Checks: {total} | pass {pass} | missing {missing} | warning {warning} | error {error} | unchecked {unchecked}':
+    '检查：{total} | 通过 {pass} | 缺失 {missing} | 警告 {warning} | 错误 {error} | 未检查 {unchecked}',
   'Current language: {language}': '当前语言：{language}',
   'Current theme: {theme}': '当前主题：{theme}',
   'Press Enter to apply and save the selected setting.': '按 Enter 应用并保存所选设置。',
-  'Only interface language and colors change. Your workspace data is untouched.': '仅更改界面语言与配色，不修改工作区数据。',
+  'Only interface language and colors change. Your workspace data is untouched.':
+    '仅更改界面语言与配色，不修改工作区数据。',
   'Language preference saved.': '语言偏好已保存。',
   'Theme preference saved.': '主题偏好已保存。',
   'Saving language preference': '正在保存语言偏好',
   'Saving theme preference': '正在保存主题偏好',
   'Reading preferences': '正在读取偏好设置',
-  'Preferences could not be loaded. Settings were not changed. {error}': '无法加载偏好设置，设置未被修改。{error}',
+  'Preferences could not be loaded. Settings were not changed. {error}':
+    '无法加载偏好设置，设置未被修改。{error}',
   'Terminal too small.': '终端窗口太小。',
   'Need 60 columns x 16 rows.': '至少需要 60 列 × 16 行。',
   'Resize, or q / Ctrl+c to quit.': '调整窗口大小，或按 q / Ctrl+c 退出。',
   'Too small to edit this input.': '窗口太小，无法编辑此输入。',
   'Arrows choose; Enter confirms; Esc cancels.': '方向键选择；Enter 确认；Esc 取消。',
   '[PgUp/PgDn: more details]': '[PgUp/PgDn：更多详情]',
-  'TEXT DIALOG: Enter submit | Esc cancel | arrows move cursor': '文本对话框：Enter 提交 | Esc 取消 | 方向键移动光标',
-  'DIALOG: Enter confirms | Esc cancels | arrows/Tab choose | PgUp/PgDn details': '对话框：Enter 确认 | Esc 取消 | 方向键/Tab 选择 | PgUp/PgDn 详情',
-  'TEXT INPUT: Enter accept | Esc restore | Ctrl+s save | shortcuts type normally': '文本输入：Enter 接受 | Esc 恢复 | Ctrl+s 保存 | 快捷键按普通文字输入',
-  'Enter edit field | j/k field | Ctrl+s save | v full value | Esc to list | ? help | q quit': 'Enter 编辑 | j/k 字段 | Ctrl+s 保存 | v 完整值 | Esc 列表 | ? 帮助 | q 退出',
-  'j/k scroll preview | Enter open | Esc to list | r refresh | ? help | q quit': 'j/k 滚动预览 | Enter 打开 | Esc 列表 | r 刷新 | ? 帮助 | q 退出',
-  'j/k category | Enter to list | Tab/1/2/3 panel | n new | / search | f files | ? help | q quit': 'j/k 分类 | Enter 列表 | Tab/1/2/3 面板 | n 新建 | / 搜索 | f 文件 | ? 帮助 | q 退出',
-  'j/k move | Enter open/import | d delete | / search | r refresh | Esc to categories | q quit': 'j/k 移动 | Enter 打开/导入 | d 删除 | / 搜索 | r 刷新 | Esc 分类 | q 退出',
-  'j/k result | Enter details | r rerun | f files | Esc to categories | ? help | q quit': 'j/k 结果 | Enter 详情 | r 重查 | f 文件 | Esc 分类 | ? 帮助 | q 退出',
-  'j/k move | Enter details | n new | / search | f files | r refresh | ? help | q quit': 'j/k 移动 | Enter 详情 | n 新建 | / 搜索 | f 文件 | r 刷新 | ? 帮助 | q 退出',
-  'j/k setting | Enter apply | Tab/1/2/3 panel | Esc back | ? help | q quit': 'j/k 设置 | Enter 应用 | Tab/1/2/3 面板 | Esc 返回 | ? 帮助 | q 退出',
+  'TEXT DIALOG: Enter submit | Esc cancel | arrows move cursor':
+    '文本对话框：Enter 提交 | Esc 取消 | 方向键移动光标',
+  'DIALOG: Enter confirms | Esc cancels | arrows/Tab choose | PgUp/PgDn details':
+    '对话框：Enter 确认 | Esc 取消 | 方向键/Tab 选择 | PgUp/PgDn 详情',
+  'TEXT INPUT: Enter accept | Esc restore | Ctrl+s save | shortcuts type normally':
+    '文本输入：Enter 接受 | Esc 恢复 | Ctrl+s 保存 | 快捷键按普通文字输入',
+  'Enter edit field | j/k field | Ctrl+s save | v full value | Esc to list | ? help | q quit':
+    'Enter 编辑 | j/k 字段 | Ctrl+s 保存 | v 完整值 | Esc 列表 | ? 帮助 | q 退出',
+  'j/k scroll preview | Enter open | Esc to list | r refresh | ? help | q quit':
+    'j/k 滚动预览 | Enter 打开 | Esc 列表 | r 刷新 | ? 帮助 | q 退出',
+  'j/k category | Enter to list | Tab/1/2/3 panel | n new | / search | f files | ? help | q quit':
+    'j/k 分类 | Enter 列表 | Tab/1/2/3 面板 | n 新建 | / 搜索 | f 文件 | ? 帮助 | q 退出',
+  'j/k move | Enter open/import | d delete | / search | r refresh | Esc to categories | q quit':
+    'j/k 移动 | Enter 打开/导入 | d 删除 | / 搜索 | r 刷新 | Esc 分类 | q 退出',
+  'j/k result | Enter details | r rerun | f files | Esc to categories | ? help | q quit':
+    'j/k 结果 | Enter 详情 | r 重查 | f 文件 | Esc 分类 | ? 帮助 | q 退出',
+  'j/k move | Enter details | n new | / search | f files | r refresh | ? help | q quit':
+    'j/k 移动 | Enter 详情 | n 新建 | / 搜索 | f 文件 | r 刷新 | ? 帮助 | q 退出',
+  'j/k setting | Enter apply | Tab/1/2/3 panel | Esc back | ? help | q quit':
+    'j/k 设置 | Enter 应用 | Tab/1/2/3 面板 | Esc 返回 | ? 帮助 | q 退出',
   'App name': '应用名称',
   'Description': '描述',
   'Version': '版本',
@@ -152,21 +166,27 @@ const chinese = {
   'Console URL': '控制台 URL',
   'Reading workspace…': '正在读取工作区…',
   'Opening workspace': '正在打开工作区',
-  'Ready. Secrets are plaintext on disk, masked here; this is not an encrypted vault.': '已就绪。密钥在磁盘上以明文存储，在此隐藏；这不是加密保险库。',
+  'Ready. Secrets are plaintext on disk, masked here; this is not an encrypted vault.':
+    '已就绪。密钥在磁盘上以明文存储，在此隐藏；这不是加密保险库。',
   'Unsaved changes': '有未保存的更改',
-  'Save commits this document; Discard loses this draft only.': '保存将提交本文档；放弃仅丢弃此草稿。',
+  'Save commits this document; Discard loses this draft only.':
+    '保存将提交本文档；放弃仅丢弃此草稿。',
   'Quit requested; waiting for current commit.': '已请求退出；正在等待当前提交完成。',
   'Refreshing workspace': '正在刷新工作区',
   'Refreshed; existing selection restored where available.': '已刷新；已尽可能恢复之前的选择。',
   'Checking configuration (read-only)': '正在检查配置（只读）',
-  'Doctor complete. File existence is not certificate validity or release readiness.': '诊断完成。文件存在不代表证书有效或已准备好发布。',
+  'Doctor complete. File existence is not certificate validity or release readiness.':
+    '诊断完成。文件存在不代表证书有效或已准备好发布。',
   'Choose platform': '选择平台',
   'Platform configuration scope': '平台配置范围',
   'Identity / root': '标识 / 根配置',
   'Environment signing': '环境签名',
-  'Use a single safe name. Mark production targets deliberately.': '使用单个安全名称。请谨慎标记生产目标。',
-  'Single directory-safe name; environment names can be custom. Add enabled names to App metadata too.': '使用安全的单个目录名；环境名可自定义。也请将启用的名称添加到应用元数据中。',
-  'Use a nonempty single name without separators, traversal, reserved names, or trailing dots.': '请使用非空的单个名称，不含分隔符、路径穿越、保留名称或结尾句点。',
+  'Use a single safe name. Mark production targets deliberately.':
+    '使用单个安全名称。请谨慎标记生产目标。',
+  'Single directory-safe name; environment names can be custom. Add enabled names to App metadata too.':
+    '使用安全的单个目录名；环境名可自定义。也请将启用的名称添加到应用元数据中。',
+  'Use a nonempty single name without separators, traversal, reserved names, or trailing dots.':
+    '请使用非空的单个名称，不含分隔符、路径穿越、保留名称或结尾句点。',
   'Copy into workspace': '复制到工作区',
   'Reference external file': '引用外部文件',
   'Remove reference': '移除引用',
@@ -174,25 +194,32 @@ const chinese = {
   'Checking source file': '正在检查源文件',
   'Use read-only external reference?': '使用只读的外部引用？',
   'Use reference': '使用引用',
-  'External file is read-only and will not move with this workspace.': '外部文件为只读，不会随工作区一起移动。',
+  'External file is read-only and will not move with this workspace.':
+    '外部文件为只读，不会随工作区一起移动。',
   'Destination relative to workspace': '相对于工作区的目标路径',
   'No traversal. Copy never modifies the source file.': '禁止路径穿越。复制不会修改源文件。',
-  'External references are read-only. Removing a reference never deletes its source.': '外部引用为只读。移除引用不会删除源文件。',
+  'External references are read-only. Removing a reference never deletes its source.':
+    '外部引用为只读。移除引用不会删除源文件。',
   'Checking copy destination': '正在检查复制目标',
   'Overwrite this workspace file?': '覆盖此工作区文件？',
   'Copy file now?': '立即复制文件？',
   'Overwrite file': '覆盖文件',
   'Copy file': '复制文件',
-  'File copy committed. Save the draft to link it; discarding the draft retains this independently imported file.': '文件复制已提交。保存草稿以关联文件；放弃草稿不会删除此独立导入的文件。',
+  'File copy committed. Save the draft to link it; discarding the draft retains this independently imported file.':
+    '文件复制已提交。保存草稿以关联文件；放弃草稿不会删除此独立导入的文件。',
   'Listing managed files': '正在列出管理文件',
-  'Managed files: panel 3 previews the path; d deletes one file after confirmation. External files are never listed.': '管理文件：面板 3 预览路径；按 d 确认后删除单个文件。不会列出外部文件。',
-  'The App document cannot be deleted inside an open workspace.': '无法在打开的工作区内删除应用文档。',
+  'Managed files: panel 3 previews the path; d deletes one file after confirmation. External files are never listed.':
+    '管理文件：面板 3 预览路径；按 d 确认后删除单个文件。不会列出外部文件。',
+  'The App document cannot be deleted inside an open workspace.':
+    '无法在打开的工作区内删除应用文档。',
   'Delete this one workspace file?': '删除此单个工作区文件？',
   'Delete file': '删除文件',
-  'Deleted selected file only. References may now be missing; run Doctor.': '仅删除了所选文件。引用可能缺失；请运行诊断。',
+  'Deleted selected file only. References may now be missing; run Doctor.':
+    '仅删除了所选文件。引用可能缺失；请运行诊断。',
   'Keyboard help': '键盘帮助',
   'Search document paths (secrets excluded)': '搜索文档路径（不含密钥）',
-  'Reloaded disk version. You can edit and save again.': '已重新加载磁盘版本。现在可以再次编辑和保存。',
+  'Reloaded disk version. You can edit and save again.':
+    '已重新加载磁盘版本。现在可以再次编辑和保存。',
   'Managed file': '管理文件',
   '{label} — {activity}': '{label} — {activity}',
   'commit cannot be interrupted; quit waits for completion': '提交不可中断；退出将等待完成',
@@ -207,80 +234,121 @@ const chinese = {
   'Copying to {path}': '正在复制到 {path}',
   'Deleting {path}': '正在删除 {path}',
   'Reloading {path}': '正在重新加载 {path}',
-  '{source}\n-> {destination}\nThis is an independent file commit. Canceling later form edits will NOT undo this copy.': '{source}\n-> {destination}\n这是独立的文件提交。之后取消表单编辑不会撤销此次复制。',
-  '{path}\nNo directories are recursively deleted. This cannot be undone.': '{path}\n不会递归删除目录。此操作无法撤销。',
+  '{source}\n-> {destination}\nThis is an independent file commit. Canceling later form edits will NOT undo this copy.':
+    '{source}\n-> {destination}\n这是独立的文件提交。之后取消表单编辑不会撤销此次复制。',
+  '{path}\nNo directories are recursively deleted. This cannot be undone.':
+    '{path}\n不会递归删除目录。此操作无法撤销。',
   'service': '服务',
   'environment': '环境',
   'store': '商店',
   'app': '应用',
   'assets': '资源',
-  '1/2/3: categories / list / details; Tab / Shift+Tab: next / previous panel\nh/l or Left/Right: previous / next panel; j/k or Up/Down: move in focused panel\nCategories and list selections preview immediately; Enter: focus list / details / edit field\nEsc: details → list → categories → quit; switching panels retains drafts\nChanging category, item, or search asks Save / Discard / Cancel when dirty\ng g (500ms) / G: first / last; /: search document paths from list\nCtrl+s: save; n: create from categories/list; r: refresh or reload focused detail\nf: managed files; d: delete selected file from list; v: full non-secret field in details\nq: quit; Ctrl+c: request quit\nRed means missing; green means present, not valid credentials. Enter on missing configs edits a clean draft; Enter on missing resources imports a real file.\nText mode keeps all printable shortcuts, including 123jq/?.\nFile imports are independent confirmed commits. Doctor is read-only.\nPageUp/PageDown scroll details and long dialogs.\nSettings / 设置: choose interface language or theme; Enter applies and saves. Document shortcuts are disabled in Settings.': '1/2/3：分类 / 列表 / 详情；Tab / Shift+Tab：下一 / 上一面板\nh/l 或左右方向键：上一 / 下一面板；j/k 或上下方向键：在当前面板移动\n分类和列表选择立即预览；Enter：聚焦列表 / 详情 / 编辑字段\nEsc：详情 → 列表 → 分类 → 退出；切换面板保留草稿\n草稿未保存时，更换分类、项目或搜索将询问保存 / 放弃 / 取消\ng g（500 毫秒）/ G：首项 / 末项；/：从列表搜索文档路径\nCtrl+s：保存；n：在分类/列表中新建；r：刷新或重新加载详情\nf：管理文件；d：在列表删除所选文件；v：在详情查看完整的非密钥值\nq：退出；Ctrl+c：请求退出\n红色表示缺失，绿色表示存在，不代表凭据有效。缺失配置按 Enter 编辑空白草稿；缺失资源按 Enter 导入真实文件。\n文本模式保留所有可打印快捷键，包括 123jq/?。\n文件导入是独立确认的提交。诊断为只读。\nPageUp/PageDown 滚动详情和长对话框。\nSettings / 设置：选择界面语言或主题，Enter 应用并保存。设置中禁用文档操作。',
+  '1/2/3: categories / list / details; Tab / Shift+Tab: next / previous panel\nh/l or Left/Right: previous / next panel; j/k or Up/Down: move in focused panel\nCategories and list selections preview immediately; Enter: focus list / details / edit field\nEsc: details → list → categories → quit; switching panels retains drafts\nChanging category, item, or search asks Save / Discard / Cancel when dirty\ng g (500ms) / G: first / last; /: search document paths from list\nCtrl+s: save; n: create from categories/list; r: refresh or reload focused detail\nf: managed files; d: delete selected file from list; v: full non-secret field in details\nq: quit; Ctrl+c: request quit\nRed means missing; green means present, not valid credentials. Enter on missing configs edits a clean draft; Enter on missing resources imports a real file.\nText mode keeps all printable shortcuts, including 123jq/?.\nFile imports are independent confirmed commits. Doctor is read-only.\nPageUp/PageDown scroll details and long dialogs.\nSettings / 设置: choose interface language or theme; Enter applies and saves. Document shortcuts are disabled in Settings.':
+    '1/2/3：分类 / 列表 / 详情；Tab / Shift+Tab：下一 / 上一面板\nh/l 或左右方向键：上一 / 下一面板；j/k 或上下方向键：在当前面板移动\n分类和列表选择立即预览；Enter：聚焦列表 / 详情 / 编辑字段\nEsc：详情 → 列表 → 分类 → 退出；切换面板保留草稿\n草稿未保存时，更换分类、项目或搜索将询问保存 / 放弃 / 取消\ng g（500 毫秒）/ G：首项 / 末项；/：从列表搜索文档路径\nCtrl+s：保存；n：在分类/列表中新建；r：刷新或重新加载详情\nf：管理文件；d：在列表删除所选文件；v：在详情查看完整的非密钥值\nq：退出；Ctrl+c：请求退出\n红色表示缺失，绿色表示存在，不代表凭据有效。缺失配置按 Enter 编辑空白草稿；缺失资源按 Enter 导入真实文件。\n文本模式保留所有可打印快捷键，包括 123jq/?。\n文件导入是独立确认的提交。诊断为只读。\nPageUp/PageDown 滚动详情和长对话框。\nSettings / 设置：选择界面语言或主题，Enter 应用并保存。设置中禁用文档操作。',
   'Configuration must be a JSON object': '配置必须是 JSON 对象',
   'Unsupported or missing schema version; expected 1': '架构版本不受支持或缺失；应为 1',
   '{label} is required': '{label}为必填项',
   '{label} must be a positive safe integer': '{label}必须是正的安全整数',
   '{label} must be text': '{label}必须是文本',
-  '{label} must be an absolute external path or a workspace-relative path without hidden components, traversal, colons, or backslashes': '{label}必须是绝对外部路径或相对于工作区的路径，且不含隐藏路径、路径穿越、冒号或反斜杠',
-  '{label} refers to an example placeholder; import a real file before saving': '{label}引用了示例占位文件；请导入真实文件后再保存',
+  '{label} must be an absolute external path or a workspace-relative path without hidden components, traversal, colons, or backslashes':
+    '{label}必须是绝对外部路径或相对于工作区的路径，且不含隐藏路径、路径穿越、冒号或反斜杠',
+  '{label} refers to an example placeholder; import a real file before saving':
+    '{label}引用了示例占位文件；请导入真实文件后再保存',
   '{label} must be an array of safe names': '{label}必须是安全名称数组',
-  '{label} must not contain duplicate or case-conflicting names': '{label}不得包含重复或大小写冲突的名称',
+  '{label} must not contain duplicate or case-conflicting names':
+    '{label}不得包含重复或大小写冲突的名称',
   'Enabled platforms must use supported platform names': '启用的平台必须使用受支持的平台名称',
   'Environment name must be a safe single directory name': '环境名称必须是安全的单个目录名',
-  'Cannot list workspace files; check permissions and retry': '无法列出工作区文件；请检查权限后重试',
-  'Configuration cannot be read; check JSON, schema version, and permissions': '无法读取配置；请检查 JSON、架构版本和权限',
+  'Cannot list workspace files; check permissions and retry':
+    '无法列出工作区文件；请检查权限后重试',
+  'Configuration cannot be read; check JSON, schema version, and permissions':
+    '无法读取配置；请检查 JSON、架构版本和权限',
   'Enabled platform configuration is missing': '缺少已启用平台的配置',
-  'Signing configuration is not configured; add only the environments this platform needs': '尚未配置签名；请仅添加此平台所需的环境',
+  'Signing configuration is not configured; add only the environments this platform needs':
+    '尚未配置签名；请仅添加此平台所需的环境',
   'Declared environment configuration is missing': '缺少已声明环境的配置',
   'Configuration is missing': '缺少配置',
-  'Configuration belongs to a platform not enabled in App; completeness is not required': '配置属于应用中未启用的平台；不要求完整性',
+  'Configuration belongs to a platform not enabled in App; completeness is not required':
+    '配置属于应用中未启用的平台；不要求完整性',
   'Required fields are complete; credentials are not validated': '必填字段完整；尚未验证凭据',
   'Environment name does not match its document filename': '环境名称与文档文件名不匹配',
   'Environment is not listed in App': '应用中未列出此环境',
   'Platform environment is not listed in App': '应用中未列出此平台环境',
-  'Stored credentials have not been authenticated; no remote services were contacted': '存储的凭据尚未认证；未连接任何远程服务',
+  'Stored credentials have not been authenticated; no remote services were contacted':
+    '存储的凭据尚未认证；未连接任何远程服务',
   'Workspace permissions could not be checked': '无法检查工作区权限',
-  'Permissions allow group or other users access; review permissions manually.': '权限允许同组或其他用户访问；请手动检查权限。',
+  'Permissions allow group or other users access; review permissions manually.':
+    '权限允许同组或其他用户访问；请手动检查权限。',
   '{label}: referenced file is missing': '{label}：引用的文件缺失',
   '{label}: reference is not a regular file': '{label}：引用不是常规文件',
   '{label}: file exists (existence only)': '{label}：文件存在（仅检查存在性）',
-  '{label}: content, validity, expiry, and compatibility have not been checked': '{label}：尚未检查内容、有效性、到期时间和兼容性',
-  '{label}: external read-only reference is not portable with this workspace': '{label}：只读外部引用无法随工作区迁移',
+  '{label}: content, validity, expiry, and compatibility have not been checked':
+    '{label}：尚未检查内容、有效性、到期时间和兼容性',
+  '{label}: external read-only reference is not portable with this workspace':
+    '{label}：只读外部引用无法随工作区迁移',
   '{label}: file permissions allow access by other users': '{label}：文件权限允许其他用户访问',
-  '{label}: cannot inspect reference; check path safety and permissions': '{label}：无法检查引用；请检查路径安全性和权限',
-  'Configuration validation failed. Check the highlighted fields.': '配置验证失败。请检查相关字段。',
-  'The file changed outside this editor. Reload before saving; your draft was retained.': '文件已被外部程序修改。保存前请重新加载；草稿已保留。',
+  '{label}: cannot inspect reference; check path safety and permissions':
+    '{label}：无法检查引用；请检查路径安全性和权限',
+  'Configuration validation failed. Check the highlighted fields.':
+    '配置验证失败。请检查相关字段。',
+  'The file changed outside this editor. Reload before saving; your draft was retained.':
+    '文件已被外部程序修改。保存前请重新加载；草稿已保留。',
   'No workspace exists. Initialize this project first.': '工作区不存在。请先初始化此项目。',
-  'The target directory already exists but is not a valid workspace. Choose another project or resolve the conflict explicitly.': '目标目录已存在，但不是有效工作区。请选择其他项目或手动解决冲突。',
-  'This workspace is locked by another instance. Close it before retrying.': '此工作区被其他实例锁定。请关闭该实例后重试。',
-  'A configuration contains malformed JSON. Repair it in an external editor before retrying.': '配置包含格式错误的 JSON。请在外部编辑器中修复后重试。',
-  'This schema version is unsupported. Use a compatible version of lazyapp.': '不支持此架构版本。请使用兼容版本的 lazyapp。',
-  'The path is outside the workspace or crosses an unsafe symbolic link.': '路径位于工作区之外，或经过不安全的符号链接。',
-  'The workspace session is closed. Reopen the workspace before retrying.': '工作区会话已关闭。请重新打开工作区后重试。',
-  'The document must be a supported JSON object. Check its structure before retrying.': '文档必须是受支持的 JSON 对象。请检查结构后重试。',
-  'The destination already exists. Confirm overwrite or choose another destination.': '目标已存在。请确认覆盖或选择其他目标。',
-  'The source must be a readable regular file. Check its path before retrying.': '源文件必须是可读的常规文件。请检查路径后重试。',
-  'The requested file does not exist. Check its path and retry.': '请求的文件不存在。请检查路径后重试。',
+  'The target directory already exists but is not a valid workspace. Choose another project or resolve the conflict explicitly.':
+    '目标目录已存在，但不是有效工作区。请选择其他项目或手动解决冲突。',
+  'This workspace is locked by another instance. Close it before retrying.':
+    '此工作区被其他实例锁定。请关闭该实例后重试。',
+  'A configuration contains malformed JSON. Repair it in an external editor before retrying.':
+    '配置包含格式错误的 JSON。请在外部编辑器中修复后重试。',
+  'This schema version is unsupported. Use a compatible version of lazyapp.':
+    '不支持此架构版本。请使用兼容版本的 lazyapp。',
+  'The path is outside the workspace or crosses an unsafe symbolic link.':
+    '路径位于工作区之外，或经过不安全的符号链接。',
+  'The workspace session is closed. Reopen the workspace before retrying.':
+    '工作区会话已关闭。请重新打开工作区后重试。',
+  'The document must be a supported JSON object. Check its structure before retrying.':
+    '文档必须是受支持的 JSON 对象。请检查结构后重试。',
+  'The destination already exists. Confirm overwrite or choose another destination.':
+    '目标已存在。请确认覆盖或选择其他目标。',
+  'The source must be a readable regular file. Check its path before retrying.':
+    '源文件必须是可读的常规文件。请检查路径后重试。',
+  'The requested file does not exist. Check its path and retry.':
+    '请求的文件不存在。请检查路径后重试。',
   'Permission denied. Check the file permissions and retry.': '权限不足。请检查文件权限后重试。',
-  'The operation is not permitted. Check the file permissions and retry.': '不允许此操作。请检查文件权限后重试。',
-  'The operation failed. Check the workspace, file access, and configuration, then retry.': '操作失败。请检查工作区、文件访问权限和配置后重试。',
-  'A saved preference is invalid or unsafe. Repair the settings file before retrying; it was not overwritten.': '保存的偏好设置无效或不安全。请修复设置文件后重试；未覆盖此文件。',
-  'j/k category | Enter to list | Tab/1/2/3 panel | ? help | q quit': 'j/k 分类 | Enter 列表 | Tab/1/2/3 面板 | ? 帮助 | q 退出',
-  'Preferences are being saved by another instance. Retry when it finishes.': '其他实例正在保存偏好设置。请等待完成后重试。',
+  'The operation is not permitted. Check the file permissions and retry.':
+    '不允许此操作。请检查文件权限后重试。',
+  'The operation failed. Check the workspace, file access, and configuration, then retry.':
+    '操作失败。请检查工作区、文件访问权限和配置后重试。',
+  'A saved preference is invalid or unsafe. Repair the settings file before retrying; it was not overwritten.':
+    '保存的偏好设置无效或不安全。请修复设置文件后重试；未覆盖此文件。',
+  'j/k category | Enter to list | Tab/1/2/3 panel | ? help | q quit':
+    'j/k 分类 | Enter 列表 | Tab/1/2/3 面板 | ? 帮助 | q 退出',
+  'Preferences are being saved by another instance. Retry when it finishes.':
+    '其他实例正在保存偏好设置。请等待完成后重试。',
   'No lazyapp workspace found. Create one? (y/N): ': '未找到 lazyapp 工作区。创建一个？(y/N): ',
   'Could not start lazyapp: {message}': '无法启动 lazyapp：{message}',
   'present': '存在',
   'Missing — only example instructions exist.': '缺失 — 仅存在示例说明。',
-  'Present — existence only; contents and credentials are not validated.': '存在 — 仅表示文件存在，未验证内容和凭据。',
-  'Press Enter to edit a clean document. Save creates the real file; example instructions are never copied.': '按 Enter 编辑空白文档。保存将创建真实文件，不会复制示例说明。',
+  'Present — existence only; contents and credentials are not validated.':
+    '存在 — 仅表示文件存在，未验证内容和凭据。',
+  'Press Enter to edit a clean document. Save creates the real file; example instructions are never copied.':
+    '按 Enter 编辑空白文档。保存将创建真实文件，不会复制示例说明。',
   'Press Enter to import a real source file.': '按 Enter 导入真实源文件。',
-  'Import a real file to {path}. The example instructions remain unchanged.': '导入真实文件到 {path}。示例说明保持不变。',
-  'Imported {path}. Presence does not imply credential validity.': '已导入 {path}。文件存在不代表凭据有效。',
-  'Legacy credential instructions have no typed destination. Use a configuration file field to import the correct credential.': '旧版凭据说明没有确定的文件类型目标。请使用配置中的文件字段导入正确凭据。',
+  'Import a real file to {path}. The example instructions remain unchanged.':
+    '导入真实文件到 {path}。示例说明保持不变。',
+  'Imported {path}. Presence does not imply credential validity.':
+    '已导入 {path}。文件存在不代表凭据有效。',
+  'Legacy credential instructions have no typed destination. Use a configuration file field to import the correct credential.':
+    '旧版凭据说明没有确定的文件类型目标。请使用配置中的文件字段导入正确凭据。',
 }
 
-export const LANGUAGES = Object.freeze([{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }])
+export const LANGUAGES = Object.freeze([
+  { id: 'zh', label: '中文' },
+  { id: 'en', label: 'English' },
+])
 
 export function t(language, key, params = {}) {
   const template = language === 'zh' && Object.hasOwn(chinese, key) ? chinese[key] : key
-  return template.replace(/\{([a-z]+)\}/gi, (token, name) => Object.hasOwn(params, name) ? String(params[name]) : token)
+  return template.replace(/\{([a-z]+)\}/gi, (token, name) =>
+    Object.hasOwn(params, name) ? String(params[name]) : token)
 }
