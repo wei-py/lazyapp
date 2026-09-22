@@ -13,6 +13,7 @@
     "dev": "bun src/main.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "format": "npx oxfmt@latest . && eslint . --fix",
     "test": "bun test"
   },
   "dependencies": {

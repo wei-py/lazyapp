@@ -19,8 +19,13 @@ await rm(staging, { recursive: true, force: true })
 await mkdir(join(staging, 'bin'), { recursive: true })
 
 async function run(command) {
-  const child = Bun.spawn(command, { cwd: root, stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' })
-  if (await child.exited !== 0)
+  const child = Bun.spawn(command, {
+    cwd: root,
+    stdin: 'ignore',
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  if ((await child.exited) !== 0)
     throw new Error(`Command failed: ${command[0]}`)
 }
 
@@ -49,26 +54,35 @@ async function copyNotices(name) {
   const metadata = await Bun.file(join(directory, 'package.json')).json()
   const destination = join(staging, 'licenses', name)
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if (entry.isFile() && /^(?:licen[cs]e|copying|notice|patents|authors)(?:[.-]|$)/i.test(entry.name)) {
+    if (
+      entry.isFile()
+      && /^(?:licen[cs]e|copying|notice|patents|authors)(?:[.-]|$)/i.test(entry.name)
+    ) {
       await mkdir(destination, { recursive: true })
       await copyFile(join(directory, entry.name), join(destination, entry.name))
     }
   }
-  for (const dependency of Object.keys({ ...metadata.dependencies, ...metadata.peerDependencies })) {
-    if (metadata.peerDependenciesMeta?.[dependency]?.optional
-      && !await Bun.file(join(root, 'node_modules', dependency, 'package.json')).exists()) {
+  for (const dependency of Object.keys({
+    ...metadata.dependencies,
+    ...metadata.peerDependencies,
+  })) {
+    if (
+      metadata.peerDependenciesMeta?.[dependency]?.optional
+      && !(await Bun.file(join(root, 'node_modules', dependency, 'package.json')).exists())
+    ) {
       continue
     }
     await copyNotices(dependency)
   }
 }
-for (const dependency of Object.keys(pkg.dependencies))
-  await copyNotices(dependency)
+for (const dependency of Object.keys(pkg.dependencies)) await copyNotices(dependency)
 await copyNotices('@opentui/core-darwin-arm64')
 
 const archiveName = 'lazyapp-darwin-arm64.tar.gz'
 const archive = join(dist, archiveName)
 await run(['tar', '-czf', archive, '-C', staging, 'bin', 'licenses'])
-const checksum = createHash('sha256').update(await Bun.file(archive).bytes()).digest('hex')
+const checksum = createHash('sha256')
+  .update(await Bun.file(archive).bytes())
+  .digest('hex')
 await Bun.write(join(dist, 'SHA256SUMS'), `${checksum}  ${archiveName}\n`)
 process.stdout.write(`Release v${pkg.version}: ${archive}\n`)

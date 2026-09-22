@@ -8,17 +8,43 @@ import * as Bun from 'bun'
 const root = resolve(import.meta.dir, '..')
 const temporary = await mkdtemp(join(tmpdir(), 'lazyapp-release-'))
 try {
-  const unpack = Bun.spawn(['tar', '-xzf', join(root, 'dist/lazyapp-darwin-arm64.tar.gz'), '-C', temporary])
+  const unpack = Bun.spawn([
+    'tar',
+    '-xzf',
+    join(root, 'dist/lazyapp-darwin-arm64.tar.gz'),
+    '-C',
+    temporary,
+  ])
   assert.equal(await unpack.exited, 0, 'Release archive must extract')
   const binary = join(temporary, 'bin/lazyapp')
   // Deny access to the checkout: absolute bundled imports must not hide missing assets.
-  const command = ['/usr/bin/sandbox-exec', '-p', `(version 1)(allow default)(deny file-read* (subpath ${JSON.stringify(root)}))`, binary]
-  const env = { PATH: '/usr/bin:/bin', HOME: temporary, XDG_CONFIG_HOME: join(temporary, 'preferences'), TERM: 'xterm-256color' }
-  const help = Bun.spawn([...command, '--help'], { cwd: temporary, env, stdout: 'pipe', stderr: 'pipe' })
+  const command = [
+    '/usr/bin/sandbox-exec',
+    '-p',
+    `(version 1)(allow default)(deny file-read* (subpath ${JSON.stringify(root)}))`,
+    binary,
+  ]
+  const env = {
+    PATH: '/usr/bin:/bin',
+    HOME: temporary,
+    XDG_CONFIG_HOME: join(temporary, 'preferences'),
+    TERM: 'xterm-256color',
+  }
+  const help = Bun.spawn([...command, '--help'], {
+    cwd: temporary,
+    env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
   assert.match(await new Response(help.stdout).text(), /Usage: lazyapp/)
   assert.equal(await help.exited, 0)
 
-  const version = Bun.spawn([...command, '--version'], { cwd: temporary, env, stdout: 'pipe', stderr: 'pipe' })
+  const version = Bun.spawn([...command, '--version'], {
+    cwd: temporary,
+    env,
+    stdout: 'pipe',
+    stderr: 'pipe',
+  })
   assert.match(await new Response(version.stdout).text(), /^lazyapp \d+\.\d+\.\d+/)
   assert.equal(await version.exited, 0)
 
@@ -70,8 +96,14 @@ try {
   const saved = await readFile(join(temporary, '.lazyapp/app.json'), 'utf8')
   assert.ok(JSON.parse(saved).name, 'Initialization must persist valid App metadata')
   await exercise(false)
-  assert.equal(await readFile(join(temporary, '.lazyapp/app.json'), 'utf8'), saved, 'Reopening must not rewrite configuration')
-  process.stdout.write('Release smoke passed: archive, help, native TUI, initialization, reopen, terminal exit; no Bun on PATH or checkout access.\n')
+  assert.equal(
+    await readFile(join(temporary, '.lazyapp/app.json'), 'utf8'),
+    saved,
+    'Reopening must not rewrite configuration',
+  )
+  process.stdout.write(
+    'Release smoke passed: archive, help, native TUI, initialization, reopen, terminal exit; no Bun on PATH or checkout access.\n',
+  )
 }
 finally {
   await rm(temporary, { recursive: true, force: true })
