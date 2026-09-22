@@ -3,6 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, test } from 'bun:test'
 import { Application } from '../src/app/controller.js'
+import { newDocument, save } from '../src/app/documents.js'
+import { showFiles } from '../src/app/files.js'
+import { doctor, operation, start } from '../src/app/operations.js'
 import {
   closeModal,
   displayValue,
@@ -149,13 +152,13 @@ describe('input ownership and draft transitions', () => {
         return { data, revision: 'saved' }
       },
     }
-    expect(await app.save()).toBe(false)
+    expect(await save(app)).toBe(false)
     expect(isDirty(app.state.editor)).toBe(true)
     expect(app.state.editor.revision).toBe('original')
     expect(app.state.editor.draft.name).toBe('Retained')
     expect(app.state.status).not.toContain('fictional sensitive error')
     failing = false
-    expect(await app.save()).toBe(true)
+    expect(await save(app)).toBe(true)
     expect(isDirty(app.state.editor)).toBe(false)
     expect(app.state.editor.revision).toBe('saved')
     expect(app.state.documents[0].data.name).toBe('Retained')
@@ -172,7 +175,7 @@ describe('input ownership and draft transitions', () => {
   test('read-only operations leave loading state even without custom success text', async () => {
     const { app } = application()
     let during
-    await app.operation('Checking source file', async () => {
+    await operation(app, 'Checking source file', async () => {
       during = app.state.status
     })
     expect(during).toContain('reading')
@@ -397,13 +400,13 @@ describe('persistent three-panel navigation', () => {
     app.focusPanel('form')
     const previous = app.state.editor
     previous.draft.name = 'Retained alpha'
-    app.newDocument('service', { name: 'gamma' })
+    newDocument(app, 'service', { name: 'gamma' })
     expect(app.state.modal.title).toBe('Unsaved changes')
     expect(previous.snapshot.name).toBe('alpha')
     expect(app.state.editor).toBe(previous)
     await choose(app, 'Cancel')
     expect(app.state.editor).toBe(previous)
-    app.newDocument('service', { name: 'gamma' })
+    newDocument(app, 'service', { name: 'gamma' })
     await choose(app, 'Save')
     expect(app.state.documents.find(item => item.path === previous.path).data.name).toBe(
       'Retained alpha',
@@ -411,7 +414,7 @@ describe('persistent three-panel navigation', () => {
     expect(app.state.editor.path).toBe('services/gamma.json')
     expect(isDirty(app.state.editor)).toBe(true)
     expect(app.state.selected).toBe(-1)
-    expect(await app.save()).toBe(true)
+    expect(await save(app)).toBe(true)
     expect(app.items()[app.state.selected].path).toBe('services/gamma.json')
     expect(isDirty(app.state.editor)).toBe(false)
     expect(app.state.documents.find(item => item.path === previous.path).data.name).toBe(
@@ -551,7 +554,7 @@ describe('persistent three-panel navigation', () => {
         release = resolve
       })
     const previous = app.state.doctor
-    const pending = app.doctor()
+    const pending = doctor(app)
     app.generation++
     release([])
     await pending
@@ -618,7 +621,7 @@ async function withWorkspace(action) {
       examples: scaffold.examples,
     })
     await session.close()
-    await app.start()
+    await start(app)
     expect(app.state.error).toBe(false)
     await action(app, project)
   }
@@ -690,7 +693,7 @@ describe('logical file presence', () => {
       const source = join(project, 'certificate.p12')
       const bytes = new Uint8Array([0, 255, 11, 42])
       await fs.writeFile(source, bytes)
-      await app.showFiles()
+      await showFiles(app)
       app.state.selected = app.items().findIndex(item => item.path === path)
       expect(app.items()[app.state.selected].missing).toBe(true)
       const example = await fs.readFile(join(project, '.lazyapp', `${path}.example`), 'utf8')
@@ -726,7 +729,7 @@ describe('logical file presence', () => {
     await withWorkspace(async (app, project) => {
       const path = 'platforms/ios/development/credentials.example'
       await fs.writeFile(join(project, '.lazyapp', path), 'Instructions only')
-      await app.showFiles()
+      await showFiles(app)
       app.state.selected = app.items().findIndex(item => item.path === path.slice(0, -8))
       expect(app.items()[app.state.selected]).toMatchObject({
         missing: true,

@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 import { resolve } from 'node:path'
 import process from 'node:process'
+import { start } from './app/operations.js'
 import { prepareStartup } from './app/startup.js'
 import { runCli } from './cli.js'
 
@@ -137,7 +138,7 @@ export async function main(args = process.argv.slice(2)) {
       }
     })
     app.update()
-    await app.start()
+    await start(app)
   }
   catch {
     await finish(

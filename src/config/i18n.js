@@ -70,26 +70,6 @@ const chinese = {
   'Too small to edit this input.': '窗口太小，无法编辑此输入。',
   'Arrows choose; Enter confirms; Esc cancels.': '方向键选择；Enter 确认；Esc 取消。',
   '[PgUp/PgDn: more details]': '[PgUp/PgDn：更多详情]',
-  'TEXT DIALOG: Enter submit | Esc cancel | arrows move cursor':
-    '文本对话框：Enter 提交 | Esc 取消 | 方向键移动光标',
-  'DIALOG: Enter confirms | Esc cancels | arrows/Tab choose | PgUp/PgDn details':
-    '对话框：Enter 确认 | Esc 取消 | 方向键/Tab 选择 | PgUp/PgDn 详情',
-  'TEXT INPUT: Enter accept | Esc restore | Ctrl+s save | shortcuts type normally':
-    '文本输入：Enter 接受 | Esc 恢复 | Ctrl+s 保存 | 快捷键按普通文字输入',
-  'Enter edit field | j/k field | Ctrl+s save | v full value | Esc to list | ? help | q quit':
-    'Enter 编辑 | j/k 字段 | Ctrl+s 保存 | v 完整值 | Esc 列表 | ? 帮助 | q 退出',
-  'j/k scroll preview | Enter open | Esc to list | r refresh | ? help | q quit':
-    'j/k 滚动预览 | Enter 打开 | Esc 列表 | r 刷新 | ? 帮助 | q 退出',
-  'j/k category | Enter to list | Tab/1/2/3 panel | n new | / search | f files | ? help | q quit':
-    'j/k 分类 | Enter 列表 | Tab/1/2/3 面板 | n 新建 | / 搜索 | f 文件 | ? 帮助 | q 退出',
-  'j/k move | Enter open/import | d delete | / search | r refresh | Esc to categories | q quit':
-    'j/k 移动 | Enter 打开/导入 | d 删除 | / 搜索 | r 刷新 | Esc 分类 | q 退出',
-  'j/k result | Enter details | r rerun | f files | Esc to categories | ? help | q quit':
-    'j/k 结果 | Enter 详情 | r 重查 | f 文件 | Esc 分类 | ? 帮助 | q 退出',
-  'j/k move | Enter details | n new | / search | f files | r refresh | ? help | q quit':
-    'j/k 移动 | Enter 详情 | n 新建 | / 搜索 | f 文件 | r 刷新 | ? 帮助 | q 退出',
-  'j/k setting | Enter apply | Tab/1/2/3 panel | Esc back | ? help | q quit':
-    'j/k 设置 | Enter 应用 | Tab/1/2/3 面板 | Esc 返回 | ? 帮助 | q 退出',
   'App name': '应用名称',
   'Description': '描述',
   'Version': '版本',
@@ -321,8 +301,6 @@ const chinese = {
     '操作失败。请检查工作区、文件访问权限和配置后重试。',
   'A saved preference is invalid or unsafe. Repair the settings file before retrying; it was not overwritten.':
     '保存的偏好设置无效或不安全。请修复设置文件后重试；未覆盖此文件。',
-  'j/k category | Enter to list | Tab/1/2/3 panel | ? help | q quit':
-    'j/k 分类 | Enter 列表 | Tab/1/2/3 面板 | ? 帮助 | q 退出',
   'Preferences are being saved by another instance. Retry when it finishes.':
     '其他实例正在保存偏好设置。请等待完成后重试。',
   'No lazyapp workspace found. Create one? (y/N): ': '未找到 lazyapp 工作区。创建一个？(y/N): ',
@@ -342,6 +320,35 @@ const chinese = {
     '旧版凭据说明没有确定的文件类型目标。请使用配置中的文件字段导入正确凭据。',
 }
 
+const hints = {
+  en: {
+    'dialog-input': { label: 'TEXT DIALOG:', items: ['Enter|submit', 'Esc|cancel', 'arrows|move cursor'] },
+    'dialog-choice': { label: 'DIALOG:', items: ['Enter|confirms', 'Esc|cancels', 'arrows/Tab|choose', 'PgUp/PgDn|details'] },
+    'text-input': { label: 'TEXT INPUT:', items: ['Enter|accept', 'Esc|restore', 'Ctrl+s|save', 'shortcuts|type normally'] },
+    'settings-nav': { items: ['j/k|category', 'Enter|to list', 'Tab/1/2/3|panel', '?|help', 'q|quit'] },
+    'settings-item': { items: ['j/k|setting', 'Enter|apply', 'Tab/1/2/3|panel', 'Esc|back', '?|help', 'q|quit'] },
+    'editor': { items: ['Enter|edit field', 'j/k|field', 'Ctrl+s|save', 'v|full value', 'Esc|to list', '?|help', 'q|quit'] },
+    'preview': { items: ['j/k|scroll preview', 'Enter|open', 'Esc|to list', 'r|refresh', '?|help', 'q|quit'] },
+    'nav': { items: ['j/k|category', 'Enter|to list', 'Tab/1/2/3|panel', 'n|new', '/|search', 'f|files', '?|help', 'q|quit'] },
+    'files': { items: ['j/k|move', 'Enter|open/import', 'd|delete', '/|search', 'r|refresh', 'Esc|to categories', 'q|quit'] },
+    'doctor': { items: ['j/k|result', 'Enter|details', 'r|rerun', 'f|files', 'Esc|to categories', '?|help', 'q|quit'] },
+    'list': { items: ['j/k|move', 'Enter|details', 'n|new', '/|search', 'f|files', 'r|refresh', '?|help', 'q|quit'] },
+  },
+  zh: {
+    'dialog-input': { label: '文本对话框：', items: ['Enter|提交', 'Esc|取消', '方向键|移动光标'] },
+    'dialog-choice': { label: '对话框：', items: ['Enter|确认', 'Esc|取消', '方向键/Tab|选择', 'PgUp/PgDn|详情'] },
+    'text-input': { label: '文本输入：', items: ['Enter|接受', 'Esc|恢复', 'Ctrl+s|保存', '快捷键|按普通文字输入'] },
+    'settings-nav': { items: ['j/k|分类', 'Enter|列表', 'Tab/1/2/3|面板', '?|帮助', 'q|退出'] },
+    'settings-item': { items: ['j/k|设置', 'Enter|应用', 'Tab/1/2/3|面板', 'Esc|返回', '?|帮助', 'q|退出'] },
+    'editor': { items: ['Enter|编辑', 'j/k|字段', 'Ctrl+s|保存', 'v|完整值', 'Esc|列表', '?|帮助', 'q|退出'] },
+    'preview': { items: ['j/k|滚动预览', 'Enter|打开', 'Esc|列表', 'r|刷新', '?|帮助', 'q|退出'] },
+    'nav': { items: ['j/k|分类', 'Enter|列表', 'Tab/1/2/3|面板', 'n|新建', '/|搜索', 'f|文件', '?|帮助', 'q|退出'] },
+    'files': { items: ['j/k|移动', 'Enter|打开/导入', 'd|删除', '/|搜索', 'r|刷新', 'Esc|分类', 'q|退出'] },
+    'doctor': { items: ['j/k|结果', 'Enter|详情', 'r|重查', 'f|文件', 'Esc|分类', '?|帮助', 'q|退出'] },
+    'list': { items: ['j/k|移动', 'Enter|详情', 'n|新建', '/|搜索', 'f|文件', 'r|刷新', '?|帮助', 'q|退出'] },
+  },
+}
+
 export const LANGUAGES = Object.freeze([
   { id: 'zh', label: '中文' },
   { id: 'en', label: 'English' },
@@ -351,4 +358,17 @@ export function t(language, key, params = {}) {
   const template = language === 'zh' && Object.hasOwn(chinese, key) ? chinese[key] : key
   return template.replace(/\{([a-z]+)\}/gi, (token, name) =>
     Object.hasOwn(params, name) ? String(params[name]) : token)
+}
+
+export function hintSegments(language, id) {
+  const entry = (language === 'zh' && hints.zh[id]) || hints.en[id]
+  if (!entry)
+    return { label: '', items: [] }
+  return {
+    label: entry.label || '',
+    items: entry.items.map((s) => {
+      const i = s.indexOf('|')
+      return i < 0 ? { key: s, desc: '' } : { key: s.slice(0, i), desc: s.slice(i + 1) }
+    }),
+  }
 }

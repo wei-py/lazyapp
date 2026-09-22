@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '../src/app/controller.js'
+import { setLanguage, start } from '../src/app/operations.js'
 import { CATEGORIES, editDocument, isDirty, preferenceItems } from '../src/app/state.js'
 import { t } from '../src/config/i18n.js'
 import { doctorLabel, runDoctor, safeErrorMessage } from '../src/features/workspace.js'
@@ -66,12 +67,12 @@ describe('language settings interactions', () => {
     await fs.mkdir(join(root, 'project'))
     const session = await initializeWorkspace(join(root, 'project'), APP)
     await session.close()
-    await reopened.start()
+    await start(reopened)
     expect(reopened.state.language).toBe('zh')
     expect(reopened.state.modal).toBeNull()
     expect(reopened.state.error).toBe(false)
     expect(reopened.state.status).toMatch(/[\u3400-\u9FFF]/u)
-    await app.setLanguage('en')
+    await setLanguage(app, 'en')
     expect(app.state.language).toBe('en')
     expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({
       language: 'en',
@@ -97,7 +98,7 @@ describe('language settings interactions', () => {
   test('missing workspace reports a localized error without an initialization dialog or writes', async () => {
     const app = application({ load: async () => ({ language: 'zh' }), save: async () => {} })
     await fs.mkdir(join(root, 'project'))
-    await app.start()
+    await start(app)
     expect(app.state.modal).toBeNull()
     expect(app.state.error).toBe(true)
     expect(app.state.status).toContain('工作区不存在')
@@ -116,7 +117,7 @@ describe('language settings interactions', () => {
     app.state.focus = 'form'
     const keys = app.fields().map(field => field.key)
     const english = app.fields().map(field => field.label)
-    await app.setLanguage('zh')
+    await setLanguage(app, 'zh')
     expect(app.state.editor).toBe(editor)
     expect(editor.draft.name).toBe('Save 取消 / English')
     expect(editor.draft.description).toBe('Cancel')
@@ -124,7 +125,7 @@ describe('language settings interactions', () => {
     expect(isDirty(editor)).toBe(true)
     expect(app.fields().map(field => field.key)).toEqual(keys)
     expect(app.fields().map(field => field.label)).not.toEqual(english)
-    await app.setLanguage('en')
+    await setLanguage(app, 'en')
     expect(app.fields().map(field => field.label)).toEqual(english)
   })
 
@@ -138,7 +139,7 @@ describe('language settings interactions', () => {
     const editor = editDocument(app.state.documents[0])
     editor.draft.name = 'Unsaved'
     app.state.editor = editor
-    await app.setLanguage('zh')
+    await setLanguage(app, 'zh')
     expect(app.state.language).toBe('en')
     expect(app.state.error).toBe(true)
     expect(app.state.editor).toBe(editor)
@@ -155,7 +156,7 @@ describe('language settings interactions', () => {
     })
     await fs.mkdir(join(root, 'project', '.lazyapp'), { recursive: true })
     await fs.writeFile(join(root, 'project', '.lazyapp', 'app.json'), '{broken')
-    await app.start()
+    await start(app)
     expect(app.state.error).toBe(true)
     expect(app.state.status).toContain('malformed JSON')
     expect(app.state.status).not.toContain('bad preferences')

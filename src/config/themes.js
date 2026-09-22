@@ -1,6 +1,8 @@
 /**
  * Terminal palettes. Four popular families (Gruvbox, Catppuccin, Tokyo Night,
  * Solarized), each shipped dark and light, plus the built-in default look.
+ * `background: null` paints nothing so the terminal shows through (lazyaur's
+ * default look); `surface` fills dialogs so they stay readable over panels.
  * Every palette carries the same semantic keys so the view never branches on theme.
  */
 export const THEMES = [
@@ -8,16 +10,17 @@ export const THEMES = [
     id: 'default',
     name: 'Default',
     colors: {
-      background: '#101010',
-      text: '#d4d4d4',
-      muted: '#999999',
-      border: '#767676',
-      focus: '#87d787',
-      selection: '#87afff',
-      selectionText: '#101010',
-      warning: '#e5c07b',
-      error: '#e06c75',
-      present: '#87d787',
+      background: null,
+      surface: '#1f2438',
+      text: '#c0caf5',
+      muted: '#6c7390',
+      border: '#3c4361',
+      focus: '#7aa2f7',
+      selection: '#2c3550',
+      selectionText: '#c0caf5',
+      warning: '#e0af68',
+      error: '#f7768e',
+      present: '#9ece6a',
     },
   },
   {
@@ -25,6 +28,7 @@ export const THEMES = [
     name: 'Gruvbox Dark',
     colors: {
       background: '#282828',
+      surface: '#282828',
       text: '#ebdbb2',
       muted: '#a89984',
       border: '#665c54',
@@ -41,6 +45,7 @@ export const THEMES = [
     name: 'Gruvbox Light',
     colors: {
       background: '#fbf1c7',
+      surface: '#fbf1c7',
       text: '#3c3836',
       muted: '#7c6f64',
       border: '#bdae93',
@@ -57,6 +62,7 @@ export const THEMES = [
     name: 'Catppuccin Mocha',
     colors: {
       background: '#1e1e2e',
+      surface: '#1e1e2e',
       text: '#cdd6f4',
       muted: '#a6adc8',
       border: '#585b70',
@@ -73,6 +79,7 @@ export const THEMES = [
     name: 'Catppuccin Latte',
     colors: {
       background: '#eff1f5',
+      surface: '#eff1f5',
       text: '#4c4f69',
       muted: '#6c6f85',
       border: '#9ca0b0',
@@ -89,6 +96,7 @@ export const THEMES = [
     name: 'Tokyo Night',
     colors: {
       background: '#1a1b26',
+      surface: '#1a1b26',
       text: '#c0caf5',
       muted: '#737aa2',
       border: '#3b4261',
@@ -105,6 +113,7 @@ export const THEMES = [
     name: 'Tokyo Night Day',
     colors: {
       background: '#e1e2e7',
+      surface: '#e1e2e7',
       text: '#3760bf',
       muted: '#6172b0',
       border: '#a1a6c5',
@@ -121,6 +130,7 @@ export const THEMES = [
     name: 'Solarized Dark',
     colors: {
       background: '#002b36',
+      surface: '#002b36',
       text: '#839496',
       muted: '#657b83',
       border: '#586e75',
@@ -137,6 +147,7 @@ export const THEMES = [
     name: 'Solarized Light',
     colors: {
       background: '#fdf6e3',
+      surface: '#fdf6e3',
       text: '#657b83',
       muted: '#93a1a1',
       border: '#839496',
@@ -157,7 +168,9 @@ export function isTheme(id) {
 }
 
 export function themeColors(id) {
-  return THEMES.find(theme => theme.id === id)?.colors ?? THEMES[0].colors
+  const colors = THEMES.find(theme => theme.id === id)?.colors ?? THEMES[0].colors
+  // `null` means transparent: OpenTUI must receive `undefined` to paint nothing.
+  return colors.background === null ? { ...colors, background: undefined } : colors
 }
 
 export function themeName(id) {
