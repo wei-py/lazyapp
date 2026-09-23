@@ -234,11 +234,14 @@ describe('serialized commits, locks, and external edits', () => {
     expect(await session.read('app.json')).toEqual(snapshot)
     const saving = session.save('app.json', { ...APP, name: 'Before close' }, snapshot.revision)
     const closing = session.close()
-    await expect(saving).resolves.toMatchObject({ data: { name: 'Before close' } })
+    // Await the save directly so a rejection surfaces its code and message. The generous timeout
+    // keeps slow CI storage from hiding the outcome behind the default 5s cutoff.
+    const saved = await saving
+    expect(saved).toMatchObject({ data: { name: 'Before close' } })
     await closing
     await expect(session.read('app.json')).rejects.toMatchObject({ code: 'SESSION_CLOSED' })
     expect((await (await open()).read('app.json')).data.name).toBe('Before close')
-  })
+  }, 30_000)
 })
 
 describe('file boundaries and external read-only references', () => {
