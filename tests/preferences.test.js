@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import process from 'node:process'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { loadPreferences, savePreferences } from '../src/storage/preferences.js'
 
@@ -24,8 +25,11 @@ describe('personal language preferences', () => {
     await savePreferences({ language: 'zh', theme: 'gruvbox-dark' }, options)
     expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'gruvbox-dark' })
     const file = join(options.directory, 'settings.json')
-    expect((await fs.stat(options.directory)).mode & 0o777).toBe(0o700)
-    expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
+    // POSIX permission bits are not enforced on Windows.
+    if (process.platform !== 'win32') {
+      expect((await fs.stat(options.directory)).mode & 0o777).toBe(0o700)
+      expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
+    }
     await fs.writeFile(
       file,
       JSON.stringify({

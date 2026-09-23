@@ -1,6 +1,7 @@
 import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import process from 'node:process'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { defaultInitialization, initializationExamples } from '../src/config/initialization.js'
 import { createApp, platformKinds, validateDocument } from '../src/config/model.js'
@@ -59,8 +60,11 @@ describe('example-first initialization', () => {
     for (const example of examples) {
       const file = join(session.root, example.path)
       expect(JSON.parse(await fs.readFile(file, 'utf8'))).toEqual(example.data)
-      expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
-      expect((await fs.stat(join(file, '..'))).mode & 0o777).toBe(0o700)
+      // POSIX permission bits are not enforced on Windows.
+      if (process.platform !== 'win32') {
+        expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
+        expect((await fs.stat(join(file, '..'))).mode & 0o777).toBe(0o700)
+      }
     }
     const report = await runDoctor(session)
     expect(
