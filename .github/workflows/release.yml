@@ -15,8 +15,23 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-15
-    timeout-minutes: 15
+    name: Build lazyapp-${{ matrix.asset }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            asset: darwin-arm64
+          - os: macos-15-intel
+            asset: darwin-x64
+          - os: ubuntu-22.04
+            asset: linux-x64
+          - os: ubuntu-22.04-arm
+            asset: linux-arm64
+          - os: windows-latest
+            asset: windows-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -29,10 +44,8 @@ jobs:
       - run: bun run smoke:release
       - uses: actions/upload-artifact@v4
         with:
-          name: lazyapp-darwin-arm64
-          path: |
-            dist/lazyapp-darwin-arm64.tar.gz
-            dist/SHA256SUMS
+          name: lazyapp-${{ matrix.asset }}
+          path: dist/lazyapp-${{ matrix.asset }}.*
           if-no-files-found: error
 
   publish:
@@ -44,8 +57,12 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: lazyapp-darwin-arm64
+          pattern: lazyapp-*
           path: dist
+          merge-multiple: true
+      - name: Generate SHA-256 checksums
+        working-directory: dist
+        run: sha256sum lazyapp-* > SHA256SUMS
       - name: Publish verified assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -53,6 +70,6 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: >-
           gh release create "$RELEASE_TAG"
-          dist/lazyapp-darwin-arm64.tar.gz dist/SHA256SUMS
+          dist/lazyapp-* dist/SHA256SUMS
           --verify-tag --title "$RELEASE_TAG" --generate-notes
-          --notes 'macOS Apple Silicon (arm64). Install: mise use -g github:wei-py/lazyapp@latest. Bun is bundled; no separate runtime installation is required.'
+          --notes 'Prebuilt binaries for macOS (Apple Silicon/x86_64), Linux (x86_64/aarch64), and Windows (x86_64). Install: mise use -g github:wei-py/lazyapp@latest. Bun is bundled; no separate runtime installation is required.'

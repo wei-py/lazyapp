@@ -4,31 +4,41 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import process from 'node:process'
 import * as Bun from 'bun'
+import { releaseTarget } from '../src/config/release.js'
 
 const root = resolve(import.meta.dir, '..')
+const target = releaseTarget()
 const temporary = await mkdtemp(join(tmpdir(), 'lazyapp-release-'))
 try {
-  const unpack = Bun.spawn([
-    'tar',
-    '-xzf',
-    join(root, 'dist/lazyapp-darwin-arm64.tar.gz'),
-    '-C',
-    temporary,
-  ])
+  const unpack = Bun.spawn(['tar', '-xf', join(root, 'dist', target.archiveName), '-C', temporary])
   assert.equal(await unpack.exited, 0, 'Release archive must extract')
-  const binary = join(temporary, 'bin/lazyapp')
-  // Deny access to the checkout: absolute bundled imports must not hide missing assets.
-  const command = [
-    '/usr/bin/sandbox-exec',
-    '-p',
-    `(version 1)(allow default)(deny file-read* (subpath ${JSON.stringify(root)}))`,
-    binary,
-  ]
+  const binary = join(temporary, 'bin', target.binaryName)
+  // Deny access to the checkout where sandbox-exec exists (macOS): absolute bundled imports
+  // must not hide missing assets. Elsewhere the binary still runs with no Bun on PATH.
+  const sandboxed = process.platform === 'darwin'
+  const command = sandboxed
+    ? [
+        '/usr/bin/sandbox-exec',
+        '-p',
+        `(version 1)(allow default)(deny file-read* (subpath ${JSON.stringify(root)}))`,
+        binary,
+      ]
+    : [binary]
   const env = {
-    PATH: '/usr/bin:/bin',
+    PATH: process.platform === 'win32'
+      ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+      : '/usr/bin:/bin',
     HOME: temporary,
     XDG_CONFIG_HOME: join(temporary, 'preferences'),
     TERM: 'xterm-256color',
+    ...(process.platform === 'win32'
+      ? {
+          SystemRoot: process.env.SystemRoot,
+          SystemDrive: process.env.SystemDrive,
+          TEMP: temporary,
+          TMP: temporary,
+        }
+      : {}),
   }
   const help = Bun.spawn([...command, '--help'], {
     cwd: temporary,
@@ -81,7 +91,10 @@ try {
       assert.ok(!timedOut, `Packaged TUI timed out: ${output}`)
       assert.equal(code, 0, `Packaged TUI failed: ${output}`)
       assert.ok(ready, `Native renderer must reach the workspace: ${output}`)
-      assert.ok(output.includes('\x1B[?1049l'), 'Exit must leave the alternate screen')
+      // ConPTY re-encodes escape sequences on Windows, so byte-exact terminal state
+      // checks only hold on POSIX PTYs.
+      if (process.platform !== 'win32')
+        assert.ok(output.includes('\x1B[?1049l'), 'Exit must leave the alternate screen')
       assert.equal(accepted, initialize, 'Only a new workspace should require initialization')
       if (!initialize)
         assert.ok(!output.includes('Create one?'), 'Existing workspace must reopen directly')
@@ -102,7 +115,7 @@ try {
     'Reopening must not rewrite configuration',
   )
   process.stdout.write(
-    'Release smoke passed: archive, help, native TUI, initialization, reopen, terminal exit; no Bun on PATH or checkout access.\n',
+    `Release smoke passed: archive, help, native TUI, initialization, reopen, terminal exit; no Bun on PATH${sandboxed ? ' or checkout access' : ''}.\n`,
   )
 }
 finally {

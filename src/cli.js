@@ -4,6 +4,7 @@ import { basename, join, resolve } from 'node:path'
 import process from 'node:process'
 import { defaultInitialization } from './config/initialization.js'
 import { documentFields, documentKinds, platformKinds, validateDocument } from './config/model.js'
+import { releaseTarget } from './config/release.js'
 import { VERSION } from './config/version.js'
 import { identifyDocument, loadDocuments, runDoctor } from './features/workspace.js'
 import { initializeWorkspace, openWorkspace, workspaceExists } from './storage/workspace.js'
@@ -190,8 +191,16 @@ async function cmdValidate(projectDir, docPath) {
 }
 
 async function cmdUpdate() {
+  let target
+  try {
+    target = releaseTarget()
+  }
+  catch (error) {
+    return fail(error.message, 1)
+  }
+
   // Refuse to self-update when running from source checkout.
-  if (basename(process.execPath) !== 'lazyapp') {
+  if (basename(process.execPath) !== target.binaryName) {
     return fail(
       '--update requires a compiled lazyapp binary. Run the compiled release or update manually.',
       1,
@@ -223,12 +232,12 @@ async function cmdUpdate() {
     return 0
   }
 
-  const assetName = 'lazyapp-darwin-arm64.tar.gz'
+  const assetName = target.archiveName
   const asset = release.assets?.find(a => a.name === assetName)
   if (!asset)
     return fail(`No ${assetName} asset found in the latest release.`, 1)
 
-  if (process.execPath.includes('mise/installs/lazyapp')) {
+  if (process.execPath.replaceAll('\\', '/').includes('mise/installs/lazyapp')) {
     return fail(
       `lazyapp is managed by mise. Run:\n  mise upgrade lazyapp\nLatest: v${latest}  Current: v${current}`,
       1,
@@ -238,7 +247,7 @@ async function cmdUpdate() {
   process.stderr.write(`Updating from v${current} to v${latest}...\n`)
 
   const tmpDir = join(tmpdir(), `lazyapp-update-${Date.now()}`)
-  const tarball = join(tmpDir, assetName)
+  const archive = join(tmpDir, assetName)
   try {
     await mkdir(tmpDir, { recursive: true })
 
@@ -248,21 +257,26 @@ async function cmdUpdate() {
         throw new Error(`Download failed: ${r.status}`)
       return r.blob()
     })
-    await writeFile(tarball, new Uint8Array(await blob.arrayBuffer()))
+    await writeFile(archive, new Uint8Array(await blob.arrayBuffer()))
 
-    // Extract
+    // Extract (.tar.gz or .zip)
     // eslint-disable-next-line no-undef
-    const extract = Bun.spawnSync(['tar', '-xzf', tarball, '-C', tmpDir])
+    const extract = Bun.spawnSync(['tar', '-xf', archive, '-C', tmpDir])
     if (extract.exitCode !== 0)
       throw new Error('Extraction failed')
 
     // Replace binary
-    const newBinary = join(tmpDir, 'bin/lazyapp')
+    const newBinary = join(tmpDir, 'bin', target.binaryName)
     const fileStat = await stat(newBinary).catch(() => null)
     if (!fileStat?.isFile())
-      throw new Error('Binary not found in tarball')
+      throw new Error('Binary not found in release archive')
 
     await chmod(newBinary, 0o755)
+    if (process.platform === 'win32') {
+      // Windows cannot replace a running executable in place.
+      await rm(`${process.execPath}.old`, { force: true })
+      await rename(process.execPath, `${process.execPath}.old`)
+    }
     await rename(newBinary, process.execPath)
 
     process.stderr.write(`Updated to v${latest}.\n`)

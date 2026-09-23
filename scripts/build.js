@@ -3,18 +3,18 @@ import { copyFile, mkdir, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import process from 'node:process'
 import * as Bun from 'bun'
+import { releaseTarget } from '../src/config/release.js'
 
 const root = join(import.meta.dir, '..')
 const pkg = await Bun.file(join(root, 'package.json')).json()
-if (process.platform !== 'darwin' || process.arch !== 'arm64')
-  throw new Error('Release builds currently support macOS arm64 only.')
+const target = releaseTarget()
 if (`bun@${Bun.version}` !== pkg.packageManager)
   throw new Error(`Build with ${pkg.packageManager}; found bun@${Bun.version}.`)
 if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== `v${pkg.version}`)
   throw new Error(`Release tag must match package.json: v${pkg.version}`)
 
 const dist = join(root, 'dist')
-const staging = join(dist, 'lazyapp-darwin-arm64')
+const staging = join(dist, `lazyapp-${target.slug}`)
 await rm(staging, { recursive: true, force: true })
 await mkdir(join(staging, 'bin'), { recursive: true })
 
@@ -34,14 +34,14 @@ await run([
   process.execPath,
   'build',
   '--compile',
-  '--target=bun-darwin-arm64',
+  `--target=${target.bunTarget}`,
   '--define',
   `LAZYAPP_VERSION:"${pkg.version}"`,
   '--no-compile-autoload-dotenv',
   '--no-compile-autoload-bunfig',
   './src/main.js',
   '--outfile',
-  join(staging, 'bin/lazyapp'),
+  join(staging, 'bin', target.binaryName),
 ])
 
 // Retain notices from the installed production dependency graph, including native code.
@@ -76,13 +76,13 @@ async function copyNotices(name) {
   }
 }
 for (const dependency of Object.keys(pkg.dependencies)) await copyNotices(dependency)
-await copyNotices('@opentui/core-darwin-arm64')
+await copyNotices(target.nativePackage)
 
-const archiveName = 'lazyapp-darwin-arm64.tar.gz'
-const archive = join(dist, archiveName)
-await run(['tar', '-czf', archive, '-C', staging, 'bin', 'licenses'])
+// bsdtar and GNU tar both infer the format from the suffix with -a (.tar.gz or .zip).
+const archive = join(dist, target.archiveName)
+await run(['tar', '-a', '-cf', archive, '-C', staging, 'bin', 'licenses'])
 const checksum = createHash('sha256')
   .update(await Bun.file(archive).bytes())
   .digest('hex')
-await Bun.write(join(dist, 'SHA256SUMS'), `${checksum}  ${archiveName}\n`)
+await Bun.write(join(dist, 'SHA256SUMS'), `${checksum}  ${target.archiveName}\n`)
 process.stdout.write(`Release v${pkg.version}: ${archive}\n`)
