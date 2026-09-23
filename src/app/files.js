@@ -177,10 +177,7 @@ export function deleteSelected(app) {
             if (app.state.files)
               app.state.files = await app.session.list()
             invalidateDoctor(app)
-            app.state.selected = Math.min(
-              app.state.selected,
-              Math.max(0, app.items().length - 1),
-            )
+            app.state.selected = Math.min(app.state.selected, Math.max(0, app.items().length - 1))
             app.state.editor = null
             app.state.detailScroll = 0
             app.state.status = app.t(

@@ -322,30 +322,124 @@ const chinese = {
 
 const hints = {
   en: {
-    'dialog-input': { label: 'TEXT DIALOG:', items: ['Enter|submit', 'Esc|cancel', 'arrows|move cursor'] },
-    'dialog-choice': { label: 'DIALOG:', items: ['Enter|confirms', 'Esc|cancels', 'arrows/Tab|choose', 'PgUp/PgDn|details'] },
-    'text-input': { label: 'TEXT INPUT:', items: ['Enter|accept', 'Esc|restore', 'Ctrl+s|save', 'shortcuts|type normally'] },
-    'settings-nav': { items: ['j/k|category', 'Enter|to list', 'Tab/1/2/3|panel', '?|help', 'q|quit'] },
-    'settings-item': { items: ['j/k|setting', 'Enter|apply', 'Tab/1/2/3|panel', 'Esc|back', '?|help', 'q|quit'] },
-    'editor': { items: ['Enter|edit field', 'j/k|field', 'Ctrl+s|save', 'v|full value', 'Esc|to list', '?|help', 'q|quit'] },
-    'preview': { items: ['j/k|scroll preview', 'Enter|open', 'Esc|to list', 'r|refresh', '?|help', 'q|quit'] },
-    'nav': { items: ['j/k|category', 'Enter|to list', 'Tab/1/2/3|panel', 'n|new', '/|search', 'f|files', '?|help', 'q|quit'] },
-    'files': { items: ['j/k|move', 'Enter|open/import', 'd|delete', '/|search', 'r|refresh', 'Esc|to categories', 'q|quit'] },
-    'doctor': { items: ['j/k|result', 'Enter|details', 'r|rerun', 'f|files', 'Esc|to categories', '?|help', 'q|quit'] },
-    'list': { items: ['j/k|move', 'Enter|details', 'n|new', '/|search', 'f|files', 'r|refresh', '?|help', 'q|quit'] },
+    'dialog-input': {
+      label: 'TEXT DIALOG:',
+      items: ['Enter|submit', 'Esc|cancel', 'arrows|move cursor'],
+    },
+    'dialog-choice': {
+      label: 'DIALOG:',
+      items: ['Enter|confirms', 'Esc|cancels', 'arrows/Tab|choose', 'PgUp/PgDn|details'],
+    },
+    'text-input': {
+      label: 'TEXT INPUT:',
+      items: ['Enter|accept', 'Esc|restore', 'Ctrl+s|save', 'shortcuts|type normally'],
+    },
+    'settings-nav': {
+      items: ['j/k|category', 'Enter|to list', 'Tab/1/2/3|panel', '?|help', 'q|quit'],
+    },
+    'settings-item': {
+      items: ['j/k|setting', 'Enter|apply', 'Tab/1/2/3|panel', 'Esc|back', '?|help', 'q|quit'],
+    },
+    'editor': {
+      items: [
+        'Enter|edit field',
+        'j/k|field',
+        'Ctrl+s|save',
+        'v|full value',
+        'Esc|to list',
+        '?|help',
+        'q|quit',
+      ],
+    },
+    'preview': {
+      items: ['j/k|scroll preview', 'Enter|open', 'Esc|to list', 'r|refresh', '?|help', 'q|quit'],
+    },
+    'nav': {
+      items: [
+        'j/k|category',
+        'Enter|to list',
+        'Tab/1/2/3|panel',
+        'n|new',
+        '/|search',
+        'f|files',
+        '?|help',
+        'q|quit',
+      ],
+    },
+    'files': {
+      items: [
+        'j/k|move',
+        'Enter|open/import',
+        'd|delete',
+        '/|search',
+        'r|refresh',
+        'Esc|to categories',
+        'q|quit',
+      ],
+    },
+    'doctor': {
+      items: [
+        'j/k|result',
+        'Enter|details',
+        'r|rerun',
+        'f|files',
+        'Esc|to categories',
+        '?|help',
+        'q|quit',
+      ],
+    },
+    'list': {
+      items: [
+        'j/k|move',
+        'Enter|details',
+        'n|new',
+        '/|search',
+        'f|files',
+        'r|refresh',
+        '?|help',
+        'q|quit',
+      ],
+    },
   },
   zh: {
     'dialog-input': { label: '文本对话框：', items: ['Enter|提交', 'Esc|取消', '方向键|移动光标'] },
-    'dialog-choice': { label: '对话框：', items: ['Enter|确认', 'Esc|取消', '方向键/Tab|选择', 'PgUp/PgDn|详情'] },
-    'text-input': { label: '文本输入：', items: ['Enter|接受', 'Esc|恢复', 'Ctrl+s|保存', '快捷键|按普通文字输入'] },
+    'dialog-choice': {
+      label: '对话框：',
+      items: ['Enter|确认', 'Esc|取消', '方向键/Tab|选择', 'PgUp/PgDn|详情'],
+    },
+    'text-input': {
+      label: '文本输入：',
+      items: ['Enter|接受', 'Esc|恢复', 'Ctrl+s|保存', '快捷键|按普通文字输入'],
+    },
     'settings-nav': { items: ['j/k|分类', 'Enter|列表', 'Tab/1/2/3|面板', '?|帮助', 'q|退出'] },
-    'settings-item': { items: ['j/k|设置', 'Enter|应用', 'Tab/1/2/3|面板', 'Esc|返回', '?|帮助', 'q|退出'] },
-    'editor': { items: ['Enter|编辑', 'j/k|字段', 'Ctrl+s|保存', 'v|完整值', 'Esc|列表', '?|帮助', 'q|退出'] },
+    'settings-item': {
+      items: ['j/k|设置', 'Enter|应用', 'Tab/1/2/3|面板', 'Esc|返回', '?|帮助', 'q|退出'],
+    },
+    'editor': {
+      items: ['Enter|编辑', 'j/k|字段', 'Ctrl+s|保存', 'v|完整值', 'Esc|列表', '?|帮助', 'q|退出'],
+    },
     'preview': { items: ['j/k|滚动预览', 'Enter|打开', 'Esc|列表', 'r|刷新', '?|帮助', 'q|退出'] },
-    'nav': { items: ['j/k|分类', 'Enter|列表', 'Tab/1/2/3|面板', 'n|新建', '/|搜索', 'f|文件', '?|帮助', 'q|退出'] },
-    'files': { items: ['j/k|移动', 'Enter|打开/导入', 'd|删除', '/|搜索', 'r|刷新', 'Esc|分类', 'q|退出'] },
-    'doctor': { items: ['j/k|结果', 'Enter|详情', 'r|重查', 'f|文件', 'Esc|分类', '?|帮助', 'q|退出'] },
-    'list': { items: ['j/k|移动', 'Enter|详情', 'n|新建', '/|搜索', 'f|文件', 'r|刷新', '?|帮助', 'q|退出'] },
+    'nav': {
+      items: [
+        'j/k|分类',
+        'Enter|列表',
+        'Tab/1/2/3|面板',
+        'n|新建',
+        '/|搜索',
+        'f|文件',
+        '?|帮助',
+        'q|退出',
+      ],
+    },
+    'files': {
+      items: ['j/k|移动', 'Enter|打开/导入', 'd|删除', '/|搜索', 'r|刷新', 'Esc|分类', 'q|退出'],
+    },
+    'doctor': {
+      items: ['j/k|结果', 'Enter|详情', 'r|重查', 'f|文件', 'Esc|分类', '?|帮助', 'q|退出'],
+    },
+    'list': {
+      items: ['j/k|移动', 'Enter|详情', 'n|新建', '/|搜索', 'f|文件', 'r|刷新', '?|帮助', 'q|退出'],
+    },
   },
 }
 

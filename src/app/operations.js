@@ -1,11 +1,6 @@
 import { LANGUAGES } from '../config/i18n.js'
 import { DEFAULT_THEME, isTheme } from '../config/themes.js'
-import {
-  doctorLabel,
-  loadDocuments,
-  runDoctor,
-  safeErrorMessage,
-} from '../features/workspace.js'
+import { doctorLabel, loadDocuments, runDoctor, safeErrorMessage } from '../features/workspace.js'
 import { openWorkspace } from '../storage/workspace.js'
 import { preferenceItems } from './state.js'
 

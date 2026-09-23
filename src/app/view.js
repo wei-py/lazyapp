@@ -144,7 +144,10 @@ export function createView(renderer) {
       top,
       width,
       height,
-      { ...content, title: focused ? `[${number}] [${content.title}]` : `[${number}] ${content.title}` },
+      {
+        ...content,
+        title: focused ? `[${number}] [${content.title}]` : `[${number}] ${content.title}`,
+      },
       focused ? COLORS.focus : COLORS.border,
     )
   }
