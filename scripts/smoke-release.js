@@ -73,7 +73,8 @@ try {
           output += new TextDecoder().decode(bytes)
           if (initialize && !accepted && output.includes('Create one? (y/N):')) {
             accepted = true
-            terminal.write('y\n')
+            // Windows cooked console input commits lines on CR; POSIX PTYs commit on LF.
+            terminal.write(process.platform === 'win32' ? 'y\r' : 'y\n')
           }
           if (!ready && output.includes('Ready.')) {
             ready = true
