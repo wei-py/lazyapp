@@ -678,8 +678,10 @@ export async function initializeWorkspace(
       await ignore.close()
     }
     // Reserve the destination exclusively. This also prevents rename from replacing an existing empty directory.
+    let reserved = false
     try {
       await fs.mkdir(root, { mode: 0o700 })
+      reserved = true
     }
     catch (error) {
       if (error.code === 'EEXIST') {
@@ -690,11 +692,39 @@ export async function initializeWorkspace(
       }
       throw error
     }
+    if (process.platform === 'win32') {
+      // Windows rename cannot replace any existing directory, so release our empty reservation first.
+      try {
+        await fs.rmdir(root)
+      }
+      catch (error) {
+        // ENOENT: already released. ENOTEMPTY or EEXIST: another writer claimed the path; the
+        // rename below fails against it and reports the conflict without touching their contents.
+        if (error.code !== 'ENOENT' && error.code !== 'ENOTEMPTY' && error.code !== 'EEXIST')
+          throw error
+      }
+      reserved = false
+    }
     try {
       await fs.rename(stage, root)
     }
     catch (error) {
-      await fs.rmdir(root)
+      if (reserved) {
+        try {
+          await fs.rmdir(root)
+        }
+        catch (cleanup) {
+          // Never mask the rename failure with reservation cleanup noise.
+          if (cleanup.code !== 'ENOENT' && cleanup.code !== 'ENOTEMPTY' && cleanup.code !== 'EEXIST')
+            throw error
+        }
+      }
+      if (await statOrNull(root)) {
+        throw failure(
+          'WORKSPACE_CONFLICT',
+          `The path ${root} appeared during initialization; nothing was overwritten.`,
+        )
+      }
       throw error
     }
     committed = true
