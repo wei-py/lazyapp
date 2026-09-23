@@ -124,10 +124,10 @@ While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters —
 | `bun run dev`                       | run the TUI                                                 |
 | `bun run lint` / `bun run lint:fix` | ESLint checks / fixes                                       |
 | `bun test`                          | behavior tests using `bun:test`                             |
-| `bun run build`                     | build macOS arm64 executable + release archive + SHA256SUMS |
-| `bun run smoke:release`             | exercise the extracted release in a PTY                     |
+| `bun run build`                     | build the current platform's executable + release archive + SHA256SUMS |
+| `bun run smoke:release`             | exercise the extracted release in a PTY                             |
 
 - `docs/spec.md` — authoritative development contract (keyboard, layout, storage, safety, acceptance).
 - `docs/lazyapp.md` — product proposal and data-organization examples.
 
-Verified: macOS arm64, Bun `1.4.2`, `@opentui/core` `0.5.11`. Linux/Windows runtime compatibility is not claimed.
+Verified: macOS arm64 and a Linux arm64 container, Bun `1.4.2`, `@opentui/core` `0.5.11`. Release archives are provided for macOS (arm64/x86_64), Linux (x86_64/arm64), and Windows (x86_64); each target is built and smoke-tested in a real PTY by the release workflow on its OS.

@@ -40,8 +40,8 @@ Install with `bun install --frozen-lockfile`; Bun must be on `PATH`.
 | `bun run lint`                  | ESLint checks                                                       |
 | `bun run lint:fix`              | ESLint fixes                                                        |
 | `bun test`                      | Behavior tests using `bun:test`                                     |
-| `bun run build`                 | Build macOS arm64 executable, release archive, and SHA256SUMS       |
-| `bun run smoke:release`         | Exercise the extracted release in a PTY with checkout access denied |
+| `bun run build`                 | Build the current platform's executable, release archive, and SHA256SUMS |
+| `bun run smoke:release`         | Exercise the extracted release in a PTY with no Bun on PATH (checkout read denied on macOS) |
 
 `package.json` declares `lazyapp` as the executable entry point. `bun src/main.js --help` prints usage without requiring a TTY. `scripts/build.js` bundles Bun and OpenTUI native assets; `dist/` is ignored. `.github/workflows/release.yml` validates and publishes GitHub Release assets on `v*` tags matching `package.json`; manual runs validate without publishing. After publication, install with `mise use -g github:wei-py/lazyapp@latest`. See `docs/spec.md` for release instructions and verification limits.
 
@@ -75,7 +75,7 @@ Install with `bun install --frozen-lockfile`; Bun must be on `PATH`.
 
 Use Bun for runtime, dependency installation, and tests; keep `bun.lock` synchronized with `package.json`. Do not mix npm/pnpm/yarn lockfiles. Use JavaScript, not TypeScript, and `@opentui/core` directly without React/Vue rendering layers. `string-width` supports terminal-column clipping.
 
-Verified versions: Bun 1.4.2 and OpenTUI 0.5.11 on macOS arm64. These are pinned in `package.json` and `bun.lock`. Managing Windows/Linux App configuration does not establish tool runtime compatibility. Require stdin/stdout TTY before entering raw mode. Update the verified versions only after testing startup, input, resize, and cleanup.
+Verified versions: Bun 1.4.2 and OpenTUI 0.5.11 on macOS arm64 and in a Linux arm64 container. These are pinned in `package.json` and `bun.lock`. Release targets additionally cover macOS x86_64, Linux x86_64/arm64, and Windows x86_64; the release workflow builds and smoke-tests each on its own OS. Managing an App platform's configuration does not establish tool runtime support for that OS. Require stdin/stdout TTY before entering raw mode. Update the verified versions only after testing startup, input, resize, and cleanup.
 
 ## Testing & QA
 

@@ -124,10 +124,10 @@ lazyapp /absolute/project
 | `bun run dev`                       | 运行 TUI                                              |
 | `bun run lint` / `bun run lint:fix` | ESLint 检查 / 修复                                    |
 | `bun test`                          | 基于 `bun:test` 的行为测试                            |
-| `bun run build`                     | 构建 macOS arm64 可执行文件 + 发行压缩包 + SHA256SUMS |
+| `bun run build`                     | 构建当前平台可执行文件 + 发行压缩包 + SHA256SUMS     |
 | `bun run smoke:release`             | 在 PTY 中冒烟验证解压后的发行包                       |
 
 - `docs/spec.md` — 权威开发契约（键盘、布局、存储、安全、验收）。
 - `docs/lazyapp.md` — 产品构想与数据组织示例。
 
-已验证：macOS arm64，Bun `1.4.2`，`@opentui/core` `0.5.11`。不声明 Linux/Windows 运行时兼容性。
+已验证：macOS arm64 与 Linux arm64 容器，Bun `1.4.2`、`@opentui/core` `0.5.11`。发行包提供 macOS（arm64/x86_64）、Linux（x86_64/arm64）与 Windows（x86_64）；各平台构建与真实 PTY 冒烟验证由发布工作流在其系统上执行。
