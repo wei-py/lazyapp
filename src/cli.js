@@ -259,8 +259,8 @@ async function cmdUpdate() {
     })
     await writeFile(archive, new Uint8Array(await blob.arrayBuffer()))
 
-    // Extract
-    const extract = Bun.spawnSync(['tar', '-xzf', tarball, '-C', tmpDir])
+    // Extract (.tar.gz or .zip; both bsdtar and GNU tar read the local tar.gz)
+    const extract = Bun.spawnSync(['tar', '-xf', archive, '-C', tmpDir])
     if (extract.exitCode !== 0)
       throw new Error('Extraction failed')
 
