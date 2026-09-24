@@ -241,7 +241,10 @@ export function createView(renderer) {
       ...activeJobs,
       ...settledJobs.slice(Math.max(0, settledJobs.length - 1)),
     ].slice(0, JOB_ROWS)
-    const statusHeight = 4 + shownJobs.length
+    // The status message is the bar's primary content (save/copy/error feedback);
+    // cap it at two wrapped lines so a long error cannot squeeze the panels away.
+    const noticeLines = wrap(s.status, width - 3).slice(0, 2)
+    const statusHeight = 4 + shownJobs.length + noticeLines.length
     const hiddenJobs = s.jobs.length - shownJobs.length
     const statusActive = activeJobs.length > 0
     const stateText = statusActive
@@ -302,8 +305,13 @@ export function createView(renderer) {
         statusHeight,
         {
           title: t(s.language, !statusActive && s.error ? 'Error' : 'Status'),
-          lines: [stateText, ...jobLines, lastLog ? `» ${lastLog}` : ''],
-          colors: [stateColor, ...shownJobs.map(job => jobColor[job.state]), logColor],
+          lines: [stateText, ...jobLines, lastLog ? `» ${lastLog}` : '', ...noticeLines],
+          colors: [
+            stateColor,
+            ...shownJobs.map(job => jobColor[job.state]),
+            logColor,
+            ...noticeLines.map(() => (s.error ? COLORS.error : COLORS.muted)),
+          ],
         },
         statusActive ? COLORS.warning : COLORS.border,
         COLORS.text,
@@ -349,7 +357,7 @@ export function createView(renderer) {
         height - 2,
         width,
         1,
-        [`${stateText}${lastLog ? ` » ${lastLog}` : ''}`],
+        [`${stateText}${s.status ? ` » ${s.status}` : ''}`],
         stateColor,
       )
     }

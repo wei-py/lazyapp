@@ -156,13 +156,16 @@ test('header shows the workspace root with a right-aligned zh/en chip and dirty 
     24,
   )
   await fixture(
-    async ({ frame }) => {
+    async ({ app, frame }) => {
       const lines = (await frame()).split('\n')
       expect(lines[0]).toContain(' LAZYAPP │ ')
       expect(lines[0].trimEnd().endsWith('zh en')).toBe(true)
       const keysRow = lines.findIndex(line => line.includes('h/l panel'))
       expect(keysRow).toBeGreaterThan(0)
       expect(lines[keysRow - 1]).toContain('idle')
+      // Small layouts share the bottom line between task state and notification.
+      app.state.status = 'Probe notification'
+      expect((await frame()).split('\n')[keysRow - 1]).toContain('Probe notification')
     },
     70,
     18,
@@ -205,6 +208,7 @@ test('s enqueues a save job that streams into the status box', async () => {
     expect(out).toContain('✓ Saving app.json')
     expect(out).toContain('exit 0')
     expect(out).toContain('idle')
+    expect(out).toContain('Saved app.json')
     expect(app.state.documents.find(item => item.path === 'app.json').data.name).toBe('Renamed')
   })
 })
