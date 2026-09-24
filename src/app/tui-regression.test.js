@@ -1,8 +1,9 @@
 import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { createTestRenderer } from '@opentui/core/testing'
 import { expect, test } from 'bun:test'
+import stringWidth from 'string-width'
 import { hintSegments } from '../config/i18n.js'
 import { normalizeKey } from '../main.js'
 import { Application } from './controller.js'
@@ -10,12 +11,17 @@ import { operation } from './operations.js'
 import { editDocument } from './state.js'
 import { createView } from './view.js'
 
-// fake wl-copy: captures whatever `y` copies so tests stay deterministic
+// Fake clipboard helper: captures whatever `y` copies so tests stay deterministic. Windows has no
+// POSIX shell to write the payload with, so there the payload assertion is skipped.
+const clipHelper
+  = process.platform === 'darwin' ? 'pbcopy' : process.platform === 'linux' ? 'wl-copy' : null
 const clipBin = mkdtempSync(join(tmpdir(), 'lazyapp-clip-bin-'))
 const clipFile = join(clipBin, 'clip-out')
-writeFileSync(join(clipBin, 'wl-copy'), `#!/bin/sh\ncat > '${clipFile}'\n`)
-chmodSync(join(clipBin, 'wl-copy'), 0o755)
-process.env.PATH = `${clipBin}:${process.env.PATH}`
+if (clipHelper) {
+  writeFileSync(join(clipBin, clipHelper), `#!/bin/sh\ncat > '${clipFile}'\n`)
+  chmodSync(join(clipBin, clipHelper), 0o755)
+  process.env.PATH = [clipBin, process.env.PATH].join(delimiter)
+}
 
 const APP = {
   schemaVersion: 1,
@@ -131,6 +137,8 @@ const MUTED = '108,115,144'
 test('header shows the workspace root with a right-aligned zh/en chip and dirty marker', async () => {
   await fixture(
     async ({ app, frame, ui }) => {
+      // macOS TMPDIR roots overflow a 100-column header, so widen until the root fits verbatim.
+      ui.resize(stringWidth(app.state.root) + 40, 24)
       const header = (await frame()).split('\n')[0]
       expect(header).toContain(' LAZYAPP │ ')
       expect(header).toContain(app.state.root)
@@ -382,7 +390,7 @@ test('every hint set ends with the settings and language chips in key-table orde
   expect(actionPositions.every(index => index > positions.at(-1))).toBe(true)
 })
 
-test('y copies the focused field value through the platform clipboard', async () => {
+test.skipIf(!clipHelper)('y copies the focused field value through the platform clipboard', async () => {
   await fixture(async ({ app, press, frame }) => {
     app.state.category = 0
     app.state.selected = 0
@@ -390,11 +398,36 @@ test('y copies the focused field value through the platform clipboard', async ()
     app.state.editor = editDocument(app.state.documents[0])
     await frame()
     press('y')
-    expect(app.state.error).toBe(false)
-    expect(app.state.status).toContain('Copied')
-    expect(app.state.status).toContain('App name')
     for (let attempt = 0; attempt < 50 && !existsSync(clipFile); attempt++)
       await new Promise(resolve => setTimeout(resolve, 20))
     expect(readFileSync(clipFile, 'utf8')).toBe('Demo')
+    expect(app.state.error).toBe(false)
+    expect(app.state.status).toContain('Copied')
+    expect(app.state.status).toContain('App name')
   })
 }, 30000)
+
+test('a clipboard helper that cannot run is reported as a failure, not a silent success', async () => {
+  const emptyBin = mkdtempSync(join(tmpdir(), 'lazyapp-empty-bin-'))
+  const previousPath = process.env.PATH
+  process.env.PATH = emptyBin
+  try {
+    await fixture(async ({ app, press, frame }) => {
+      app.state.category = 0
+      app.state.selected = 0
+      app.state.focus = 'form'
+      app.state.editor = editDocument(app.state.documents[0])
+      await frame()
+      press('y')
+      for (let attempt = 0; attempt < 50 && !app.state.error; attempt++)
+        await new Promise(resolve => setTimeout(resolve, 20))
+      expect(app.state.error).toBe(true)
+      expect(app.state.status).toContain('Clipboard copy failed')
+      expect(app.state.editor.draft.name).toBe('Demo')
+    })
+  }
+  finally {
+    process.env.PATH = previousPath
+    rmSync(emptyBin, { recursive: true, force: true })
+  }
+})
