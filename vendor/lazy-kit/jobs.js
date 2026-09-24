@@ -31,8 +31,7 @@ async function pump(stream, onLine) {
     carry += decoder.decode(value, { stream: true }).replace(ANSI_RE, '')
     const parts = carry.split(/\r\n|\r|\n/)
     carry = parts.pop() ?? ''
-    for (const part of parts)
-      onLine(part)
+    for (const part of parts) onLine(part)
   }
   carry += decoder.decode()
   if (carry)
@@ -63,8 +62,7 @@ export function createJobRunner({ onPatch = () => {} } = {}) {
       try {
         if (SETSID)
           process.kill(-proc.pid, 'SIGTERM')
-        else
-          proc.kill('SIGTERM')
+        else proc.kill('SIGTERM')
       }
       catch {
         // already exited
@@ -161,7 +159,10 @@ export function createJobRunner({ onPatch = () => {} } = {}) {
     if (op.serialized) {
       job.lastLine = 'waiting for other jobs'
       const settled = chain.then(() => execute(job, op))
-      chain = settled.then(() => {}, () => {})
+      chain = settled.then(
+        () => {},
+        () => {},
+      )
       return settled
     }
     return execute(job, op)
@@ -184,8 +185,7 @@ export function createJobRunner({ onPatch = () => {} } = {}) {
   }
 
   function abortAll() {
-    for (const job of [...jobs])
-      abort(job.id)
+    for (const job of [...jobs]) abort(job.id)
   }
 
   return {

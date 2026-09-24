@@ -8,9 +8,10 @@
  * come from `text`, falling back to a single printable `sequence`.
  */
 
-const segmenter = typeof Intl !== 'undefined' && 'Segmenter' in Intl
-  ? new Intl.Segmenter('en', { granularity: 'grapheme' })
-  : null
+const segmenter
+  = typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter('en', { granularity: 'grapheme' })
+    : null
 
 function keyText(key) {
   if (typeof key.text === 'string')

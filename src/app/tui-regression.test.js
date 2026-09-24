@@ -50,7 +50,8 @@ async function fixture(run, width = 100, height = 24) {
     exitSignals: [],
   })
   const exits = []
-  const app = new Application(join(dir, 'project'), createView(ui.renderer), code => exits.push(code))
+  const app = new Application(join(dir, 'project'), createView(ui.renderer), code =>
+    exits.push(code))
   app.state.documents = documents()
   app.session = {
     list: async () => app.state.documents.map(document => document.path),
@@ -128,28 +129,36 @@ const FOCUS = '122,162,247'
 const MUTED = '108,115,144'
 
 test('header shows the workspace root with a right-aligned zh/en chip and dirty marker', async () => {
-  await fixture(async ({ app, frame, ui }) => {
-    const header = (await frame()).split('\n')[0]
-    expect(header).toContain(' LAZYAPP │ ')
-    expect(header).toContain(app.state.root)
-    expect(header.trimEnd().endsWith('zh en')).toBe(true)
-    expect(header).not.toContain('●')
-    expect(headerSpan(ui, 'LAZYAPP')).toBe(FOCUS)
-    expect(headerSpan(ui, 'en')).toBe(FOCUS)
-    expect(headerSpan(ui, 'zh')).toBe(MUTED)
-    // Dirty drafts add the marker to the header only.
-    app.focusPanel('form')
-    app.state.editor.draft.name = 'Changed'
-    expect((await frame()).split('\n')[0]).toContain(' ●')
-  }, 100, 24)
-  await fixture(async ({ frame }) => {
-    const lines = (await frame()).split('\n')
-    expect(lines[0]).toContain(' LAZYAPP │ ')
-    expect(lines[0].trimEnd().endsWith('zh en')).toBe(true)
-    const keysRow = lines.findIndex(line => line.includes('h/l panel'))
-    expect(keysRow).toBeGreaterThan(0)
-    expect(lines[keysRow - 1]).toContain('idle')
-  }, 70, 18)
+  await fixture(
+    async ({ app, frame, ui }) => {
+      const header = (await frame()).split('\n')[0]
+      expect(header).toContain(' LAZYAPP │ ')
+      expect(header).toContain(app.state.root)
+      expect(header.trimEnd().endsWith('zh en')).toBe(true)
+      expect(header).not.toContain('●')
+      expect(headerSpan(ui, 'LAZYAPP')).toBe(FOCUS)
+      expect(headerSpan(ui, 'en')).toBe(FOCUS)
+      expect(headerSpan(ui, 'zh')).toBe(MUTED)
+      // Dirty drafts add the marker to the header only.
+      app.focusPanel('form')
+      app.state.editor.draft.name = 'Changed'
+      expect((await frame()).split('\n')[0]).toContain(' ●')
+    },
+    100,
+    24,
+  )
+  await fixture(
+    async ({ frame }) => {
+      const lines = (await frame()).split('\n')
+      expect(lines[0]).toContain(' LAZYAPP │ ')
+      expect(lines[0].trimEnd().endsWith('zh en')).toBe(true)
+      const keysRow = lines.findIndex(line => line.includes('h/l panel'))
+      expect(keysRow).toBeGreaterThan(0)
+      expect(lines[keysRow - 1]).toContain('idle')
+    },
+    70,
+    18,
+  )
 })
 
 test('1/2/3 jump between panels with [n] Title (count) chrome and focus colors', async () => {
@@ -168,7 +177,7 @@ test('1/2/3 jump between panels with [n] Title (count) chrome and focus colors',
     expect(titleSpan(ui, '[2] App documents')).toBe(FOCUS)
     press('3')
     expect(app.state.focus).toBe('form')
-    expect((await frame())).toContain('[3] ')
+    expect(await frame()).toContain('[3] ')
     press('tab')
     expect(app.state.focus).toBe('nav')
   })
@@ -188,9 +197,7 @@ test('s enqueues a save job that streams into the status box', async () => {
     expect(out).toContain('✓ Saving app.json')
     expect(out).toContain('exit 0')
     expect(out).toContain('idle')
-    expect(app.state.documents.find(item => item.path === 'app.json').data.name).toBe(
-      'Renamed',
-    )
+    expect(app.state.documents.find(item => item.path === 'app.json').data.name).toBe('Renamed')
   })
 })
 
@@ -230,9 +237,14 @@ test('a slow background job never drops j/k and x aborts it', async () => {
   await fixture(async ({ app, press, frame }) => {
     app.state.category = 3
     let release
-    const pending = operation(app, 'Slow task', () => new Promise((resolve) => {
-      release = resolve
-    }))
+    const pending = operation(
+      app,
+      'Slow task',
+      () =>
+        new Promise((resolve) => {
+          release = resolve
+        }),
+    )
     expect(app.state.jobs.at(-1)).toMatchObject({ state: 'running' })
     // Keys keep flowing while the job runs: the old busy gate would drop these.
     press('j')
@@ -253,9 +265,14 @@ test('a slow background job never drops j/k and x aborts it', async () => {
 test('q with active jobs asks y/n first; ctrl+c inside the flow cancels it', async () => {
   await fixture(async ({ app, press, ui, frame, exits }) => {
     let release
-    const pending = operation(app, 'Slow task', () => new Promise((resolve) => {
-      release = resolve
-    }))
+    const pending = operation(
+      app,
+      'Slow task',
+      () =>
+        new Promise((resolve) => {
+          release = resolve
+        }),
+    )
     press('q')
     expect(app.state.modal).toMatchObject({ type: 'choice', yn: true })
     expect(app.state.modal.title).toBe('Quit?')
@@ -339,10 +356,24 @@ test('every hint set ends with the settings and language chips in key-table orde
   }
   const list = hintSegments('en', 'list')
   expect(list.some(chip => chip.key === '1 2 3' && chip.desc === 'panels')).toBe(true)
-  expect(hintSegments('zh', 'list').some(chip => chip.key === '1 2 3' && chip.desc === '面板')).toBe(
-    true,
-  )
-  const order = ['j/k', 'h/l', 'tab', '1 2 3', 'g/G', 'PgUp/PgDn', 'enter', 'esc', '/', '?', 'r', 'x', '[ ]']
+  expect(
+    hintSegments('zh', 'list').some(chip => chip.key === '1 2 3' && chip.desc === '面板'),
+  ).toBe(true)
+  const order = [
+    'j/k',
+    'h/l',
+    'tab',
+    '1 2 3',
+    'g/G',
+    'PgUp/PgDn',
+    'enter',
+    'esc',
+    '/',
+    '?',
+    'r',
+    'x',
+    '[ ]',
+  ]
   const positions = order.map(key => list.findIndex(chip => chip.key === key))
   expect(positions.every(index => index >= 0)).toBe(true)
   expect([...positions].sort((a, b) => a - b)).toEqual(positions)

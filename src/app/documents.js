@@ -47,7 +47,7 @@ export function leave(app, action, onCancel) {
       'Unsaved changes',
       ['Cancel', 'Save', 'Discard'],
       async (index) => {
-        if (index === 1 && await save(app))
+        if (index === 1 && (await save(app)))
           return action()
         if (index === 2)
           return action()

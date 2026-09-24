@@ -202,7 +202,8 @@ export class Application {
   #cycleSetting(modal, delta) {
     if (modal.row === 0) {
       const order = ['en', 'zh']
-      const next = order[(order.indexOf(this.state.language) + delta + order.length) % order.length]
+      const next
+        = order[(order.indexOf(this.state.language) + delta + order.length) % order.length]
       void setLanguage(this, next)
     }
     else {
@@ -325,7 +326,11 @@ export class Application {
     // Shifted letters arrive as name 'l' + shift with text 'L'; unshift them so
     // only the exact table spelling binds (A/R/S/... stay dead).
     const name
-      = key.shift && !key.ctrl && !key.meta && typeof key.text === 'string' && /^[A-Z]$/.test(key.text)
+      = key.shift
+        && !key.ctrl
+        && !key.meta
+        && typeof key.text === 'string'
+        && /^[A-Z]$/.test(key.text)
         ? key.text
         : key.name
     if (layoutMode(s.width, s.height) === 'small') {
@@ -341,13 +346,7 @@ export class Application {
       return
     }
     if (name === '?' || key.text === '?') {
-      confirm(
-        this,
-        'Keyboard help',
-        ['Close'],
-        () => {},
-        this.t('help_lines'),
-      )
+      confirm(this, 'Keyboard help', ['Close'], () => {}, this.t('help_lines'))
       return
     }
     if (name === 'L' || key.text === 'L') {
@@ -389,9 +388,7 @@ export class Application {
       }
       if (name === '[' || name === ']') {
         const step = name === ']' ? 1 : -1
-        this.selectCategory(
-          (s.category + step + CATEGORIES.length) % CATEGORIES.length,
-        )
+        this.selectCategory((s.category + step + CATEGORIES.length) % CATEGORIES.length)
         return
       }
     }

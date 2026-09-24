@@ -25,9 +25,10 @@ try {
       ]
     : [binary]
   const env = {
-    PATH: process.platform === 'win32'
-      ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
-      : '/usr/bin:/bin',
+    PATH:
+      process.platform === 'win32'
+        ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+        : '/usr/bin:/bin',
     HOME: temporary,
     XDG_CONFIG_HOME: join(temporary, 'preferences'),
     TERM: 'xterm-256color',

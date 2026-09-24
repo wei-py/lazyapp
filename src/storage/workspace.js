@@ -715,8 +715,13 @@ export async function initializeWorkspace(
         }
         catch (cleanup) {
           // Never mask the rename failure with reservation cleanup noise.
-          if (cleanup.code !== 'ENOENT' && cleanup.code !== 'ENOTEMPTY' && cleanup.code !== 'EEXIST')
+          if (
+            cleanup.code !== 'ENOENT'
+            && cleanup.code !== 'ENOTEMPTY'
+            && cleanup.code !== 'EEXIST'
+          ) {
             throw error
+          }
         }
       }
       if (await statOrNull(root)) {

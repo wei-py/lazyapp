@@ -1,11 +1,6 @@
 import { DEFAULT_THEME, isTheme } from '../../vendor/lazy-kit/themes.js'
 import { LANGUAGES } from '../config/i18n.js'
-import {
-  doctorLabel,
-  loadDocuments,
-  runDoctor,
-  safeErrorMessage,
-} from '../features/workspace.js'
+import { doctorLabel, loadDocuments, runDoctor, safeErrorMessage } from '../features/workspace.js'
 import { openWorkspace } from '../storage/workspace.js'
 
 /**

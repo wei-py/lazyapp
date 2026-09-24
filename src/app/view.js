@@ -111,17 +111,10 @@ export function createView(renderer) {
       ),
       `${border.bottomLeft}${border.horizontal.repeat(Math.max(0, innerWidth - stringWidth(counter)))}${counter}${border.bottomRight}`,
     ]
-    show(
-      `${id}Frame`,
-      left,
-      top,
-      width,
-      height,
-      frame,
-      frameColor,
-      background,
-      [titleColor, ...Array.from({ length: frame.length - 1 }).fill(frameColor)],
-    )
+    show(`${id}Frame`, left, top, width, height, frame, frameColor, background, [
+      titleColor,
+      ...Array.from({ length: frame.length - 1 }).fill(frameColor),
+    ])
     show(
       `${id}Inner`,
       left + 1,
@@ -175,7 +168,14 @@ export function createView(renderer) {
   function renderHeader(s, width) {
     const node = nodes.header
     node.visible = true
-    Object.assign(node, { left: 0, top: 0, width, height: 1, fg: COLORS.text, bg: COLORS.background })
+    Object.assign(node, {
+      left: 0,
+      top: 0,
+      width,
+      height: 1,
+      fg: COLORS.text,
+      bg: COLORS.background,
+    })
     const home = (process.env.HOME ?? '').replace(/\/$/, '')
     const root = s.root
     const abbreviated = home && root.startsWith(home) ? `~${root.slice(home.length)}` : root
@@ -235,12 +235,8 @@ export function createView(renderer) {
       renderer.requestRender()
       return
     }
-    const activeJobs = s.jobs.filter(
-      job => job.state === 'running' || job.state === 'queued',
-    )
-    const settledJobs = s.jobs.filter(
-      job => job.state !== 'running' && job.state !== 'queued',
-    )
+    const activeJobs = s.jobs.filter(job => job.state === 'running' || job.state === 'queued')
+    const settledJobs = s.jobs.filter(job => job.state !== 'running' && job.state !== 'queued')
     const shownJobs = [
       ...activeJobs,
       ...settledJobs.slice(Math.max(0, settledJobs.length - 1)),
@@ -277,11 +273,7 @@ export function createView(renderer) {
       return `${JOB_GLYPH[job.state]} ${job.label}  ${detail}`
     })
     const logColor = statusActive ? COLORS.warning : COLORS.muted
-    const stateColor = statusActive
-      ? COLORS.warning
-      : s.error
-        ? COLORS.error
-        : COLORS.muted
+    const stateColor = statusActive ? COLORS.warning : s.error ? COLORS.error : COLORS.muted
     renderHeader(s, width)
     if (mode === 'dual') {
       // 1:2:2 nav:list:detail columns; the nav floor keeps `[1] Title (count)` intact.
@@ -311,11 +303,7 @@ export function createView(renderer) {
         {
           title: t(s.language, !statusActive && s.error ? 'Error' : 'Status'),
           lines: [stateText, ...jobLines, lastLog ? `» ${lastLog}` : ''],
-          colors: [
-            stateColor,
-            ...shownJobs.map(job => jobColor[job.state]),
-            logColor,
-          ],
+          colors: [stateColor, ...shownJobs.map(job => jobColor[job.state]), logColor],
         },
         statusActive ? COLORS.warning : COLORS.border,
         COLORS.text,
@@ -412,10 +400,7 @@ export function createView(renderer) {
         = modal.type === 'input'
           ? [editingValue(modal.value, modal.cursor, false, detailWidth)]
           : modal.type === 'settings'
-            ? [
-                settingRow(s, 0, detailWidth),
-                settingRow(s, 1, detailWidth),
-              ]
+            ? [settingRow(s, 0, detailWidth), settingRow(s, 1, detailWidth)]
             : modal.options
       const detailCount = Math.max(0, available - optionLines.length - 4)
       const start = Math.min(modal.scroll || 0, Math.max(0, detail.length - detailCount))
@@ -453,7 +438,7 @@ function settingRow(s, row, width) {
   const label = row === 0 ? t(s.language, 'Language') : t(s.language, 'Theme')
   const value
     = row === 0
-      ? LANGUAGES.find(item => item.id === s.language)?.label ?? s.language
+      ? (LANGUAGES.find(item => item.id === s.language)?.label ?? s.language)
       : themeName(s.theme)
   return clipColumns(`${label}: ${value}`, width)
 }
