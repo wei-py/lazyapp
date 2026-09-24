@@ -145,7 +145,7 @@ export async function showFiles(app) {
       app.state.detailScroll = 0
       app.state.focus = 'list'
       app.state.status = app.t(
-        'Managed files: panel 3 previews the path; d deletes one file after confirmation. External files are never listed.',
+        'Managed files: panel 3 previews the path; D deletes one file after confirmation. External files are never listed.',
       )
     })
   })
@@ -193,5 +193,6 @@ export function deleteSelected(app) {
       app.t('{path}\nNo directories are recursively deleted. This cannot be undone.', {
         path: item.path,
       }),
+      true,
     ))
 }

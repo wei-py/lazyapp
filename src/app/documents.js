@@ -10,42 +10,48 @@ import {
   PLATFORM_KINDS,
 } from './state.js'
 
-export function confirm(app, title, options, action, detail = '') {
+export function confirm(app, title, options, action, detail = '', yn = false) {
   openModal(app.state, {
     type: 'choice',
     title: app.t(title),
     options: options.map(option => app.t(option)),
     action,
     detail,
+    yn,
   })
   app.update()
 }
 
-export function prompt(app, title, action, value = '', detail = '') {
+export function prompt(app, title, action, value = '', detail = '', options = {}) {
   openModal(app.state, {
     type: 'input',
     title: app.t(title),
     value,
-    cursor: Array.from(value).length,
+    cursor: value.length,
     action,
     detail,
+    ...options,
   })
   app.update()
 }
 
-export function leave(app, action) {
+/**
+ * Run `action` only once any dirty draft is resolved; `onCancel` fires when
+ * the user backs out (or a save fails) so flows that already mutated state —
+ * like the live local search filter — can restore their snapshot.
+ */
+export function leave(app, action, onCancel) {
   if (isDirty(app.state.editor)) {
     return confirm(
       app,
       'Unsaved changes',
       ['Cancel', 'Save', 'Discard'],
       async (index) => {
-        if (index === 1) {
-          if (await save(app))
-            return action()
-        }
+        if (index === 1 && await save(app))
+          return action()
         if (index === 2)
           return action()
+        onCancel?.()
       },
       app.t('Save commits this document; Discard loses this draft only.'),
     )
@@ -71,14 +77,13 @@ export function open(app, document, fresh = false) {
     s.selected = app.items().findIndex(item => item.path === document.path)
     s.focus = 'form'
     s.detailScroll = 0
-    s.gg = 0
     app.update()
   })
 }
 
 export async function save(app) {
   const editor = app.state.editor
-  if (!editor || app.state.busy)
+  if (!editor)
     return false
   const success = await operation(
     app,

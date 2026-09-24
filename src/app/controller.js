@@ -1,14 +1,18 @@
 import { join, resolve } from 'node:path'
+import { createJobRunner } from '../../vendor/lazy-kit/jobs.js'
+import { applyTextKey } from '../../vendor/lazy-kit/keys.js'
+import { DEFAULT_THEME, THEMES } from '../../vendor/lazy-kit/themes.js'
 import { t } from '../config/i18n.js'
 import { documentFields } from '../config/model.js'
-import { DEFAULT_THEME } from '../config/themes.js'
 import {
   doctorLabel,
   identifyDocument,
   loadDocuments,
   logicalFiles,
+  safeErrorMessage,
 } from '../features/workspace.js'
 import { loadPreferences, savePreferences } from '../storage/preferences.js'
+import { copy } from './clipboard.js'
 import { confirm, createDocument, leave, open, prompt, save } from './documents.js'
 import { deleteSelected, filePicker, openFile, showFiles } from './files.js'
 import {
@@ -25,10 +29,9 @@ import {
   categoryFor,
   closeModal,
   editDocument,
-  editText,
   fieldValue,
   layoutMode,
-  preferenceItems,
+  openModal,
   setField,
 } from './state.js'
 
@@ -47,7 +50,6 @@ export class Application {
     this.state = {
       language: 'en',
       theme: DEFAULT_THEME,
-      settingsIndex: 1,
       root: join(this.projectDir, '.lazyapp'),
       documents: [],
       category: 0,
@@ -56,20 +58,27 @@ export class Application {
       editor: null,
       modal: null,
       status: 'Reading workspace…',
-      busy: null,
       error: false,
       search: '',
-      gg: 0,
       width: 100,
       height: 24,
       doctor: [],
       doctorIndex: 0,
       doctorLoaded: false,
+      checking: false,
       detailScroll: 0,
       files: null,
+      jobs: [],
     }
     this.generation = 0
     this.closed = false
+    // Jobs stream into the status bar; patches repaint without blocking keys.
+    this.runner = createJobRunner({
+      onPatch: () => {
+        this.state.jobs = this.runner.list()
+        this.update()
+      },
+    })
   }
 
   t(key, params) {
@@ -88,8 +97,6 @@ export class Application {
   items() {
     const s = this.state
     const category = CATEGORIES[s.category]
-    if (category === 'Settings')
-      return []
     if (s.files) {
       return logicalFiles(s.files).filter(item =>
         item.path.toLowerCase().includes(s.search.toLowerCase()),
@@ -108,13 +115,22 @@ export class Application {
   }
 
   requestQuit() {
-    if (this.state.busy) {
-      this.quitPending = true
-      this.state.status = this.t('Quit requested; waiting for current commit.')
-      this.update()
+    const active = this.runner
+      .list()
+      .filter(job => job.state === 'running' || job.state === 'queued')
+    const proceed = () => leave(this, () => this.exit(this.state.error ? 1 : 0))
+    if (active.length) {
+      confirm(
+        this,
+        'Quit?',
+        ['Cancel', 'Quit'],
+        proceed,
+        `${this.t('jobs still running: {count}', { count: active.length })}\n${this.t('y quit · n cancel')}`,
+        true,
+      )
       return
     }
-    leave(this, () => this.exit(this.state.error ? 1 : 0))
+    proceed()
   }
 
   focusPanel(focus) {
@@ -127,7 +143,6 @@ export class Application {
       s.detailScroll = 0
     }
     s.focus = focus
-    s.gg = 0
     if (focus === 'form' && !s.editor) {
       const item = this.items()[s.selected]
       if (item && !item.file)
@@ -147,12 +162,6 @@ export class Application {
 
   selectItem(index) {
     const s = this.state
-    if (CATEGORIES[s.category] === 'Settings') {
-      s.settingsIndex = index
-      s.detailScroll = 0
-      this.update()
-      return
-    }
     const doctor = CATEGORIES[s.category] === 'Doctor' && !s.files
     if (index === (doctor ? s.doctorIndex : s.selected))
       return
@@ -184,28 +193,36 @@ export class Application {
       s.selected = 0
       s.search = ''
       s.detailScroll = 0
-      s.gg = 0
       if (CATEGORIES[index] === 'Doctor' && !s.doctorLoaded && this.session)
         void doctor(this)
       this.update()
     })
   }
 
+  #cycleSetting(modal, delta) {
+    if (modal.row === 0) {
+      const order = ['en', 'zh']
+      const next = order[(order.indexOf(this.state.language) + delta + order.length) % order.length]
+      void setLanguage(this, next)
+    }
+    else {
+      const ids = THEMES.map(theme => theme.id)
+      const next = ids[(ids.indexOf(this.state.theme) + delta + ids.length) % ids.length]
+      void setTheme(this, next)
+    }
+  }
+
   async key(key) {
     const s = this.state
     if (key.name === 'c' && key.ctrl) {
-      if (s.modal && !s.busy) {
+      if (s.modal) {
+        // Ctrl+c inside a flow cancels that flow, never the application.
         closeModal(s)
         this.update()
       }
       else {
         this.requestQuit()
       }
-      return
-    }
-    if (s.busy) {
-      if (key.name === 'q' && !s.editor?.editing && s.modal?.type !== 'input')
-        this.requestQuit()
       return
     }
     if (s.modal) {
@@ -215,18 +232,52 @@ export class Application {
         this.update()
         return
       }
-      if (modal.type === 'input') {
-        if (key.name === 'return' || key.name === 'enter') {
-          closeModal(s)
-          await modal.action(modal.value)
-        }
-        else {
-          Object.assign(modal, editText(modal.value, modal.cursor, key))
-        }
+      if (modal.type === 'settings') {
+        if (['j', 'down'].includes(key.name))
+          modal.row = 1
+        else if (['k', 'up'].includes(key.name))
+          modal.row = 0
+        else if (['enter', 'return', 'l', 'right'].includes(key.name))
+          this.#cycleSetting(modal, 1)
+        else if (['h', 'left'].includes(key.name))
+          this.#cycleSetting(modal, -1)
+        this.update()
+        return
       }
-      else if (key.name === 'return' || key.name === 'enter') {
+      if (modal.type === 'input') {
+        const next = applyTextKey(key, modal.value, modal.cursor)
+        if (next.submit) {
+          const action = modal.action
+          const value = next.value
+          closeModal(s, false)
+          await action(value)
+        }
+        else if (next.value !== modal.value || next.cursor !== modal.cursor) {
+          modal.value = next.value
+          modal.cursor = next.cursor
+          modal.onInput?.(next.value)
+        }
+        this.update()
+        return
+      }
+      if (modal.yn && ['enter', 'return', 'y'].includes(key.name)) {
+        const action = modal.action
+        const index = modal.options.length - 1
         closeModal(s)
-        await modal.action(modal.index)
+        await action(index)
+        this.update()
+        return
+      }
+      if (modal.yn && key.name === 'n') {
+        closeModal(s)
+        this.update()
+        return
+      }
+      if (key.name === 'return' || key.name === 'enter') {
+        const action = modal.action
+        const index = modal.index
+        closeModal(s)
+        await action(index)
       }
       else if (['j', 'down', 'tab', 'l', 'right'].includes(key.name)) {
         modal.index
@@ -246,10 +297,6 @@ export class Application {
     }
     const editor = s.editor
     if (editor?.editing) {
-      if (key.ctrl && key.name === 's') {
-        await save(this)
-        return
-      }
       if (key.name === 'escape') {
         const field = this.fields()[editor.index]
         if (editor.hadValue)
@@ -257,102 +304,153 @@ export class Application {
         else delete editor.draft[field.key]
         editor.editing = false
       }
-      else if (['return', 'enter', 'tab'].includes(key.name)) {
+      else if (key.name === 'tab') {
         editor.editing = false
-        if (key.name === 'tab')
-          this.cyclePanel(key.shift ? -1 : 1)
+        this.cyclePanel(key.shift ? -1 : 1)
       }
       else {
-        const edited = editText(editor.input, editor.cursor, key)
-        editor.input = edited.value
-        editor.cursor = edited.cursor
-        setField(editor, this.fields()[editor.index], edited.value)
+        const next = applyTextKey(key, editor.input, editor.cursor)
+        if (next.submit) {
+          editor.editing = false
+        }
+        else if (next.value !== editor.input || next.cursor !== editor.cursor) {
+          editor.input = next.value
+          editor.cursor = next.cursor
+          setField(editor, this.fields()[editor.index], next.value)
+        }
       }
       this.update()
       return
     }
+    // Shifted letters arrive as name 'l' + shift with text 'L'; unshift them so
+    // only the exact table spelling binds (A/R/S/... stay dead).
+    const name
+      = key.shift && !key.ctrl && !key.meta && typeof key.text === 'string' && /^[A-Z]$/.test(key.text)
+        ? key.text
+        : key.name
     if (layoutMode(s.width, s.height) === 'small') {
-      if (key.name === 'q' || key.name === 'escape')
+      if (name === 'q')
         this.requestQuit()
       return
     }
-    if (key.ctrl && key.name === 's') {
-      await save(this)
+    // Only Ctrl+d/u (half page) survive this point; Ctrl+c already routed above.
+    if ((key.ctrl || key.meta) && !['d', 'u'].includes(key.name))
       return
-    }
-    if (key.name === 'q') {
+    if (name === 'q') {
       this.requestQuit()
       return
     }
-    if (key.name === '?') {
+    if (name === '?' || key.text === '?') {
       confirm(
         this,
         'Keyboard help',
         ['Close'],
         () => {},
-        this.t(
-          '1/2/3: categories / list / details; Tab / Shift+Tab: next / previous panel\nh/l or Left/Right: previous / next panel; j/k or Up/Down: move in focused panel\nCategories and list selections preview immediately; Enter: focus list / details / edit field\nEsc: details → list → categories → quit; switching panels retains drafts\nChanging category, item, or search asks Save / Discard / Cancel when dirty\ng g (500ms) / G: first / last; /: search document paths from list\nCtrl+s: save; n: create from categories/list; r: refresh or reload focused detail\nf: managed files; d: delete selected file from list; v: full non-secret field in details\nq: quit; Ctrl+c: request quit\nRed means missing; green means present, not valid credentials. Enter on missing configs edits a clean draft; Enter on missing resources imports a real file.\nText mode keeps all printable shortcuts, including 123jq/?.\nFile imports are independent confirmed commits. Doctor is read-only.\nPageUp/PageDown scroll details and long dialogs.\nSettings / 设置: choose 中文 / English; Enter applies and saves. Document shortcuts are disabled in Settings.',
-        ),
+        this.t('help_lines'),
       )
       return
     }
-    if (key.name === 'escape') {
-      if (s.focus === 'nav') {
-        this.requestQuit()
-      }
-      else {
-        this.focusPanel(s.focus === 'form' ? 'list' : 'nav')
-      }
+    if (name === 'L' || key.text === 'L') {
+      void setLanguage(this, s.language === 'zh' ? 'en' : 'zh')
       return
     }
-    if (key.name === 'tab') {
-      s.gg = 0
-      this.cyclePanel(key.shift ? -1 : 1)
+    if (name === ':' || key.text === ':') {
+      openModal(s, { type: 'settings', title: this.t('Settings'), row: 0 })
       this.update()
       return
     }
-    if (!key.ctrl && !key.meta) {
-      if (['1', '2', '3'].includes(key.name)) {
-        this.focusPanel(['nav', 'list', 'form'][Number(key.name) - 1])
+    if (name === 'escape') {
+      // Esc steps back one panel; at the categories panel it stops — q quits.
+      if (s.focus !== 'nav')
+        this.focusPanel(s.focus === 'form' ? 'list' : 'nav')
+      return
+    }
+    if (name === 'x') {
+      const active = [...s.jobs]
+        .reverse()
+        .find(job => job.state === 'running' || job.state === 'queued')
+      if (active)
+        this.runner.abort(active.id)
+      return
+    }
+    if (name === 'tab' || name === 'backtab') {
+      this.cyclePanel(key.shift || name === 'backtab' ? -1 : 1)
+      this.update()
+      return
+    }
+    if (!key.ctrl && !key.meta && !key.shift) {
+      if (['1', '2', '3'].includes(name)) {
+        this.focusPanel(['nav', 'list', 'form'][Number(name) - 1])
         return
       }
-      if (['h', 'left', 'l', 'right'].includes(key.name)) {
-        this.cyclePanel(['h', 'left'].includes(key.name) ? -1 : 1)
+      if (['h', 'left', 'l', 'right'].includes(name)) {
+        this.cyclePanel(['h', 'left'].includes(name) ? -1 : 1)
+        return
+      }
+      if (name === '[' || name === ']') {
+        const step = name === ']' ? 1 : -1
+        this.selectCategory(
+          (s.category + step + CATEGORIES.length) % CATEGORIES.length,
+        )
         return
       }
     }
-    if (CATEGORIES[s.category] === 'Settings' && ['/', 'r', 'n', 'f', 'd', 'v'].includes(key.name))
-      return
-    if (key.name === '/' && ['nav', 'list'].includes(s.focus)) {
-      // Searching from the categories panel scrolls the filtered list instead of leaving the workflow.
+    if ((name === '/' || key.text === '/') && ['nav', 'list'].includes(s.focus)) {
+      // Local-only path filter: typing filters instantly, Esc restores the list.
       if (s.focus === 'nav')
         this.focusPanel('list')
+      const previous = {
+        search: s.search,
+        selected: s.selected,
+        detailScroll: s.detailScroll,
+      }
+      const restore = () => {
+        s.search = previous.search
+        s.selected = previous.selected
+        s.detailScroll = previous.detailScroll
+        this.update()
+      }
       prompt(
         this,
         'Search document paths (secrets excluded)',
-        (value) => {
-          if (value === s.search)
+        async (value) => {
+          if (value === previous.search)
             return
-          return leave(this, () => {
-            s.search = value
-            s.selected = 0
-            s.editor = null
-            s.detailScroll = 0
-            this.update()
-          })
+          await leave(
+            this,
+            () => {
+              s.search = value
+              s.selected = 0
+              s.editor = null
+              s.detailScroll = 0
+              this.update()
+            },
+            restore,
+          )
         },
         s.search,
+        '',
+        {
+          search: true,
+          restore,
+          onInput: (value) => {
+            s.search = value
+            s.selected = 0
+            s.detailScroll = 0
+            this.update()
+          },
+        },
       )
       return
     }
-    if (key.name === 'r' && !this.session) {
-      await start(this)
+    if (name === 'r' && !this.session) {
+      void start(this)
       return
     }
-    if (key.name === 'r' && this.session) {
+    if (name === 'r' && this.session) {
       if (s.focus === 'form' && editor) {
-        await leave(this, async () => {
-          await operation(this, this.t('Reloading {path}', { path: editor.path }), async () => {
+        void leave(this, () =>
+          operation(this, this.t('Reloading {path}', { path: editor.path }), async () => {
             s.documents = await loadDocuments(this.session, { includeExamples: true })
             const document = s.documents.find(item => item.path === editor.path)
             s.editor = document ? editDocument(document) : null
@@ -360,45 +458,69 @@ export class Application {
               s.files = await this.session.list()
             invalidateDoctor(this)
             s.status = this.t('Reloaded disk version. You can edit and save again.')
-          })
-        })
+          }))
       }
       else if (CATEGORIES[s.category] === 'Doctor' && !s.files) {
-        await doctor(this)
+        void doctor(this)
       }
       else {
-        await leave(this, () => refresh(this))
+        void leave(this, () => refresh(this))
       }
       return
     }
-    if (key.name === 'f' && this.session) {
-      await showFiles(this)
+    if (name === 'f' && this.session) {
+      void showFiles(this)
       return
     }
-    if (key.name === 'n' && ['nav', 'list'].includes(s.focus) && this.session && !s.files) {
+    if (name === 'a' && ['nav', 'list'].includes(s.focus) && this.session && !s.files) {
       createDocument(this)
       return
     }
-    if (key.name === 'd' && s.focus === 'list' && this.session) {
+    if (name === 'D' && s.focus === 'list' && this.session) {
       deleteSelected(this)
       return
     }
-    if (key.name === 'v' && s.focus === 'form' && editor) {
-      const field = this.fields()[editor.index]
-      if (field && field.type !== 'secret')
-        confirm(this, field.label, ['Close'], () => {}, fieldValue(editor, field))
+    if (name === 's') {
+      void save(this)
       return
     }
-    if (['return', 'enter'].includes(key.name)) {
+    if (name === 'e' && s.focus === 'form' && editor) {
+      const field = this.fields()[editor.index]
+      if (!field) {
+        void save(this)
+      }
+      else if (field.type === 'file') {
+        filePicker(this, field)
+      }
+      else {
+        editor.editing = true
+        editor.input = fieldValue(editor, field)
+        editor.hadValue = Object.hasOwn(editor.draft, field.key)
+        editor.beforeValue = structuredClone(editor.draft[field.key])
+        editor.cursor = editor.input.length
+      }
+      this.update()
+      return
+    }
+    if (name === 'y' && s.focus === 'form' && editor) {
+      const field = this.fields()[editor.index]
+      if (field) {
+        s.error = false
+        s.status = this.t('Copied {label}', { label: field.label })
+        this.update()
+        copy(fieldValue(editor, field)).catch((error) => {
+          s.error = true
+          s.status = this.t('Clipboard copy failed: {error}', {
+            error: safeErrorMessage(error, s.language),
+          })
+          this.update()
+        })
+      }
+      return
+    }
+    if (['return', 'enter'].includes(name)) {
       if (s.focus === 'nav') {
         this.focusPanel('list')
-      }
-      else if (CATEGORIES[s.category] === 'Settings') {
-        const item = preferenceItems()[s.settingsIndex]
-        if (item?.kind === 'theme')
-          await setTheme(this, item.id)
-        else if (item)
-          await setLanguage(this, item.id)
       }
       else if (s.focus === 'list') {
         const item = this.items()[s.selected]
@@ -407,21 +529,10 @@ export class Application {
         else this.focusPanel('form')
       }
       else if (s.focus === 'form' && editor) {
+        // Enter expands the full non-secret value; `e` edits it.
         const field = this.fields()[editor.index]
-        if (!field) {
-          await save(this)
-        }
-        else if (field.type === 'file') {
-          filePicker(this, field)
-        }
-        else {
-          editor.editing = true
-          editor.input = fieldValue(editor, field)
-          editor.hadValue = Object.hasOwn(editor.draft, field.key)
-          editor.beforeValue = structuredClone(editor.draft[field.key])
-          editor.cursor = Array.from(editor.input).length
-          s.gg = 0
-        }
+        if (field && field.type !== 'secret')
+          confirm(this, field.label, ['Close'], () => {}, fieldValue(editor, field))
       }
       else if (CATEGORIES[s.category] === 'Doctor' && !s.files) {
         const item = s.doctor[s.doctorIndex]
@@ -445,28 +556,17 @@ export class Application {
       this.update()
       return
     }
-    let delta = ['j', 'down'].includes(key.name) ? 1 : ['k', 'up'].includes(key.name) ? -1 : 0
-    if (key.name === 'pagedown')
-      delta = 8
-    if (key.name === 'pageup')
-      delta = -8
+    const halfPage = Math.max(1, Math.floor(s.height / 3))
+    let delta = ['j', 'down'].includes(name) ? 1 : ['k', 'up'].includes(name) ? -1 : 0
+    if (name === 'pagedown' || (key.ctrl && key.name === 'd'))
+      delta = halfPage
+    if (name === 'pageup' || (key.ctrl && key.name === 'u'))
+      delta = -halfPage
     let edge = null
-    if ((key.name === 'g' && key.shift) || key.text === 'G') {
+    if (name === 'end' || name === 'G')
       edge = 'last'
-    }
-    else if (key.name === 'g') {
-      const now = Date.now()
-      if (s.gg && now - s.gg <= 500) {
-        edge = 'first'
-        s.gg = 0
-      }
-      else {
-        s.gg = now
-      }
-    }
-    else {
-      s.gg = 0
-    }
+    else if (name === 'home' || name === 'g')
+      edge = 'first'
     if (!delta && !edge)
       return
     const move = (index, count) =>
@@ -476,16 +576,14 @@ export class Application {
           ? Math.max(0, count - 1)
           : Math.max(0, Math.min(count - 1, index + delta))
     if (s.focus === 'nav')
-      await this.selectCategory(move(s.category, CATEGORIES.length))
-    else if (CATEGORIES[s.category] === 'Settings')
-      await this.selectItem(move(s.settingsIndex, preferenceItems().length))
+      this.selectCategory(move(s.category, CATEGORIES.length))
     else if (s.focus === 'form' && editor)
       editor.index = move(editor.index, this.fields().length + 1)
     else if (s.focus === 'form')
       s.detailScroll = edge === 'first' ? 0 : Math.max(0, s.detailScroll + delta)
     else if (CATEGORIES[s.category] === 'Doctor' && !s.files)
-      await this.selectItem(move(s.doctorIndex, s.doctor.length))
-    else await this.selectItem(move(s.selected, this.items().length))
+      this.selectItem(move(s.doctorIndex, s.doctor.length))
+    else this.selectItem(move(s.selected, this.items().length))
     this.update()
   }
 
@@ -494,6 +592,7 @@ export class Application {
       return
     this.closed = true
     this.generation++
+    this.runner.abortAll()
     await this.inFlight
     await this.session?.close()
   }

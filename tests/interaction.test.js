@@ -10,13 +10,13 @@ import {
   closeModal,
   displayValue,
   editDocument,
-  editText,
   isDirty,
   layoutMode,
   openModal,
 } from '../src/app/state.js'
 import { defaultInitialization } from '../src/config/initialization.js'
 import { initializeWorkspace } from '../src/storage/workspace.js'
+import { applyTextKey } from '../vendor/lazy-kit/keys.js'
 
 const APP = {
   schemaVersion: 1,
@@ -43,8 +43,10 @@ function application() {
   app.state.focus = 'form'
   return { app, exits }
 }
-function press(app, name, extra = {}) {
-  return app.key({ name, text: name.length === 1 ? name : undefined, ...extra })
+async function press(app, name, extra = {}) {
+  await app.key({ name, text: name.length === 1 ? name : undefined, ...extra })
+  if (app.inFlight)
+    await app.inFlight
 }
 
 function serviceApplication() {
@@ -82,7 +84,7 @@ async function choose(app, label) {
 describe('input ownership and draft transitions', () => {
   test('jq/? remain text and do not navigate, open help, or quit', async () => {
     const { app, exits } = application()
-    await press(app, 'return')
+    await press(app, 'e')
     for (const character of 'jq/?') await press(app, character)
     expect(app.state.editor.draft.name).toBe('Examplejq/?')
     expect(app.state.category).toBe(0)
@@ -164,24 +166,41 @@ describe('input ownership and draft transitions', () => {
     expect(app.state.documents[0].data.name).toBe('Retained')
   })
 
-  test('text editing operates on Unicode codepoints, including pasted shortcut characters', () => {
-    expect(editText('中文', 1, { name: 'paste', text: 'jq/?' })).toEqual({
+  test('text input inserts printables, deletes by grapheme, and owns submit/cancel', () => {
+    expect(applyTextKey({ name: 'paste', text: 'jq/?' }, '中文', 1)).toEqual({
       value: '中jq/?文',
       cursor: 5,
+      submit: false,
+      cancel: false,
     })
-    expect(editText('a😀b', 2, { name: 'backspace' })).toEqual({ value: 'ab', cursor: 1 })
+    expect(applyTextKey({ name: 'backspace' }, 'a😀b', 3)).toEqual({
+      value: 'ab',
+      cursor: 1,
+      submit: false,
+      cancel: false,
+    })
+    expect(applyTextKey({ name: 'u', ctrl: true }, 'text', 4)).toMatchObject({
+      value: '',
+      cursor: 0,
+    })
+    expect(applyTextKey({ name: 'enter' }, 'text', 4)).toMatchObject({ submit: true })
+    expect(applyTextKey({ name: 'escape' }, 'text', 4)).toMatchObject({ cancel: true })
   })
 
-  test('read-only operations leave loading state even without custom success text', async () => {
+  test('operations run as background jobs without status churn or input gating', async () => {
     const { app } = application()
+    const before = app.state.status
     let during
-    await operation(app, 'Checking source file', async () => {
+    const pending = operation(app, 'Checking source file', async () => {
       during = app.state.status
     })
-    expect(during).toContain('reading')
-    expect(during).not.toContain('commit')
-    expect(app.state.busy).toBeNull()
-    expect(app.state.status).toBe('Checking source file: complete.')
+    expect(during).toBe(before)
+    expect(app.state.jobs).toHaveLength(1)
+    expect(app.state.jobs[0]).toMatchObject({ label: 'Checking source file', state: 'running' })
+    expect(await pending).toBe(true)
+    expect(app.state.jobs[0].state).toBe('done')
+    expect(app.state.busy).toBeUndefined()
+    expect(app.state.status).toBe(before)
   })
 
   test('dirty exit confirmation remains operable in a too-small terminal', async () => {
@@ -288,7 +307,10 @@ describe('persistent three-panel navigation', () => {
     expect(app.state.focus).toBe('form')
     expect(app.state.editor.path).toBe('services/alpha.json')
     expect(app.state.editor.editing).toBe(false)
-    await press(app, 'return')
+    await press(app, 'enter')
+    expect(app.state.modal.detail).toBe('alpha')
+    await press(app, 'escape')
+    await press(app, 'e')
     expect(app.state.editor.editing).toBe(true)
   })
 
@@ -382,7 +404,7 @@ describe('persistent three-panel navigation', () => {
     await press(app, 'paste', { text: 'beta' })
     await press(app, 'return')
     expect(app.state.modal.title).toBe('Unsaved changes')
-    expect(app.state.search).toBe('')
+    expect(app.state.search).toBe('beta')
     await choose(app, 'Cancel')
     expect(app.state.search).toBe('')
     expect(app.state.editor).toBe(editor)
@@ -441,7 +463,7 @@ describe('persistent three-panel navigation', () => {
   test('digits and panel shortcuts remain literal in text and modal input', async () => {
     const { app } = serviceApplication()
     app.focusPanel('form')
-    await press(app, 'return')
+    await press(app, 'e')
     for (const character of '123hlnrvdjq/?') await press(app, character)
     expect(app.state.editor.draft.name).toBe('alpha123hlnrvdjq/?')
     expect(app.state.focus).toBe('form')
@@ -509,7 +531,7 @@ describe('persistent three-panel navigation', () => {
     expect(app.state.doctorIndex).toBe(1)
   })
 
-  test('Escape steps back without discarding and only asks to quit at nav', async () => {
+  test('Escape steps back without discarding and never quits at nav', async () => {
     const { app, exits } = serviceApplication()
     app.focusPanel('form')
     app.state.editor.draft.name = 'Unsaved'
@@ -520,11 +542,15 @@ describe('persistent three-panel navigation', () => {
       expect(exits).toEqual([])
     }
     await press(app, 'escape')
+    expect(app.state.focus).toBe('nav')
+    expect(app.state.modal).toBeNull()
+    expect(exits).toEqual([])
+    await press(app, 'q')
     expect(app.state.modal.options[app.state.modal.index]).toBe('Cancel')
     await choose(app, 'Cancel')
     expect(app.state.focus).toBe('nav')
     app.state.editor.draft = structuredClone(app.state.editor.snapshot)
-    await press(app, 'escape')
+    await press(app, 'q')
     expect(exits).toEqual([0])
   })
 
@@ -569,7 +595,7 @@ describe('persistent three-panel navigation', () => {
     await press(app, 'v')
     expect(app.state.modal).toBeNull()
     expect(app.state.focus).toBe('list')
-    await press(app, 'n')
+    await press(app, 'a')
     expect(app.state.modal.title).toBe('New service name')
     await press(app, 'escape')
     expect(app.state.editor).toBe(editor)
@@ -578,10 +604,10 @@ describe('persistent three-panel navigation', () => {
     expect(app.state.editor).toBeNull()
     expect(app.items()[app.state.selected].path).toBe('services/alpha.json')
     await press(app, '3')
-    await press(app, 'n')
-    await press(app, 'd')
+    await press(app, 'a')
+    await press(app, 'D')
     expect(app.state.modal).toBeNull()
-    await press(app, 'v')
+    await press(app, 'enter')
     expect(app.state.modal.detail).toBe('alpha')
   })
 
@@ -655,7 +681,7 @@ describe('logical file presence', () => {
       app.state.selected = app.items().findIndex(item => item.path === path)
       await press(app, 'return')
       app.state.editor.draft.apiUrl = 'https://example.test'
-      await press(app, 's', { ctrl: true })
+      await press(app, 's')
       expect(app.state.error).toBe(false)
       expect(app.items().find(item => item.path === path).missing).toBe(false)
       expect(JSON.parse(await fs.readFile(join(project, '.lazyapp', path), 'utf8'))).toEqual({
@@ -665,7 +691,7 @@ describe('logical file presence', () => {
       })
       expect(await fs.readFile(examplePath, 'utf8')).toBe(example)
       await press(app, '2')
-      await press(app, 'd')
+      await press(app, 'D')
       await choose(app, 'Delete file')
       expect(app.items().find(item => item.path === path).missing).toBe(true)
       await expect(fs.stat(join(project, '.lazyapp', path))).rejects.toMatchObject({
@@ -716,7 +742,7 @@ describe('logical file presence', () => {
       expect(app.items().find(item => item.path === path).missing).toBe(false)
       expect(new Uint8Array(await fs.readFile(join(project, '.lazyapp', path)))).toEqual(bytes)
       expect(await fs.readFile(join(project, '.lazyapp', `${path}.example`), 'utf8')).toBe(example)
-      await press(app, 'd')
+      await press(app, 'D')
       await choose(app, 'Delete file')
       expect(app.items().find(item => item.path === path).missing).toBe(true)
       expect(new Uint8Array(await fs.readFile(source))).toEqual(bytes)

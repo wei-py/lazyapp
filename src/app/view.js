@@ -1,20 +1,24 @@
 import process from 'node:process'
 import { fg, StyledText, TextRenderable } from '@opentui/core'
 import stringWidth from 'string-width'
-import { t } from '../config/i18n.js'
-import { layoutMode } from './state.js'
+import { JOB_GLYPH } from '../../vendor/lazy-kit/jobs.js'
+import { themeName } from '../../vendor/lazy-kit/themes.js'
+import { LANGUAGES, t } from '../config/i18n.js'
+import { isDirty, layoutMode } from './state.js'
 import { COLORS, setTheme } from './view/colors.js'
 import { keyHints } from './view/hints.js'
-import { detailContent, listContent, navContent, workspaceContent } from './view/panels.js'
+import { detailContent, listContent, navContent } from './view/panels.js'
 import { clipColumns, editingValue, padColumns, wrap } from './view/primitives.js'
 
 const PANEL_IDS = ['nav', 'list', 'detail']
 const PANEL_FOCUS = { nav: 'nav', list: 'list', detail: 'form' }
+const JOB_ROWS = 3
 // Modal nodes are created last so an open dialog paints above every panel.
 const NODE_IDS = [
   'keys',
   'message',
-  ...['workspace', ...PANEL_IDS, 'status', 'modal'].flatMap(id => [
+  'header',
+  ...['nav', 'list', 'detail', 'status', 'modal'].flatMap(id => [
     `${id}Frame`,
     `${id}Inner`,
     `${id}Selection`,
@@ -91,6 +95,7 @@ export function createView(renderer) {
     frameColor = COLORS.border,
     color = COLORS.text,
     background = COLORS.background,
+    titleColor = frameColor,
   ) {
     if (width < 4 || height < 2)
       return
@@ -99,14 +104,24 @@ export function createView(renderer) {
     const label = clipColumns(` ${content.title} `, innerWidth)
     const counter = content.counter ? clipColumns(` ${content.counter} `, innerWidth) : ''
     const frame = [
-      `${border.topLeft}${label}${border.horizontal.repeat(innerWidth - stringWidth(label))}${border.topRight}`,
+      `${border.topLeft}${label}${border.horizontal.repeat(Math.max(0, innerWidth - stringWidth(label)))}${border.topRight}`,
       ...Array.from(
         { length: innerHeight },
         () => `${border.vertical}${' '.repeat(innerWidth)}${border.vertical}`,
       ),
-      `${border.bottomLeft}${border.horizontal.repeat(innerWidth - stringWidth(counter))}${counter}${border.bottomRight}`,
+      `${border.bottomLeft}${border.horizontal.repeat(Math.max(0, innerWidth - stringWidth(counter)))}${counter}${border.bottomRight}`,
     ]
-    show(`${id}Frame`, left, top, width, height, frame, frameColor, background)
+    show(
+      `${id}Frame`,
+      left,
+      top,
+      width,
+      height,
+      frame,
+      frameColor,
+      background,
+      [titleColor, ...Array.from({ length: frame.length - 1 }).fill(frameColor)],
+    )
     show(
       `${id}Inner`,
       left + 1,
@@ -130,23 +145,63 @@ export function createView(renderer) {
         innerWidth,
         1,
         [padColumns(` ${content.lines[content.selected]}`, innerWidth)],
-        content.colors?.[content.selected] || COLORS.selectionText,
+        COLORS.selectionText,
         COLORS.selection,
       )
     }
   }
+  /** `[n] Title (count)`: number follows render order, focus owns title + border color. */
   function panel(id, left, top, width, height, content, s) {
     const focused = PANEL_FOCUS[id] === s.focus
     const number = PANEL_IDS.indexOf(id) + 1
+    const innerWidth = width - 2
+    const prefix = `[${number}] `
+    const suffix = content.count === undefined ? '' : ` (${content.count})`
+    const budget = Math.max(1, innerWidth - 2 - stringWidth(prefix) - stringWidth(suffix))
+    const title = `${prefix}${clipColumns(content.title, budget)}${suffix}`
     box(
       id,
       left,
       top,
       width,
       height,
-      { ...content, title: focused ? `[${number}] [${content.title}]` : `[${number}] ${content.title}` },
+      { ...content, title },
       focused ? COLORS.focus : COLORS.border,
+      COLORS.text,
+      COLORS.background,
+      focused ? COLORS.focus : COLORS.muted,
     )
+  }
+  function renderHeader(s, width) {
+    const node = nodes.header
+    node.visible = true
+    Object.assign(node, { left: 0, top: 0, width, height: 1, fg: COLORS.text, bg: COLORS.background })
+    const home = (process.env.HOME ?? '').replace(/\/$/, '')
+    const root = s.root
+    const abbreviated = home && root.startsWith(home) ? `~${root.slice(home.length)}` : root
+    const chipPlain = 'zh en'
+    const prefixPlain = ' LAZYAPP │ '
+    const pathBudget = Math.max(3, width - prefixPlain.length - chipPlain.length - 1)
+    const shownPath
+      = stringWidth(abbreviated) > pathBudget
+        ? `${clipColumns(abbreviated, pathBudget - 1)}…`
+        : abbreviated
+    const dirty = isDirty(s.editor) ? ' ●' : ''
+    const pad = ' '.repeat(
+      Math.max(1, width - prefixPlain.length - stringWidth(shownPath + dirty) - chipPlain.length),
+    )
+    const segments = [
+      { text: ' ', color: COLORS.text },
+      { text: 'LAZYAPP', color: COLORS.focus },
+      { text: ' │ ', color: COLORS.border },
+      { text: shownPath, color: COLORS.repo },
+      ...(dirty ? [{ text: dirty, color: COLORS.warning }] : []),
+      { text: pad, color: COLORS.text },
+      { text: 'zh', color: s.language === 'zh' ? COLORS.focus : COLORS.muted },
+      { text: ' ', color: COLORS.border },
+      { text: 'en', color: s.language === 'en' ? COLORS.focus : COLORS.muted },
+    ]
+    node.content = new StyledText(segments.map(segment => fg(segment.color)(segment.text)))
   }
   function panelContent(id, s, app, rows, width) {
     if (id === 'nav')
@@ -180,21 +235,68 @@ export function createView(renderer) {
       renderer.requestRender()
       return
     }
+    const activeJobs = s.jobs.filter(
+      job => job.state === 'running' || job.state === 'queued',
+    )
+    const settledJobs = s.jobs.filter(
+      job => job.state !== 'running' && job.state !== 'queued',
+    )
+    const shownJobs = [
+      ...activeJobs,
+      ...settledJobs.slice(Math.max(0, settledJobs.length - 1)),
+    ].slice(0, JOB_ROWS)
+    const statusHeight = 4 + shownJobs.length
+    const hiddenJobs = s.jobs.length - shownJobs.length
+    const statusActive = activeJobs.length > 0
+    const stateText = statusActive
+      ? `${t(s.language, '{count} active', { count: activeJobs.length })}${hiddenJobs > 0 ? ` +${hiddenJobs}` : ''}`
+      : s.checking
+        ? t(s.language, 'checking…')
+        : t(s.language, 'idle')
+    const logs = app.runner.log()
+    const lastLog = logs.length > 0 ? logs[logs.length - 1] : ''
+    const jobColor = {
+      queued: COLORS.muted,
+      running: COLORS.warning,
+      done: COLORS.present,
+      failed: COLORS.warning,
+      canceled: COLORS.muted,
+    }
+    const jobLines = shownJobs.map((job) => {
+      let detail = job.lastLine
+      if (job.state === 'queued')
+        detail = t(s.language, 'waiting for other jobs')
+      if (job.endedAt !== null && job.startedAt !== null) {
+        const seconds = `${Math.max(1, Math.round((job.endedAt - job.startedAt) / 1000))}s`
+        if (job.state === 'canceled')
+          detail = t(s.language, 'canceled · {seconds}', { seconds })
+        else if (job.state === 'failed' && job.exitCode === null)
+          detail = job.lastLine
+        else detail = t(s.language, 'exit {code} · {seconds}', { code: job.exitCode, seconds })
+      }
+      return `${JOB_GLYPH[job.state]} ${job.label}  ${detail}`
+    })
+    const logColor = statusActive ? COLORS.warning : COLORS.muted
+    const stateColor = statusActive
+      ? COLORS.warning
+      : s.error
+        ? COLORS.error
+        : COLORS.muted
+    renderHeader(s, width)
     if (mode === 'dual') {
-      // 1:2:2 nav:list:detail columns, matching lazymise's dual geometry.
-      const navWidth = Math.floor((width - 2) / 5)
+      // 1:2:2 nav:list:detail columns; the nav floor keeps `[1] Title (count)` intact.
+      const navWidth = Math.max(23, Math.floor((width - 2) / 5))
       const listWidth = Math.floor((width - navWidth - 2) / 2)
       const detailLeft = navWidth + listWidth + 2
       const detailWidth = width - detailLeft
-      const panelHeight = height - 9
-      const rows = panelHeight - 2
-      box('workspace', 0, 0, width, 4, workspaceContent(s, width - 3))
-      panel('nav', 1, 4, navWidth, panelHeight, navContent(s, rows), s)
-      panel('list', navWidth + 1, 4, listWidth, panelHeight, listContent(s, app, rows), s)
+      const panelHeight = height - statusHeight - 2
+      const rows = Math.max(1, panelHeight - 2)
+      panel('nav', 1, 1, navWidth, panelHeight, navContent(s, rows), s)
+      panel('list', navWidth + 1, 1, listWidth, panelHeight, listContent(s, app, rows), s)
       panel(
         'detail',
         detailLeft,
-        4,
+        1,
         detailWidth,
         panelHeight,
         detailContent(s, app, rows, detailWidth - 3),
@@ -203,21 +305,27 @@ export function createView(renderer) {
       box(
         'status',
         0,
-        height - 5,
+        height - statusHeight - 1,
         width,
-        4,
+        statusHeight,
         {
-          title: t(s.language, s.error ? 'Error' : s.busy ? 'Working' : 'Status'),
-          lines: wrap(s.status, width - 3),
+          title: t(s.language, !statusActive && s.error ? 'Error' : 'Status'),
+          lines: [stateText, ...jobLines, lastLog ? `» ${lastLog}` : ''],
+          colors: [
+            stateColor,
+            ...shownJobs.map(job => jobColor[job.state]),
+            logColor,
+          ],
         },
-        COLORS.border,
-        s.error ? COLORS.error : s.busy ? COLORS.warning : COLORS.muted,
+        statusActive ? COLORS.warning : COLORS.border,
+        COLORS.text,
+        COLORS.background,
+        statusActive ? COLORS.warning : !s.error ? COLORS.muted : COLORS.error,
       )
     }
     else {
-      const panelTop = 3
-      const panelHeight = height - 5
-      box('workspace', 0, 0, width, panelTop, workspaceContent(s, width - 3, true))
+      const panelTop = 1
+      const panelHeight = height - 3
       const focus = s.modal?.returnFocus || s.focus
       const focusId = PANEL_IDS.find(id => PANEL_FOCUS[id] === focus) || 'detail'
       const previewId = focusId === 'detail' ? 'list' : 'detail'
@@ -235,7 +343,7 @@ export function createView(renderer) {
         panelTop,
         width,
         topHeight,
-        panelContent(focusId, s, app, topHeight - 2, width - 3),
+        panelContent(focusId, s, app, Math.max(1, topHeight - 2), width - 3),
         s,
       )
       panel(
@@ -244,7 +352,7 @@ export function createView(renderer) {
         panelTop + topHeight,
         width,
         bottomHeight,
-        panelContent(previewId, s, app, bottomHeight - 2, width - 3),
+        panelContent(previewId, s, app, Math.max(1, bottomHeight - 2), width - 3),
         s,
       )
       show(
@@ -253,8 +361,8 @@ export function createView(renderer) {
         height - 2,
         width,
         1,
-        [s.status],
-        s.error ? COLORS.error : s.busy ? COLORS.warning : COLORS.muted,
+        [`${stateText}${lastLog ? ` » ${lastLog}` : ''}`],
+        stateColor,
       )
     }
     const keysNode = nodes.keys
@@ -269,10 +377,8 @@ export function createView(renderer) {
     })
     const hint = keyHints(s)
     const parts = []
-    if (hint.label)
-      parts.push({ text: `${hint.label} `, color: COLORS.focus })
-    for (const [i, chip] of hint.items.entries()) {
-      if (i || hint.label)
+    for (const [i, chip] of hint.entries()) {
+      if (i)
         parts.push({ text: '  ·  ', color: COLORS.border })
       parts.push({ text: chip.key, color: COLORS.focus })
       if (chip.desc)
@@ -296,11 +402,21 @@ export function createView(renderer) {
       const detailWidth = modalWidth - 3
       // Dialog nodes are last, including their selection, and never cover the footer.
       const available = height - 3
-      const detail = wrap(modal.detail || '', detailWidth)
+      const detailText = modal.search
+        ? modal.value === ''
+          ? t(s.language, 'press / to search')
+          : ''
+        : modal.detail || ''
+      const detail = wrap(detailText, detailWidth)
       const optionLines
         = modal.type === 'input'
           ? [editingValue(modal.value, modal.cursor, false, detailWidth)]
-          : modal.options
+          : modal.type === 'settings'
+            ? [
+                settingRow(s, 0, detailWidth),
+                settingRow(s, 1, detailWidth),
+              ]
+            : modal.options
       const detailCount = Math.max(0, available - optionLines.length - 4)
       const start = Math.min(modal.scroll || 0, Math.max(0, detail.length - detailCount))
       const content = [
@@ -308,7 +424,12 @@ export function createView(renderer) {
         ...(detail.length > detailCount ? [t(s.language, '[PgUp/PgDn: more details]')] : []),
         '',
       ]
-      const selected = modal.type === 'choice' ? content.length + modal.index : -1
+      const selected
+        = modal.type === 'choice'
+          ? content.length + modal.index
+          : modal.type === 'settings'
+            ? content.length + modal.row
+            : -1
       content.push(...optionLines)
       const modalHeight = Math.min(available, content.length + 2)
       box(
@@ -325,4 +446,14 @@ export function createView(renderer) {
     }
     renderer.requestRender()
   }
+}
+
+/** Settings popup rows: `Language: 中文` and `Theme: <display name>`. */
+function settingRow(s, row, width) {
+  const label = row === 0 ? t(s.language, 'Language') : t(s.language, 'Theme')
+  const value
+    = row === 0
+      ? LANGUAGES.find(item => item.id === s.language)?.label ?? s.language
+      : themeName(s.theme)
+  return clipColumns(`${label}: ${value}`, width)
 }

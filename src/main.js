@@ -5,6 +5,20 @@ import { start } from './app/operations.js'
 import { prepareStartup } from './app/startup.js'
 import { runCli } from './cli.js'
 
+/** Map an OpenTUI key event to the app's key payload; printable keys carry `text`. */
+export function normalizeKey(key) {
+  let text
+  if (!key.ctrl && !key.meta) {
+    if (typeof key.sequence === 'string' && !key.sequence.startsWith('\x1B'))
+      text = key.sequence
+    else if (key.name === 'space')
+      text = ' '
+    else if (Array.from(key.name).length === 1)
+      text = key.shift ? key.name.toUpperCase() : key.name
+  }
+  return { name: key.name, ctrl: key.ctrl, meta: key.meta, shift: key.shift, text }
+}
+
 /** CLI commands are handled first; TUI mode requires an interactive terminal. */
 export async function main(args = process.argv.slice(2)) {
   const cliResult = await runCli(args)
@@ -115,18 +129,7 @@ export async function main(args = process.argv.slice(2)) {
         return
       key.preventDefault()
       key.stopPropagation()
-      let text
-      if (!key.ctrl && !key.meta) {
-        if (!key.sequence.startsWith('\x1B'))
-          text = key.sequence
-        else if (key.name === 'space')
-          text = ' '
-        else if (Array.from(key.name).length === 1)
-          text = key.shift ? key.name.toUpperCase() : key.name
-      }
-      void app
-        .key({ name: key.name, ctrl: key.ctrl, meta: key.meta, shift: key.shift, text })
-        .catch(onFailure)
+      void app.key(normalizeKey(key)).catch(onFailure)
     })
     renderer.keyInput.on('paste', (event) => {
       event.preventDefault()
