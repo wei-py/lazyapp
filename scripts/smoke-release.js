@@ -77,7 +77,13 @@ try {
             // Windows cooked console input commits lines on CR; POSIX PTYs commit on LF.
             terminal.write(process.platform === 'win32' ? 'y\r' : 'y\n')
           }
-          if (!ready && output.includes('Ready.')) {
+          // ConPTY re-encodes output as screen diffs against its own buffer and omits
+          // cells unchanged from the previous frame, so `Reading workspace…` →
+          // `Ready. Secrets…` may reach the stream as `y. Sec…ets are…` and never
+          // contain `Ready.`. Match a run of non-space characters (`encrypted` in the
+          // ready message) whose columns only held spaces in earlier status text: every
+          // one of its cells differs and is re-emitted. POSIX PTYs are verbatim.
+          if (!ready && output.includes('encrypted')) {
             ready = true
             terminal.write('q')
           }

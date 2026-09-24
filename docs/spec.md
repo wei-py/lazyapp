@@ -274,4 +274,5 @@ src/
 - 前次独立语言验证曾覆盖设置切换即时应用、退出重开持久化、80×20 中文帮助、`jq/?` 文本输入、中文脏草稿确认与 Doctor 文案。该记录不代表本次重新执行了所有旧版布局场景；已移除的初始化向导不再作为当前验收流程。
 - 发行包本地验证：Bun `1.4.2` 构建独立程序；解压到临时目录，在 `PATH` 不含 Bun 的环境执行 `--help`、真实 120×40 PTY 初始化、进入原生 TUI、正常退出与重新打开；macOS 额外用 `sandbox-exec` 禁止读取源码仓库（该机制仅 macOS 可用）。确认退出离开备用屏幕（Windows ConPTY 会重编码转义序列，该断言仅在 POSIX PTY 执行）、重开不再次询问初始化且不改写 `app.json`。发行工作流在各目标系统复用 `bun run smoke:release` 验证这些行为。同一链路已在 Linux arm64 容器（Debian、GNU tar）全量复跑通过：lint、104 项测试、构建 `lazyapp-linux-arm64.tar.gz` 与 PTY 冒烟。
 - 任务状态条重构曾使状态栏通知（含启动就绪提示）不再渲染，`bun run smoke:release` 因等不到就绪提示而超时失败；恢复双栏状态盒与单栏底行的通知渲染后，在 macOS arm64 重新全链路通过（初始化询问、就绪提示、`q` 退出、离开备用屏幕、重开不再询问且不改写 `app.json`）。
+- Windows runner 上 `bun run smoke:release` 曾因就绪检测超时失败：ConPTY 会按屏幕差分重编码输出并省略与上一帧相同的单元格，`Reading workspace…` → `Ready. Secrets…` 在字节流中呈现为 `y. Sec…ets are…`，`Ready.` 永不连续出现，`q` 从未发送，20 秒后被判定超时（TUI 本身正常就绪）。就绪检测改为匹配就绪提示中不含空格的连续片段 `encrypted`：其所在列在旧状态行中只有空格，每个单元格都会被重新输出，两种差分模型下均连续可匹配。macOS arm64 重新全链路通过（lint、116 项测试、构建与 PTY 冒烟）；Windows 仍由发布工作流在其 runner 上验证。
 - GitHub 托管工作流及远端 `mise use` 必须在实际推送和发布后验证；本地通过不代表远端 Release 已发布。Windows 由发布工作流在其 runner 上冒烟验证，未在本机验证；未声明真实签名凭据已经验证。
