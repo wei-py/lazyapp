@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '../src/app/controller.js'
 import { setLanguage, start } from '../src/app/operations.js'
-import { CATEGORIES, editDocument, isDirty, preferenceItems } from '../src/app/state.js'
+import { CATEGORIES, editDocument, isDirty } from '../src/app/state.js'
 import { t } from '../src/config/i18n.js'
 import { doctorLabel, runDoctor, safeErrorMessage } from '../src/features/workspace.js'
 import { loadPreferences, savePreferences } from '../src/storage/preferences.js'
@@ -18,8 +18,10 @@ const APP = {
   environments: [],
   version: '1.0.0',
 }
-function press(app, name, extra = {}) {
-  return app.key({ name, text: name.length === 1 ? name : undefined, ...extra })
+async function press(app, name, extra = {}) {
+  await app.key({ name, text: name.length === 1 ? name : undefined, ...extra })
+  if (app.inFlight)
+    await app.inFlight
 }
 let root
 let apps
@@ -52,11 +54,11 @@ function application(preferences) {
 }
 
 describe('language settings interactions', () => {
-  test('Settings Enter persists Chinese and restart loads it; switching back persists English', async () => {
+  test('Settings popup persists Chinese and restart loads it; switching back persists English', async () => {
     const app = application()
-    await app.selectCategory(CATEGORIES.indexOf('Settings'))
-    await press(app, 'return')
-    app.state.settingsIndex = 0
+    await press(app, ':')
+    expect(app.state.modal.type).toBe('settings')
+    expect(app.state.modal.row).toBe(0)
     await press(app, 'return')
     expect(app.state.language).toBe('zh')
     expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({
@@ -72,6 +74,7 @@ describe('language settings interactions', () => {
     expect(reopened.state.modal).toBeNull()
     expect(reopened.state.error).toBe(false)
     expect(reopened.state.status).toMatch(/[\u3400-\u9FFF]/u)
+    await press(app, 'escape')
     await setLanguage(app, 'en')
     expect(app.state.language).toBe('en')
     expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({
@@ -80,12 +83,11 @@ describe('language settings interactions', () => {
     })
   })
 
-  test('theme rows apply and persist a palette without touching language', async () => {
+  test('theme row cycles and persists a palette without touching language', async () => {
     const app = application()
-    await app.selectCategory(CATEGORIES.indexOf('Settings'))
-    app.state.settingsIndex = preferenceItems().findIndex(
-      item => item.kind === 'theme' && item.id === 'gruvbox-dark',
-    )
+    await press(app, ':')
+    await press(app, 'j')
+    expect(app.state.modal.row).toBe(1)
     await press(app, 'return')
     expect(app.state.theme).toBe('gruvbox-dark')
     expect(app.state.language).toBe('en')
@@ -93,6 +95,10 @@ describe('language settings interactions', () => {
       language: 'en',
       theme: 'gruvbox-dark',
     })
+    await press(app, 'h')
+    expect(app.state.theme).toBe('default')
+    await press(app, 'escape')
+    expect(app.state.modal).toBeNull()
   })
 
   test('missing workspace reports a localized error without an initialization dialog or writes', async () => {
@@ -162,11 +168,11 @@ describe('language settings interactions', () => {
     expect(app.state.status).not.toContain('bad preferences')
   })
 
-  test('canceling dirty transition to Settings keeps category and draft unchanged', async () => {
+  test('canceling a dirty category transition keeps category and draft unchanged', async () => {
     const app = application()
     app.state.editor = editDocument(app.state.documents[0])
     app.state.editor.draft.name = 'Unsaved'
-    await app.selectCategory(CATEGORIES.indexOf('Settings'))
+    await app.selectCategory(CATEGORIES.indexOf('Assets'))
     expect(app.state.modal).not.toBeNull()
     expect(app.state.modal.index).toBe(0)
     await press(app, 'escape')
@@ -175,16 +181,19 @@ describe('language settings interactions', () => {
     expect(app.state.language).toBe('en')
   })
 
-  test('Settings blocks workspace creation and deletion shortcuts', async () => {
+  test('settings popup owns its keys and never triggers workspace actions', async () => {
     const app = application()
-    await app.selectCategory(CATEGORIES.indexOf('Settings'))
-    await press(app, 'return')
-    for (const name of ['n', 'd', '/', 'f', 'r']) {
+    await press(app, ':')
+    expect(app.state.modal.type).toBe('settings')
+    for (const name of ['a', 'D', '/', 'f', 'r']) {
       await press(app, name)
-      expect(app.state.modal).toBeNull()
-      expect(app.state.editor).toBeNull()
-      expect(app.state.category).toBe(CATEGORIES.indexOf('Settings'))
+      expect(app.state.modal.type).toBe('settings')
+      expect(app.state.category).toBe(0)
+      expect(app.state.files).toBeNull()
     }
+    expect(app.state.documents).toHaveLength(1)
+    await press(app, 'escape')
+    expect(app.state.modal).toBeNull()
   })
 
   test('Doctor labels can change language without another read or leaking credential values', async () => {
