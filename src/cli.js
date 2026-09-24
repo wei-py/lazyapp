@@ -259,9 +259,8 @@ async function cmdUpdate() {
     })
     await writeFile(archive, new Uint8Array(await blob.arrayBuffer()))
 
-    // Extract (.tar.gz or .zip)
-    // eslint-disable-next-line no-undef
-    const extract = Bun.spawnSync(['tar', '-xf', archive, '-C', tmpDir])
+    // Extract
+    const extract = Bun.spawnSync(['tar', '-xzf', tarball, '-C', tmpDir])
     if (extract.exitCode !== 0)
       throw new Error('Extraction failed')
 
