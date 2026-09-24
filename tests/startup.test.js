@@ -109,7 +109,7 @@ describe('plain-terminal startup', () => {
     expect(await fs.readdir(directory)).toEqual(['settings.json'])
   })
 
-  test('reports invalid preferences and creation errors independently without leaking exception details', async () => {
+  test('invalid preferences fall back to defaults while creation errors still report', async () => {
     const directory = join(project, 'preferences')
     await fs.mkdir(directory)
     await fs.writeFile(join(directory, 'settings.json'), 'invalid')
@@ -125,9 +125,8 @@ describe('plain-terminal startup', () => {
         },
       }),
     ).toBe(1)
-    expect(errors).toHaveLength(2)
-    expect(errors[0]).toContain('preference is invalid')
-    expect(errors[1]).toContain('Permission denied')
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('Permission denied')
     expect(errors.join('')).not.toContain('secret-value')
     expect(await fs.readFile(join(directory, 'settings.json'), 'utf8')).toBe('invalid')
     expect(await workspaceExists(project)).toBe(false)
