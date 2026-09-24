@@ -83,7 +83,9 @@ describe('personal language preferences', () => {
     await fs.writeFile(file, '{broken')
     await savePreferences({ language: 'zh' }, options)
     expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'default' })
-    expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
+    // POSIX permission bits are not enforced on Windows.
+    if (process.platform !== 'win32')
+      expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
     expect(await fs.readdir(options.directory)).toEqual(['settings.json'])
   })
 
