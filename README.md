@@ -41,7 +41,7 @@ Colors carry meaning: **red** = missing config/resource, **green** = file exists
 
 ### Field-level config editing
 
-`Enter` descends category → list → detail editor → field. Edit a clean draft, then save with `Ctrl+s` or the `[ Save document ]` row. Leaving a dirty form always offers **save / discard / cancel**; failed saves keep your draft; canceling never writes.
+`Enter` descends category → list → detail editor → field. Edit a clean draft, then save with `s` or the `[ Save document ]` row. Leaving a dirty form always offers **save / discard / cancel**; failed saves keep your draft; canceling never writes.
 
 ### Managed file import
 
@@ -91,13 +91,16 @@ lazyapp /absolute/project
 
 | Key      | Action                     |
 | -------- | -------------------------- |
-| `n`      | create a new config        |
-| `v`      | view full field value      |
+| `a`      | create a new config        |
+| `e`      | edit the focused field     |
 | `f`      | open the managed file list |
-| `d`      | delete the selected file   |
+| `D`      | delete the selected file (confirm) |
+| `y`      | copy the focused value     |
 | `/`      | path search                |
-| `Ctrl+s` | save the current draft     |
-| `q`      | quit (with unsaved-check)  |
+| `s`      | save the current draft     |
+| `:`      | settings (language/theme)  |
+| `L`      | switch 中文 / English      |
+| `q`      | quit (y/n while jobs run)  |
 
 While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters — Vim-style navigation only applies outside text input.
 
