@@ -1,33 +1,15 @@
-import stringWidth from 'string-width'
-import { LANGUAGES, t } from '../../config/i18n.js'
-import { themeName } from '../../config/themes.js'
+import { t } from '../../config/i18n.js'
 import { doctorLabel } from '../../features/workspace.js'
-import { CATEGORIES, displayValue, isDirty, preferenceItems } from '../state.js'
+import { CATEGORIES, displayValue, isDirty } from '../state.js'
 import { COLORS } from './colors.js'
-import { clipColumns, editingValue, pathTail, windowContent, wrap } from './primitives.js'
-
-export function workspaceContent(s, width, compact = false) {
-  const name
-    = s.documents.find(document => document.path === 'app.json')?.data?.name
-      || t(s.language, 'Workspace')
-  const label = `${name}${isDirty(s.editor) ? ` · ${t(s.language, 'unsaved')}` : ''}`
-  return {
-    title: 'lazyapp',
-    lines: compact
-      ? [
-          `${clipColumns(label, Math.floor(width / 2))} · ${pathTail(s.root, width - Math.min(stringWidth(label), Math.floor(width / 2)) - 3)}`,
-        ]
-      : [label, pathTail(s.root, width)],
-  }
-}
+import { editingValue, windowContent, wrap } from './primitives.js'
 
 export function navContent(s, rows) {
   return {
     title: t(s.language, 'Categories'),
+    count: CATEGORIES.length,
     ...windowContent(
-      CATEGORIES.map(category =>
-        category === 'Settings' ? 'Settings / 设置' : t(s.language, category),
-      ),
+      CATEGORIES.map(category => t(s.language, category)),
       s.category,
       rows,
     ),
@@ -36,38 +18,45 @@ export function navContent(s, rows) {
 
 export function listTitle(s) {
   if (s.files)
-    return t(s.language, 'Managed files')
+    return 'Managed files'
   if (CATEGORIES[s.category] === 'Doctor')
-    return t(s.language, 'Doctor results')
-  return t(s.language, '{category} documents', { category: t(s.language, CATEGORIES[s.category]) })
+    return 'Doctor results'
+  return '{category} documents'
 }
 
 export function listContent(s, app, rows) {
-  if (CATEGORIES[s.category] === 'Settings') {
-    const active = item => (item.kind === 'theme' ? item.id === s.theme : item.id === s.language)
-    const entries = preferenceItems().map(item => `${active(item) ? '●' : '○'} ${item.name}`)
-    return { title: 'Settings / 设置', ...windowContent(entries, s.settingsIndex, rows) }
-  }
   const items = app.items()
   const doctor = CATEGORIES[s.category] === 'Doctor' && !s.files
   const index = doctor ? s.doctorIndex : s.selected
+  const appName = s.documents.find(document => document.path === 'app.json')?.data?.name
   const entries = doctor
     ? s.doctor.map(
         entry =>
           `[${t(s.language, entry.status)}] ${doctorLabel(entry, s.language)}${entry.path ? ` ${entry.path}` : ''}`,
       )
-    : items.map(item => `[${t(s.language, item.missing ? 'missing' : 'present')}] ${item.path}`)
+    : items.map(
+        item =>
+          `[${t(s.language, item.missing ? 'missing' : 'present')}] ${item.path}${
+            item.path === 'app.json' && appName && !s.files ? ` — ${appName}` : ''
+          }`,
+      )
   const prefix = s.search ? [t(s.language, 'Search: {query}', { query: s.search })] : []
   const content = windowContent(entries, index, rows - prefix.length)
   if (!entries.length) {
-    const empty = doctor
-      ? s.busy
-        ? 'Checking…'
-        : 'No checks yet. Press r to run Doctor.'
-      : s.files
-        ? 'No matching files.'
-        : 'No documents. Press n to create.'
-    content.lines.push(t(s.language, empty))
+    if (s.search) {
+      content.lines.push(t(s.language, 'no results for "{query}"', { query: s.search }))
+    }
+    else if (doctor) {
+      content.lines.push(
+        t(s.language, s.checking ? 'Checking…' : 'No checks yet. Press r to run Doctor.'),
+      )
+    }
+    else if (s.files) {
+      content.lines.push(t(s.language, 'No matching files.'))
+    }
+    else {
+      content.lines.push(t(s.language, 'No documents. Press a to create.'))
+    }
   }
   const colors = doctor
     ? undefined
@@ -78,7 +67,8 @@ export function listContent(s, app, rows) {
           .map(item => (item.missing ? COLORS.error : COLORS.present)),
       ]
   return {
-    title: listTitle(s),
+    title: t(s.language, listTitle(s), { category: t(s.language, CATEGORIES[s.category]) }),
+    count: entries.length,
     ...content,
     colors,
     lines: [...prefix, ...content.lines].slice(0, rows),
@@ -125,7 +115,7 @@ function editorContent(s, app, rows, width) {
     lines.push(`  ${value}`)
   }
   const title = `${t(s.language, '{kind} details', { kind: t(s.language, editor.kind) })}${isDirty(editor) ? ` — ${t(s.language, 'unsaved')}` : ''}${editor.editing ? ` — ${t(s.language, 'editing')}` : ''}`
-  return { title, lines, selected, counter: `${editor.index + 1}/${count}` }
+  return { title, lines, selected, count, counter: `${editor.index + 1}/${count}` }
 }
 
 /** Preview text never reads file contents; it only restates state the controller already holds. */
@@ -186,19 +176,7 @@ function previewContent(s, app, rows, width) {
           '',
           t(s.language, 'File existence is not certificate validity or release readiness.'),
         ]
-      : [t(s.language, s.busy ? 'Checking…' : 'No checks yet.')]
-  }
-  else if (CATEGORIES[s.category] === 'Settings') {
-    title = 'Settings / 设置'
-    text = [
-      t(s.language, 'Current language: {language}', {
-        language: LANGUAGES.find(item => item.id === s.language).label,
-      }),
-      t(s.language, 'Current theme: {theme}', { theme: themeName(s.theme) }),
-      '',
-      t(s.language, 'Press Enter to apply and save the selected setting.'),
-      t(s.language, 'Only interface language and colors change. Your workspace data is untouched.'),
-    ]
+      : [t(s.language, s.checking ? 'Checking…' : 'No checks yet.')]
   }
   else if (item) {
     title = t(s.language, 'Document preview')
@@ -240,6 +218,7 @@ function previewContent(s, app, rows, width) {
   return {
     title,
     lines: wrapped.slice(start, start + rows),
+    count: wrapped.length,
     counter: `${wrapped.length ? start + 1 : 0}/${wrapped.length}`,
   }
 }
