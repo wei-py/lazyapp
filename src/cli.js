@@ -251,7 +251,6 @@ async function cmdUpdate() {
     await writeFile(tarball, new Uint8Array(await blob.arrayBuffer()))
 
     // Extract
-    // eslint-disable-next-line no-undef
     const extract = Bun.spawnSync(['tar', '-xzf', tarball, '-C', tmpDir])
     if (extract.exitCode !== 0)
       throw new Error('Extraction failed')

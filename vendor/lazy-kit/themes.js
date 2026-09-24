@@ -21,6 +21,8 @@ export const THEMES = [
       warning: '#e0af68',
       error: '#f7768e',
       present: '#9ece6a',
+      aur: '#BB9AF7',
+      repo: '#7aa2f7',
     },
   },
   {
@@ -38,6 +40,8 @@ export const THEMES = [
       warning: '#fabd2f',
       error: '#fb4934',
       present: '#b8bb26',
+      aur: '#BB9AF7',
+      repo: '#8ec07c',
     },
   },
   {
@@ -55,6 +59,8 @@ export const THEMES = [
       warning: '#b57614',
       error: '#9d0006',
       present: '#79740e',
+      aur: '#BB9AF7',
+      repo: '#076678',
     },
   },
   {
@@ -72,6 +78,8 @@ export const THEMES = [
       warning: '#f9e2af',
       error: '#f38ba8',
       present: '#a6e3a1',
+      aur: '#BB9AF7',
+      repo: '#89b4fa',
     },
   },
   {
@@ -89,6 +97,8 @@ export const THEMES = [
       warning: '#df8e1d',
       error: '#d20f39',
       present: '#40a02b',
+      aur: '#BB9AF7',
+      repo: '#1e66f5',
     },
   },
   {
@@ -106,6 +116,8 @@ export const THEMES = [
       warning: '#e0af68',
       error: '#f7768e',
       present: '#9ece6a',
+      aur: '#BB9AF7',
+      repo: '#7aa2f7',
     },
   },
   {
@@ -123,6 +135,8 @@ export const THEMES = [
       warning: '#b15c00',
       error: '#f52a65',
       present: '#587539',
+      aur: '#BB9AF7',
+      repo: '#2e7de9',
     },
   },
   {
@@ -140,6 +154,8 @@ export const THEMES = [
       warning: '#b58900',
       error: '#dc322f',
       present: '#859900',
+      aur: '#BB9AF7',
+      repo: '#268bd2',
     },
   },
   {
@@ -157,6 +173,8 @@ export const THEMES = [
       warning: '#b58900',
       error: '#dc322f',
       present: '#859900',
+      aur: '#BB9AF7',
+      repo: '#268bd2',
     },
   },
 ]
