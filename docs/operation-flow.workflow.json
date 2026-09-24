@@ -58,7 +58,7 @@
       "col": 5,
       "type": "database",
       "label": "保存",
-      "sublabel": "Ctrl+s"
+      "sublabel": "s"
     },
     {
       "id": "create",
@@ -119,7 +119,7 @@
       "variant": "emphasis",
       "role": "main"
     },
-    { "from": "edit", "to": "save", "label": "Ctrl+s", "variant": "emphasis", "role": "main" },
+    { "from": "edit", "to": "save", "label": "s", "variant": "emphasis", "role": "main" },
     {
       "from": "edit",
       "to": "confirm",
