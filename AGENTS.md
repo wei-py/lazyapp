@@ -34,13 +34,13 @@ Avoid parallel pages/components/layouts/stores hierarchies that duplicate these 
 
 Install with `bun install --frozen-lockfile`; Bun must be on `PATH`.
 
-| Command                         | Purpose                                                             |
-| ------------------------------- | ------------------------------------------------------------------- |
-| `bun run dev /absolute/project` | Open that project's TUI; omit the path to use cwd                   |
-| `bun run lint`                  | ESLint checks                                                       |
-| `bun run lint:fix`              | ESLint fixes                                                        |
-| `bun test`                      | Behavior tests using `bun:test`                                     |
-| `bun run build`                 | Build the current platform's executable, release archive, and SHA256SUMS |
+| Command                         | Purpose                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------- |
+| `bun run dev /absolute/project` | Open that project's TUI; omit the path to use cwd                                           |
+| `bun run lint`                  | ESLint checks                                                                               |
+| `bun run lint:fix`              | ESLint fixes                                                                                |
+| `bun test`                      | Behavior tests using `bun:test`                                                             |
+| `bun run build`                 | Build the current platform's executable, release archive, and SHA256SUMS                    |
 | `bun run smoke:release`         | Exercise the extracted release in a PTY with no Bun on PATH (checkout read denied on macOS) |
 
 `package.json` declares `lazyapp` as the executable entry point. `bun src/main.js --help` prints usage without requiring a TTY. `scripts/build.js` bundles Bun and OpenTUI native assets; `dist/` is ignored. `.github/workflows/release.yml` validates and publishes GitHub Release assets on `v*` tags matching `package.json`; manual runs validate without publishing. After publication, install with `mise use -g github:wei-py/lazyapp@latest`. See `docs/spec.md` for release instructions and verification limits.

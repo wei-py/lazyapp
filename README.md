@@ -89,18 +89,18 @@ lazyapp /absolute/project
 
 ### Editing & files
 
-| Key      | Action                     |
-| -------- | -------------------------- |
-| `a`      | create a new config        |
-| `e`      | edit the focused field     |
-| `f`      | open the managed file list |
-| `D`      | delete the selected file (confirm) |
-| `y`      | copy the focused value     |
-| `/`      | path search                |
-| `s`      | save the current draft     |
-| `:`      | settings (language/theme)  |
-| `L`      | switch 中文 / English      |
-| `q`      | quit (y/n while jobs run)  |
+| Key | Action                             |
+| --- | ---------------------------------- |
+| `a` | create a new config                |
+| `e` | edit the focused field             |
+| `f` | open the managed file list         |
+| `D` | delete the selected file (confirm) |
+| `y` | copy the focused value             |
+| `/` | path search                        |
+| `s` | save the current draft             |
+| `:` | settings (language/theme)          |
+| `L` | switch 中文 / English              |
+| `q` | quit (y/n while jobs run)          |
 
 While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters — Vim-style navigation only applies outside text input.
 
@@ -122,13 +122,13 @@ While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters —
 
 ## Docs & development
 
-| Command                             | Purpose                                                     |
-| ----------------------------------- | ----------------------------------------------------------- |
-| `bun run dev`                       | run the TUI                                                 |
-| `bun run lint` / `bun run lint:fix` | ESLint checks / fixes                                       |
-| `bun test`                          | behavior tests using `bun:test`                             |
+| Command                             | Purpose                                                                |
+| ----------------------------------- | ---------------------------------------------------------------------- |
+| `bun run dev`                       | run the TUI                                                            |
+| `bun run lint` / `bun run lint:fix` | ESLint checks / fixes                                                  |
+| `bun test`                          | behavior tests using `bun:test`                                        |
 | `bun run build`                     | build the current platform's executable + release archive + SHA256SUMS |
-| `bun run smoke:release`             | exercise the extracted release in a PTY                             |
+| `bun run smoke:release`             | exercise the extracted release in a PTY                                |
 
 - `docs/spec.md` — authoritative development contract (keyboard, layout, storage, safety, acceptance).
 - `docs/lazyapp.md` — product proposal and data-organization examples.
