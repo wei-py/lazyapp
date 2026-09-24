@@ -1,5 +1,4 @@
-import { LANGUAGES, t } from '../config/i18n.js'
-import { THEMES } from '../config/themes.js'
+import { t } from '../config/i18n.js'
 
 export const CATEGORIES = [
   'App',
@@ -9,7 +8,6 @@ export const CATEGORIES = [
   'Environments',
   'Store',
   'Doctor',
-  'Settings',
 ]
 export const PLATFORM_KINDS = ['android', 'ios', 'harmony', 'windows', 'macos', 'miniprogram']
 
@@ -20,14 +18,6 @@ export function layoutMode(width, height) {
   if (width >= 60 && width < 100 && height >= 16)
     return 'single'
   return 'small'
-}
-
-/** Settings list: languages first so their indexes stay stable, then theme palettes. */
-export function preferenceItems() {
-  return [
-    ...LANGUAGES.map(item => ({ kind: 'language', id: item.id, name: item.label })),
-    ...THEMES.map(theme => ({ kind: 'theme', id: theme.id, name: theme.name })),
-  ]
 }
 
 /** A disk snapshot and editable draft never share mutable values. */
@@ -69,33 +59,6 @@ export function fieldValue(editor, field) {
   return Array.isArray(value) ? value.join(', ') : String(value ?? '')
 }
 
-/** Text controls consume all printable navigation shortcuts, including q and /. */
-export function editText(value, cursor, key) {
-  const chars = Array.from(value)
-  cursor = Math.max(0, Math.min(cursor, chars.length))
-  if (key.name === 'left')
-    return { value, cursor: Math.max(0, cursor - 1) }
-  if (key.name === 'right')
-    return { value, cursor: Math.min(chars.length, cursor + 1) }
-  if (key.name === 'home' || (key.ctrl && key.name === 'a'))
-    return { value, cursor: 0 }
-  if (key.name === 'end' || (key.ctrl && key.name === 'e'))
-    return { value, cursor: chars.length }
-  if (key.name === 'backspace') {
-    if (cursor > 0)
-      chars.splice(--cursor, 1)
-  }
-  else if (key.name === 'delete') {
-    chars.splice(cursor, 1)
-  }
-  else if (key.text && !key.ctrl && !key.meta) {
-    const inserted = Array.from(key.text.replace(/[\x00-\x1F\x7F]/g, ''))
-    chars.splice(cursor, 0, ...inserted)
-    cursor += inserted.length
-  }
-  return { value: chars.join(''), cursor }
-}
-
 export function categoryFor(kind) {
   if (PLATFORM_KINDS.includes(kind))
     return 'Platforms'
@@ -119,7 +82,6 @@ export function displayValue(field, value, language = 'en') {
 
 /** Modal state owns focus until closed, with cancel selected by default. */
 export function openModal(state, modal) {
-  state.gg = 0
   state.modal = {
     ...modal,
     index: 0,
@@ -129,13 +91,19 @@ export function openModal(state, modal) {
   state.focus = 'modal'
 }
 
-export function closeModal(state) {
+/**
+ * Close the active modal; `restore` (input dialogs only) rolls a live local
+ * filter back to the snapshot captured when the dialog opened. Submit paths
+ * pass `false` because the committed value must survive the close.
+ */
+export function closeModal(state, restore = true) {
   const modal = state.modal
+  if (restore && modal?.restore)
+    modal.restore()
   const target = modal?.returnFocus || 'list'
   state.modal = null
   // docs/spec.md section 5: closing restores the original focus. Only when that focus was the
   // document editor and the document is gone does it fall back to the list; an editor-free
   // details panel (file or Doctor preview) stays usable and keeps focus.
   state.focus = target === 'form' && modal?.returnEditor && !state.editor ? 'list' : target
-  state.gg = 0
 }

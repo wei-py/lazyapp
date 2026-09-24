@@ -1,57 +1,54 @@
+import { DEFAULT_THEME, isTheme } from '../../vendor/lazy-kit/themes.js'
 import { LANGUAGES } from '../config/i18n.js'
-import { DEFAULT_THEME, isTheme } from '../config/themes.js'
-import { doctorLabel, loadDocuments, runDoctor, safeErrorMessage } from '../features/workspace.js'
+import {
+  doctorLabel,
+  loadDocuments,
+  runDoctor,
+  safeErrorMessage,
+} from '../features/workspace.js'
 import { openWorkspace } from '../storage/workspace.js'
-import { preferenceItems } from './state.js'
 
-export async function operation(app, label, action, commit = false) {
-  if (app.state.busy)
-    return false
-  let settled
-  app.inFlight = new Promise((resolveSettled) => {
-    settled = resolveSettled
-  })
-  label = app.t(label)
-  app.state.busy = label
-  const loadingStatus = app.t('{label} — {activity}', {
-    label,
-    activity: app.t(
-      commit
-        ? 'commit cannot be interrupted; quit waits for completion'
-        : 'reading; quit waits for completion',
-    ),
-  })
-  const slowStatus = app.t('{label} — still executing; please wait', { label })
-  app.state.status = loadingStatus
-  const timer = setTimeout(() => {
-    app.state.status = slowStatus
-    app.update()
-  }, 3000)
-  app.update()
-  try {
-    await action()
-    app.state.error = false
-    if (app.state.status === loadingStatus || app.state.status === slowStatus)
-      app.state.status = app.t('{label}: complete.', { label })
-    return true
-  }
-  catch (error) {
-    app.state.status = app.t('{error} Retry explicitly; drafts retained.', {
-      error: safeErrorMessage(error, app.state.language),
+/**
+ * Run one action as a background job instead of blocking the key loop. The
+ * returned promise resolves `true` only for a job that finished successfully
+ * and never rejects, so callers can chain without gating input. `commit`
+ * serializes the job behind every earlier commit (workspace writes never race).
+ * Failures surface as a redacted status line; raw error text only reaches the
+ * job row, never the shared log.
+ */
+export function operation(app, label, action, commit = false) {
+  const title = app.t(label)
+  let failure = null
+  const settled = app.runner
+    .submit({
+      kind: 'task',
+      label: title,
+      serialized: commit,
+      run: async () => {
+        try {
+          await action()
+        }
+        catch (error) {
+          failure = safeErrorMessage(error, app.state.language)
+          throw new Error(failure)
+        }
+      },
     })
-    app.state.error = true
-    return false
-  }
-  finally {
-    clearTimeout(timer)
-    app.state.busy = null
-    settled()
-    app.update()
-    if (app.quitPending) {
-      app.quitPending = false
-      app.requestQuit()
-    }
-  }
+    .then((job) => {
+      if (job.state === 'done') {
+        app.state.error = false
+      }
+      else if (job.state === 'failed') {
+        app.state.status = app.t('{error} Retry explicitly; drafts retained.', {
+          error: failure ?? job.lastLine,
+        })
+        app.state.error = true
+      }
+      app.update()
+      return job.state === 'done'
+    })
+  app.inFlight = settled
+  return settled
 }
 
 export async function start(app) {
@@ -61,9 +58,6 @@ export async function start(app) {
       const preferences = await app.preferences.load()
       app.state.language = preferences.language
       app.state.theme = preferences.theme ?? DEFAULT_THEME
-      app.state.settingsIndex = preferenceItems().findIndex(
-        item => item.kind === 'language' && item.id === preferences.language,
-      )
     }
     catch (error) {
       preferenceError = error
@@ -105,7 +99,9 @@ export async function refresh(app) {
 
 export async function doctor(app) {
   const generation = ++app.generation
-  await operation(app, 'Checking configuration (read-only)', async () => {
+  app.state.checking = true
+  app.update()
+  const done = await operation(app, 'Checking configuration (read-only)', async () => {
     const results = await runDoctor(app.session, app.state.language)
     if (generation !== app.generation)
       return
@@ -117,6 +113,10 @@ export async function doctor(app) {
       'Doctor complete. File existence is not certificate validity or release readiness.',
     )
   })
+  if (generation === app.generation)
+    app.state.checking = false
+  app.update()
+  return done
 }
 
 export function invalidateDoctor(app) {
@@ -124,10 +124,11 @@ export function invalidateDoctor(app) {
   app.state.doctor = []
   app.state.doctorLoaded = false
   app.state.doctorIndex = 0
+  app.state.checking = false
 }
 
 export async function setLanguage(app, language) {
-  if (!LANGUAGES.some(item => item.id === language) || app.state.busy)
+  if (!LANGUAGES.some(item => item.id === language))
     return false
   return operation(
     app,
@@ -135,9 +136,6 @@ export async function setLanguage(app, language) {
     async () => {
       await app.preferences.save({ language, theme: app.state.theme })
       app.state.language = language
-      app.state.settingsIndex = preferenceItems().findIndex(
-        item => item.kind === 'language' && item.id === language,
-      )
       for (const result of app.state.doctor) result.label = doctorLabel(result, language)
       app.state.status = app.t('Language preference saved.')
     },
@@ -146,7 +144,7 @@ export async function setLanguage(app, language) {
 }
 
 export async function setTheme(app, id) {
-  if (!isTheme(id) || app.state.busy)
+  if (!isTheme(id))
     return false
   return operation(
     app,
@@ -154,9 +152,6 @@ export async function setTheme(app, id) {
     async () => {
       await app.preferences.save({ language: app.state.language, theme: id })
       app.state.theme = id
-      app.state.settingsIndex = preferenceItems().findIndex(
-        item => item.kind === 'theme' && item.id === id,
-      )
       app.state.status = app.t('Theme preference saved.')
     },
     true,
