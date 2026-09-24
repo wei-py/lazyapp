@@ -1,3 +1,5 @@
+import { translate } from '../../vendor/lazy-kit/i18n.js'
+
 /** Explicit UI templates only; user values are inserted after translation. */
 const chinese = {
   'App': '应用',
@@ -8,8 +10,6 @@ const chinese = {
   'Store': '商店',
   'Doctor': '诊断',
   'Settings': '设置',
-  'Settings / 设置': 'Settings / 设置',
-  'Workspace': '工作区',
   'Categories': '分类',
   'Managed files': '管理文件',
   'Doctor results': '诊断结果',
@@ -24,15 +24,16 @@ const chinese = {
   'No checks yet.': '尚未检查。',
   'No checks yet. Press r to run Doctor.': '尚未检查。按 r 运行诊断。',
   'No matching files.': '没有匹配的文件。',
-  'No documents. Press n to create.': '没有文档。按 n 创建。',
+  'No documents. Press a to create.': '没有文档。按 a 创建。',
   'Save document': '保存文档',
+  'Copied {label}': '已复制 {label}',
+  'Clipboard copy failed: {error}': '剪贴板复制失败：{error}',
   '[file actions]': '[文件操作]',
   'PRODUCTION': '生产环境',
   'unsaved': '未保存',
   'editing': '编辑中',
   '(not set)': '（未设置）',
   'Error': '错误',
-  'Working': '处理中',
   'Status': '状态',
   'Close': '关闭',
   'Cancel': '取消',
@@ -52,16 +53,25 @@ const chinese = {
   '{kind} details': '{kind}详情',
   'Checks: {total} | pass {pass} | missing {missing} | warning {warning} | error {error} | unchecked {unchecked}':
     '检查：{total} | 通过 {pass} | 缺失 {missing} | 警告 {warning} | 错误 {error} | 未检查 {unchecked}',
-  'Current language: {language}': '当前语言：{language}',
-  'Current theme: {theme}': '当前主题：{theme}',
-  'Press Enter to apply and save the selected setting.': '按 Enter 应用并保存所选设置。',
-  'Only interface language and colors change. Your workspace data is untouched.':
-    '仅更改界面语言与配色，不修改工作区数据。',
   'Language preference saved.': '语言偏好已保存。',
   'Theme preference saved.': '主题偏好已保存。',
   'Saving language preference': '正在保存语言偏好',
   'Saving theme preference': '正在保存主题偏好',
-  'Reading preferences': '正在读取偏好设置',
+  'Language': '语言',
+  'Theme': '主题',
+  '{count} active': '{count} 进行中',
+  'checking…': '检查中…',
+  'idle': '空闲',
+  'waiting for other jobs': '正在等待其他任务',
+  'canceled · {seconds}': '已取消 · {seconds}',
+  'exit {code} · {seconds}': '退出 {code} · {seconds}',
+  'press / to search': '按 / 搜索',
+  'searching…': '搜索中…',
+  'error: {message}': '错误：{message}',
+  'no results for "{query}"': '没有匹配 "{query}" 的结果',
+  'Quit?': '退出？',
+  'jobs still running: {count}': '仍在运行的任务：{count}',
+  'y quit · n cancel': 'y 退出 · n 取消',
   'Preferences could not be loaded. Settings were not changed. {error}':
     '无法加载偏好设置，设置未被修改。{error}',
   'Terminal too small.': '终端窗口太小。',
@@ -151,7 +161,6 @@ const chinese = {
   'Unsaved changes': '有未保存的更改',
   'Save commits this document; Discard loses this draft only.':
     '保存将提交本文档；放弃仅丢弃此草稿。',
-  'Quit requested; waiting for current commit.': '已请求退出；正在等待当前提交完成。',
   'Refreshing workspace': '正在刷新工作区',
   'Refreshed; existing selection restored where available.': '已刷新；已尽可能恢复之前的选择。',
   'Checking configuration (read-only)': '正在检查配置（只读）',
@@ -188,8 +197,8 @@ const chinese = {
   'File copy committed. Save the draft to link it; discarding the draft retains this independently imported file.':
     '文件复制已提交。保存草稿以关联文件；放弃草稿不会删除此独立导入的文件。',
   'Listing managed files': '正在列出管理文件',
-  'Managed files: panel 3 previews the path; d deletes one file after confirmation. External files are never listed.':
-    '管理文件：面板 3 预览路径；按 d 确认后删除单个文件。不会列出外部文件。',
+  'Managed files: panel 3 previews the path; D deletes one file after confirmation. External files are never listed.':
+    '管理文件：面板 3 预览路径；按 D 确认后删除单个文件。不会列出外部文件。',
   'The App document cannot be deleted inside an open workspace.':
     '无法在打开的工作区内删除应用文档。',
   'Delete this one workspace file?': '删除此单个工作区文件？',
@@ -201,11 +210,6 @@ const chinese = {
   'Reloaded disk version. You can edit and save again.':
     '已重新加载磁盘版本。现在可以再次编辑和保存。',
   'Managed file': '管理文件',
-  '{label} — {activity}': '{label} — {activity}',
-  'commit cannot be interrupted; quit waits for completion': '提交不可中断；退出将等待完成',
-  'reading; quit waits for completion': '读取中；退出将等待完成',
-  '{label} — still executing; please wait': '{label} — 仍在执行，请稍候',
-  '{label}: complete.': '{label}：完成。',
   '{error} Retry explicitly; drafts retained.': '{error} 请手动重试；草稿已保留。',
   'Saving {path}': '正在保存 {path}',
   'Saved {path}. Doctor can check completeness.': '已保存 {path}。可通过诊断检查完整性。',
@@ -223,8 +227,7 @@ const chinese = {
   'store': '商店',
   'app': '应用',
   'assets': '资源',
-  '1/2/3: categories / list / details; Tab / Shift+Tab: next / previous panel\nh/l or Left/Right: previous / next panel; j/k or Up/Down: move in focused panel\nCategories and list selections preview immediately; Enter: focus list / details / edit field\nEsc: details → list → categories → quit; switching panels retains drafts\nChanging category, item, or search asks Save / Discard / Cancel when dirty\ng g (500ms) / G: first / last; /: search document paths from list\nCtrl+s: save; n: create from categories/list; r: refresh or reload focused detail\nf: managed files; d: delete selected file from list; v: full non-secret field in details\nq: quit; Ctrl+c: request quit\nRed means missing; green means present, not valid credentials. Enter on missing configs edits a clean draft; Enter on missing resources imports a real file.\nText mode keeps all printable shortcuts, including 123jq/?.\nFile imports are independent confirmed commits. Doctor is read-only.\nPageUp/PageDown scroll details and long dialogs.\nSettings / 设置: choose interface language or theme; Enter applies and saves. Document shortcuts are disabled in Settings.':
-    '1/2/3：分类 / 列表 / 详情；Tab / Shift+Tab：下一 / 上一面板\nh/l 或左右方向键：上一 / 下一面板；j/k 或上下方向键：在当前面板移动\n分类和列表选择立即预览；Enter：聚焦列表 / 详情 / 编辑字段\nEsc：详情 → 列表 → 分类 → 退出；切换面板保留草稿\n草稿未保存时，更换分类、项目或搜索将询问保存 / 放弃 / 取消\ng g（500 毫秒）/ G：首项 / 末项；/：从列表搜索文档路径\nCtrl+s：保存；n：在分类/列表中新建；r：刷新或重新加载详情\nf：管理文件；d：在列表删除所选文件；v：在详情查看完整的非密钥值\nq：退出；Ctrl+c：请求退出\n红色表示缺失，绿色表示存在，不代表凭据有效。缺失配置按 Enter 编辑空白草稿；缺失资源按 Enter 导入真实文件。\n文本模式保留所有可打印快捷键，包括 123jq/?。\n文件导入是独立确认的提交。诊断为只读。\nPageUp/PageDown 滚动详情和长对话框。\nSettings / 设置：选择界面语言或主题，Enter 应用并保存。设置中禁用文档操作。',
+  'help_lines': '1/2/3：跳转 分类 / 列表 / 详情；Tab / Shift+Tab 或 h/l（方向键）：下一 / 上一面板\nj/k 或上下方向键：在聚焦面板移动（详情为滚动）；g/G 或 Home/End：首项 / 末项；PageUp/PageDown 或 Ctrl+d/u：半页\nEnter：打开详情 / 下一层并展开完整值；e：编辑所选字段；Esc：逐级返回（永不退出）\n/：本地过滤文档路径；?：本帮助；r：刷新或重新加载；x：中止最新任务；[ ]：上一 / 下一分类\na：新建；D：删除文件（y/n 确认）；s：保存；f：管理文件\n: 设置（语言、主题）；L：即时切换 中文 / English；q / Ctrl+c：退出（有任务运行时 y/n 确认）\n切换面板保留草稿；草稿未保存时询问 保存 / 放弃 / 取消。\n红色表示缺失，绿色表示存在，不代表凭据有效。缺失配置按 Enter 编辑空白草稿；缺失资源按 Enter 导入真实文件。\n文件导入是独立确认的提交。诊断为只读。搜索为本地过滤，Esc 恢复此前列表。',
   'Configuration must be a JSON object': '配置必须是 JSON 对象',
   'Unsupported or missing schema version; expected 1': '架构版本不受支持或缺失；应为 1',
   '{label} is required': '{label}为必填项',
@@ -322,30 +325,30 @@ const chinese = {
 
 const hints = {
   en: {
-    'dialog-input': { label: 'TEXT DIALOG:', items: ['Enter|submit', 'Esc|cancel', 'arrows|move cursor'] },
-    'dialog-choice': { label: 'DIALOG:', items: ['Enter|confirms', 'Esc|cancels', 'arrows/Tab|choose', 'PgUp/PgDn|details'] },
-    'text-input': { label: 'TEXT INPUT:', items: ['Enter|accept', 'Esc|restore', 'Ctrl+s|save', 'shortcuts|type normally'] },
-    'settings-nav': { items: ['j/k|category', 'Enter|to list', 'Tab/1/2/3|panel', '?|help', 'q|quit'] },
-    'settings-item': { items: ['j/k|setting', 'Enter|apply', 'Tab/1/2/3|panel', 'Esc|back', '?|help', 'q|quit'] },
-    'editor': { items: ['Enter|edit field', 'j/k|field', 'Ctrl+s|save', 'v|full value', 'Esc|to list', '?|help', 'q|quit'] },
-    'preview': { items: ['j/k|scroll preview', 'Enter|open', 'Esc|to list', 'r|refresh', '?|help', 'q|quit'] },
-    'nav': { items: ['j/k|category', 'Enter|to list', 'Tab/1/2/3|panel', 'n|new', '/|search', 'f|files', '?|help', 'q|quit'] },
-    'files': { items: ['j/k|move', 'Enter|open/import', 'd|delete', '/|search', 'r|refresh', 'Esc|to categories', 'q|quit'] },
-    'doctor': { items: ['j/k|result', 'Enter|details', 'r|rerun', 'f|files', 'Esc|to categories', '?|help', 'q|quit'] },
-    'list': { items: ['j/k|move', 'Enter|details', 'n|new', '/|search', 'f|files', 'r|refresh', '?|help', 'q|quit'] },
+    'dialog-input': ['Enter|submit', 'Esc|cancel', 'Ctrl+u|clear', ':|settings', 'L|language'],
+    'dialog-choice': ['Enter|confirms', 'Esc|cancels', 'j/k/Tab|choose', 'PgUp/PgDn|details', ':|settings', 'L|language'],
+    'dialog-confirm': ['Enter|confirms', 'Esc|cancels', 'y|confirms', 'n|cancels', ':|settings', 'L|language'],
+    'text-input': ['Backspace|grapheme delete', 'Ctrl+u|clear', 'Esc|restore', 'Enter|accept', ':|settings', 'L|language'],
+    'settings': ['j/k|select row', 'Enter/l|next value', 'h|prev value', 'Esc|close', ':|settings', 'L|language'],
+    'editor': ['j/k|field', 'h/l|panel', 'tab|cycle', '1 2 3|panels', 'g/G|first/last', 'PgUp/PgDn|scroll', 'enter|full value', 'esc|to list', '?|help', 'r|reload', 'x|abort', '[ ]|prev/next', 'e|edit', 's|save', 'y|copy', 'f|files', 'q|quit', ':|settings', 'L|language'],
+    'preview': ['j/k|scroll', 'h/l|panel', 'tab|cycle', '1 2 3|panels', 'g/G|first/last', 'PgUp/PgDn|scroll', 'enter|open', 'esc|to list', '?|help', 'r|refresh', 'x|abort', '[ ]|prev/next', 'f|files', 'q|quit', ':|settings', 'L|language'],
+    'nav': ['j/k|category', 'h/l|panel', 'tab|cycle', '1 2 3|panels', 'g/G|first/last', 'PgUp/PgDn|scroll', 'enter|to list', '/|search', '?|help', 'r|refresh', 'x|abort', '[ ]|prev/next', 'a|new', 'f|files', 'q|quit', ':|settings', 'L|language'],
+    'files': ['j/k|move', 'h/l|panel', 'tab|cycle', '1 2 3|panels', 'g/G|first/last', 'PgUp/PgDn|scroll', 'enter|open', 'esc|to categories', '/|search', '?|help', 'r|refresh', 'x|abort', '[ ]|prev/next', 'D|delete', 'f|files', 'q|quit', ':|settings', 'L|language'],
+    'doctor': ['j/k|result', 'h/l|panel', 'tab|cycle', '1 2 3|panels', 'g/G|first/last', 'PgUp/PgDn|scroll', 'enter|details', 'esc|to categories', '?|help', 'r|rerun', 'x|abort', '[ ]|prev/next', 'f|files', 'q|quit', ':|settings', 'L|language'],
+    'list': ['j/k|move', 'h/l|panel', 'tab|cycle', '1 2 3|panels', 'g/G|first/last', 'PgUp/PgDn|scroll', 'enter|details', 'esc|to categories', '/|search', '?|help', 'r|refresh', 'x|abort', '[ ]|prev/next', 'a|new', 'D|delete', 's|save', 'f|files', 'q|quit', ':|settings', 'L|language'],
   },
   zh: {
-    'dialog-input': { label: '文本对话框：', items: ['Enter|提交', 'Esc|取消', '方向键|移动光标'] },
-    'dialog-choice': { label: '对话框：', items: ['Enter|确认', 'Esc|取消', '方向键/Tab|选择', 'PgUp/PgDn|详情'] },
-    'text-input': { label: '文本输入：', items: ['Enter|接受', 'Esc|恢复', 'Ctrl+s|保存', '快捷键|按普通文字输入'] },
-    'settings-nav': { items: ['j/k|分类', 'Enter|列表', 'Tab/1/2/3|面板', '?|帮助', 'q|退出'] },
-    'settings-item': { items: ['j/k|设置', 'Enter|应用', 'Tab/1/2/3|面板', 'Esc|返回', '?|帮助', 'q|退出'] },
-    'editor': { items: ['Enter|编辑', 'j/k|字段', 'Ctrl+s|保存', 'v|完整值', 'Esc|列表', '?|帮助', 'q|退出'] },
-    'preview': { items: ['j/k|滚动预览', 'Enter|打开', 'Esc|列表', 'r|刷新', '?|帮助', 'q|退出'] },
-    'nav': { items: ['j/k|分类', 'Enter|列表', 'Tab/1/2/3|面板', 'n|新建', '/|搜索', 'f|文件', '?|帮助', 'q|退出'] },
-    'files': { items: ['j/k|移动', 'Enter|打开/导入', 'd|删除', '/|搜索', 'r|刷新', 'Esc|分类', 'q|退出'] },
-    'doctor': { items: ['j/k|结果', 'Enter|详情', 'r|重查', 'f|文件', 'Esc|分类', '?|帮助', 'q|退出'] },
-    'list': { items: ['j/k|移动', 'Enter|详情', 'n|新建', '/|搜索', 'f|文件', 'r|刷新', '?|帮助', 'q|退出'] },
+    'dialog-input': ['Enter|提交', 'Esc|取消', 'Ctrl+u|清空', ':|设置', 'L|语言'],
+    'dialog-choice': ['Enter|确认', 'Esc|取消', 'j/k/Tab|选择', 'PgUp/PgDn|详情', ':|设置', 'L|语言'],
+    'dialog-confirm': ['Enter|确认', 'Esc|取消', 'y|确认', 'n|取消', ':|设置', 'L|语言'],
+    'text-input': ['Backspace|按字素删除', 'Ctrl+u|清空', 'Esc|恢复', 'Enter|接受', ':|设置', 'L|语言'],
+    'settings': ['j/k|选择行', 'Enter/l|下一值', 'h|上一值', 'Esc|关闭', ':|设置', 'L|语言'],
+    'editor': ['j/k|字段', 'h/l|面板', 'tab|循环', '1 2 3|面板', 'g/G|首/末', 'PgUp/PgDn|滚动', 'enter|完整值', 'esc|列表', '?|帮助', 'r|重新加载', 'x|中止', '[ ]|前/后分类', 'e|编辑', 's|保存', 'y|复制', 'f|文件', 'q|退出', ':|设置', 'L|语言'],
+    'preview': ['j/k|滚动', 'h/l|面板', 'tab|循环', '1 2 3|面板', 'g/G|首/末', 'PgUp/PgDn|滚动', 'enter|打开', 'esc|列表', '?|帮助', 'r|刷新', 'x|中止', '[ ]|前/后分类', 'f|文件', 'q|退出', ':|设置', 'L|语言'],
+    'nav': ['j/k|分类', 'h/l|面板', 'tab|循环', '1 2 3|面板', 'g/G|首/末', 'PgUp/PgDn|滚动', 'enter|进入列表', '/|搜索', '?|帮助', 'r|刷新', 'x|中止', '[ ]|前/后分类', 'a|新建', 'f|文件', 'q|退出', ':|设置', 'L|语言'],
+    'files': ['j/k|移动', 'h/l|面板', 'tab|循环', '1 2 3|面板', 'g/G|首/末', 'PgUp/PgDn|滚动', 'enter|打开', 'esc|分类', '/|搜索', '?|帮助', 'r|刷新', 'x|中止', '[ ]|前/后分类', 'D|删除', 'f|文件', 'q|退出', ':|设置', 'L|语言'],
+    'doctor': ['j/k|结果', 'h/l|面板', 'tab|循环', '1 2 3|面板', 'g/G|首/末', 'PgUp/PgDn|滚动', 'enter|详情', 'esc|分类', '?|帮助', 'r|重查', 'x|中止', '[ ]|前/后分类', 'f|文件', 'q|退出', ':|设置', 'L|语言'],
+    'list': ['j/k|移动', 'h/l|面板', 'tab|循环', '1 2 3|面板', 'g/G|首/末', 'PgUp/PgDn|滚动', 'enter|详情', 'esc|分类', '/|搜索', '?|帮助', 'r|刷新', 'x|中止', '[ ]|前/后分类', 'a|新建', 'D|删除', 's|保存', 'f|文件', 'q|退出', ':|设置', 'L|语言'],
   },
 }
 
@@ -354,21 +357,26 @@ export const LANGUAGES = Object.freeze([
   { id: 'en', label: 'English' },
 ])
 
+const CATALOG = {
+  en: {
+    help_lines: '1/2/3: jump to categories / list / details; Tab / Shift+Tab or h/l (arrows): next / previous panel\nj/k or Up/Down: move in the focused panel (details scrolls); g/G or Home/End: first / last; PageUp/PageDown or Ctrl+d/u: half page\nEnter: open details / next level and expand the full value; e: edit the selected field; Esc: step back (never quits)\n/: filter document paths locally; ?: this help; r: refresh or reload; x: abort the newest job; [ ]: previous / next category\na: create; D: delete file (y/n confirm); s: save; f: managed files\n: Settings (language, theme); L: toggle 中文 / English instantly; q / Ctrl+c: quit (asks y/n while jobs run)\nSwitching panels keeps drafts; a dirty draft asks Save / Discard / Cancel.\nRed means missing; green means present, not valid credentials. Enter on missing configs edits a clean draft; Enter on missing resources imports a real file.\nFile imports are independent confirmed commits. Doctor is read-only. Search is a local filter; Esc restores the previous list.',
+  },
+  zh: chinese,
+}
+
+/** Hint rows as `{ key, desc }` chips, derived from the `key|desc` strings. */
+function chip(entry) {
+  const index = entry.indexOf('|')
+  return index < 0
+    ? { key: entry, desc: '' }
+    : { key: entry.slice(0, index), desc: entry.slice(index + 1) }
+}
+
 export function t(language, key, params = {}) {
-  const template = language === 'zh' && Object.hasOwn(chinese, key) ? chinese[key] : key
-  return template.replace(/\{([a-z]+)\}/gi, (token, name) =>
-    Object.hasOwn(params, name) ? String(params[name]) : token)
+  return translate(CATALOG, language, key, params)
 }
 
 export function hintSegments(language, id) {
-  const entry = (language === 'zh' && hints.zh[id]) || hints.en[id]
-  if (!entry)
-    return { label: '', items: [] }
-  return {
-    label: entry.label || '',
-    items: entry.items.map((s) => {
-      const i = s.indexOf('|')
-      return i < 0 ? { key: s, desc: '' } : { key: s.slice(0, i), desc: s.slice(i + 1) }
-    }),
-  }
+  const entries = (language === 'zh' && hints.zh[id]) || hints.en[id] || []
+  return entries.map(chip)
 }
