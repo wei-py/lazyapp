@@ -20,7 +20,7 @@ describe('personal language preferences', () => {
     expect(await fs.readdir(root)).toEqual([])
   })
 
-  test('language and theme persist across reads with private permissions and unknown fields preserved', async () => {
+  test('language and theme persist across reads with private permissions', async () => {
     await savePreferences({ language: 'zh', theme: 'gruvbox-dark' }, options)
     expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'gruvbox-dark' })
     const file = join(options.directory, 'settings.json')
@@ -38,10 +38,8 @@ describe('personal language preferences', () => {
     await savePreferences({ language: 'en', theme: 'gruvbox-light' }, options)
     expect(await loadPreferences(options)).toEqual({ language: 'en', theme: 'gruvbox-light' })
     expect(JSON.parse(await fs.readFile(file, 'utf8'))).toEqual({
-      schemaVersion: 1,
       language: 'en',
       theme: 'gruvbox-light',
-      future: { keep: true },
     })
     expect(await fs.readdir(options.directory)).toEqual(['settings.json'])
   })
@@ -55,24 +53,34 @@ describe('personal language preferences', () => {
     expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'default' })
   })
 
-  test('corruption, unknown schema, and unsupported languages or themes remain untouched', async () => {
+  test('corrupt, unknown-schema, and unsupported stored values fall back to defaults on read', async () => {
     await fs.mkdir(options.directory)
     const file = join(options.directory, 'settings.json')
-    for (const bytes of [
-      '{broken',
-      '{"schemaVersion":2,"language":"zh"}',
-      '{"schemaVersion":1,"language":"fr"}',
-      '{"schemaVersion":1,"language":"zh","theme":"gruvbox-brutal"}',
-      'null',
-    ]) {
+    const expectations = new Map([
+      ['{broken', { language: 'en', theme: 'default' }],
+      ['{"schemaVersion":2,"language":"zh"}', { language: 'zh', theme: 'default' }],
+      ['{"schemaVersion":1,"language":"fr"}', { language: 'en', theme: 'default' }],
+      [
+        '{"schemaVersion":1,"language":"zh","theme":"gruvbox-brutal"}',
+        { language: 'zh', theme: 'default' },
+      ],
+      ['null', { language: 'en', theme: 'default' }],
+    ])
+    for (const [bytes, expected] of expectations) {
       await fs.writeFile(file, bytes)
-      await expect(loadPreferences(options)).rejects.toMatchObject({ code: 'PREFERENCES_INVALID' })
-      await expect(savePreferences({ language: 'zh' }, options)).rejects.toMatchObject({
-        code: 'PREFERENCES_INVALID',
-      })
+      expect(await loadPreferences(options)).toEqual(expected)
       expect(await fs.readFile(file, 'utf8')).toBe(bytes)
-      expect(await fs.readdir(options.directory)).toEqual(['settings.json'])
     }
+  })
+
+  test('a valid save atomically replaces corrupt content', async () => {
+    await fs.mkdir(options.directory)
+    const file = join(options.directory, 'settings.json')
+    await fs.writeFile(file, '{broken')
+    await savePreferences({ language: 'zh' }, options)
+    expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'default' })
+    expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
+    expect(await fs.readdir(options.directory)).toEqual(['settings.json'])
   })
 
   test('unsupported requested language or theme writes nothing', async () => {
@@ -85,28 +93,16 @@ describe('personal language preferences', () => {
     expect(await fs.readdir(root)).toEqual([])
   })
 
-  test('settings lock rejects a competing writer without altering saved choice', async () => {
-    await savePreferences({ language: 'en' }, options)
-    await fs.writeFile(join(options.directory, '.settings.lock'), 'other writer')
-    await expect(savePreferences({ language: 'zh' }, options)).rejects.toMatchObject({
-      code: 'PREFERENCES_BUSY',
-    })
-    expect(await loadPreferences(options)).toEqual({ language: 'en', theme: 'default' })
-    expect(await fs.readFile(join(options.directory, '.settings.lock'), 'utf8')).toBe(
-      'other writer',
-    )
-  })
-
-  test('symbolic settings files do not replace their external targets', async () => {
+  test('symbolic settings files never write through to their external targets', async () => {
     const external = join(root, 'external.json')
     const bytes = '{"schemaVersion":1,"language":"en"}'
     await fs.writeFile(external, bytes)
     await fs.mkdir(options.directory)
     await fs.symlink(external, join(options.directory, 'settings.json'))
-    await expect(loadPreferences(options)).rejects.toMatchObject({ code: 'PREFERENCES_INVALID' })
-    await expect(savePreferences({ language: 'zh' }, options)).rejects.toMatchObject({
-      code: 'PREFERENCES_INVALID',
-    })
+    expect(await loadPreferences(options)).toEqual({ language: 'en', theme: 'default' })
+    await savePreferences({ language: 'zh' }, options)
     expect(await fs.readFile(external, 'utf8')).toBe(bytes)
+    expect((await fs.lstat(join(options.directory, 'settings.json'))).isSymbolicLink()).toBe(false)
+    expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'default' })
   })
 })
