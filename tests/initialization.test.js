@@ -23,7 +23,7 @@ function metadata() {
 }
 
 describe('example-first initialization', () => {
-  test('generates only selected platform/environment templates without modifying metadata', () => {
+  test('separates iOS signing methods from selected runtime environments without modifying metadata', () => {
     const app = metadata()
     const original = structuredClone(app)
     const examples = initializationExamples(app)
@@ -36,13 +36,19 @@ describe('example-first initialization', () => {
     expect(paths).toContain('services/service.json.example')
     expect(paths).toContain('store/store.json.example')
     expect(paths).toContain('platforms/ios/config.json.example')
-    expect(paths).toContain('platforms/ios/preview/config.json.example')
+    expect(paths).toContain('platforms/ios/development/config.json.example')
+    expect(paths).toContain('platforms/ios/ad-hoc/config.json.example')
+    expect(paths).toContain('platforms/ios/app-store/config.json.example')
+    expect(paths).not.toContain('platforms/ios/preview/config.json.example')
+    expect(paths).toContain('platforms/android/preview/config.json.example')
+    expect(paths).not.toContain('environments/ad-hoc.json.example')
+    expect(paths).not.toContain('environments/app-store.json.example')
     expect(paths).toContain('environments/preview.json.example')
     expect(paths.some(path => path.includes('/production/') || path.includes('/harmony/'))).toBe(
       false,
     )
     const signing = examples.find(
-      item => item.path === 'platforms/ios/preview/config.json.example',
+      item => item.path === 'platforms/ios/development/config.json.example',
     ).data
     expect(signing).toHaveProperty('certificate')
     expect(signing).not.toHaveProperty('bundleId')
@@ -161,9 +167,15 @@ describe('example-first initialization', () => {
         examples.some(item => item.path === `platforms/${kind}/development/config.json.example`),
       ).toBe(true)
     }
-    expect(
-      examples.some(item => item.path === 'platforms/ios/development/certificate.p12.example'),
-    ).toBe(true)
+    for (const method of ['development', 'ad-hoc', 'app-store']) {
+      for (const filename of ['config.json', 'certificate.p12', 'provisioning.mobileprovision']) {
+        expect(
+          examples.some(item => item.path === `platforms/ios/${method}/${filename}.example`),
+        ).toBe(true)
+      }
+    }
+    expect(examples.some(item => item.path.startsWith('platforms/ios/production/'))).toBe(false)
+    expect(examples.some(item => item.path === 'environments/production.json.example')).toBe(true)
     expect(
       examples.some(
         item => item.path === 'platforms/android/production/signing.keystore.example',

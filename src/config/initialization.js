@@ -15,6 +15,21 @@ const SIGNING_FILES = {
   miniprogram: { privateKey: 'upload.key' },
 }
 
+const IOS_SIGNING_METHODS = {
+  'development': {
+    en: 'Development: local development and device debugging. Register device UDIDs; use an Apple Development certificate and a development provisioning profile. Debugger attachment is supported.',
+    zh: 'Development：自己开发、真机排错。需登记设备 UDID，使用 Apple Development 证书和开发描述文件，支持附加调试器。',
+  },
+  'ad-hoc': {
+    en: 'Ad Hoc: install an IPA directly on registered test devices. Register device UDIDs; use an Apple Distribution certificate and an Ad Hoc provisioning profile. Debugger attachment is not allowed.',
+    zh: 'Ad Hoc：向指定测试设备直接安装 IPA。需登记设备 UDID，使用 Apple Distribution 证书和 Ad Hoc 描述文件，不允许附加调试器。',
+  },
+  'app-store': {
+    en: 'App Store: TestFlight testing and App Store distribution. Device UDID registration is not required; use an Apple Distribution certificate and an App Store provisioning profile. Debugger attachment is not allowed.',
+    zh: 'App Store：TestFlight 测试、正式上架。无需登记设备 UDID，使用 Apple Distribution 证书和 App Store 描述文件，不允许附加调试器。',
+  },
+}
+
 function instruction(en, zh) {
   return { schemaVersion: 1, instruction: { en, zh } }
 }
@@ -68,8 +83,16 @@ export function initializationExamples(app) {
       field => field.type === 'file',
     )
     const chineseFields = documentFields(kind, { scope: 'signing', language: 'zh' })
-    for (const environment of app.environments) {
-      examples.push(configurationExample(kind, { environment, scope: 'signing' }))
+    // iOS signing methods are independent of backend/runtime environments.
+    const signingNames = kind === 'ios' ? Object.keys(IOS_SIGNING_METHODS) : app.environments
+    for (const environment of signingNames) {
+      const example = configurationExample(kind, { environment, scope: 'signing' })
+      const method = kind === 'ios' ? IOS_SIGNING_METHODS[environment] : null
+      if (method) {
+        example.data.instruction.en += ` ${method.en}`
+        example.data.instruction.zh += ` ${method.zh}`
+      }
+      examples.push(example)
       for (const field of fields) {
         const filename = SIGNING_FILES[kind][field.key]
         const target = `platforms/${kind}/${environment}/${filename}`
@@ -77,8 +100,8 @@ export function initializationExamples(app) {
         examples.push({
           path: `${target}.example`,
           data: instruction(
-            `Placeholder for ${field.label}; the real file ${target} is missing. Import your own file at that path, then set the ${field.key} reference in config.json. This JSON is not a credential; do not rename it to pretend the file exists.`,
-            `${label}的占位说明；真实文件 ${target} 尚未提供。请导入自己的文件到此路径，再在 config.json 中设置 ${field.key} 引用。此 JSON 不是凭据，不要通过重命名伪造真实文件。`,
+            `Placeholder for ${field.label}; the real file ${target} is missing. Import your own file at that path, then set the ${field.key} reference in config.json. This JSON is not a credential; do not rename it to pretend the file exists.${method ? ` ${method.en}` : ''}`,
+            `${label}的占位说明；真实文件 ${target} 尚未提供。请导入自己的文件到此路径，再在 config.json 中设置 ${field.key} 引用。此 JSON 不是凭据，不要通过重命名伪造真实文件。${method ? ` ${method.zh}` : ''}`,
           ),
         })
       }

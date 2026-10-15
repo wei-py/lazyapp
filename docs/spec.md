@@ -136,7 +136,7 @@ src/
 
 - 默认复制文件到工作区；用户也可明确选择引用外部文件。复制前验证源文件可读，覆盖目标前确认。
 - 工作区内的引用统一相对工作区根目录保存，禁止混用相对各级 config.json 的路径。外部引用保存明确的绝对路径，并提示不可随工作区迁移。
-- 例如 iOS 证书内部引用为 `platforms/ios/production/certificate.p12`，解析时以工作区根目录为基准。
+- 例如 iOS App Store 证书内部引用为 `platforms/ios/app-store/certificate.p12`，解析时以工作区根目录为基准。
 - 管理目录内的写入、删除必须校验规范化路径及已有父目录的真实路径，禁止通过 `..` 或符号链接越出工作区。
 - 外部引用只读：解除引用不删除源文件；复制导入同样不修改源文件。
 
@@ -245,7 +245,8 @@ src/
 - 名称使用安全单段目录名，拒绝前导点、路径分隔符、控制字符与不可移植文件名。内部文件引用另拒绝点前缀组件、冒号和反斜杠；明确外部引用必须为绝对路径且只读。
 - 缺少工作区时，在创建渲染器、进入 raw mode／备用屏幕之前，先显示普通终端询问：`No lazyapp workspace found. Create one? (y/N): `（沿用已保存语言偏好）。仅不区分大小写的 `y` / `yes` 同意；空输入、其他回答和 EOF 都不创建文件并退出 `0`，Ctrl+C 退出 `130`。已有目标直接打开并校验，损坏配置不触发重新初始化。
 - 同意后原子创建最小 `app.json`、内部 `.gitignore`（内容为 `*`）和示例目录文件，直接进入 TUI，不显示初始化向导。名称默认取项目目录名；真实 `app.json` 的平台与环境列表为空，之后在 App 分类编辑启用。
-- `src/config/initialization.js` 默认生成六个平台及 development／production 的示例清单，并包含资源、服务、环境和商店模板。这些目录不代表实际启用的平台／环境。所有示例以 `.example` 结尾；图片与签名文件使用对应目标名，如 `source.png.example`、`certificate.p12.example`、`provisioning.mobileprovision.example`，内容是中英文说明，不伪造二进制文件。全部文件在私有暂存目录准备后一次发布，已有工作区拒绝覆盖。
+- `src/config/initialization.js` 默认生成六个平台、development／production 业务环境，以及资源、服务和商店模板。iOS 签名用途独立于业务环境，固定提供 `platforms/ios/development/`、`platforms/ios/ad-hoc/`、`platforms/ios/app-store/`，不再生成含义模糊的 iOS `production/` 模板；其他平台仍按业务环境提供签名模板。这些目录不代表实际启用的平台／环境。所有示例以 `.example` 结尾；图片与签名文件使用对应目标名，如 `source.png.example`、`certificate.p12.example`、`provisioning.mobileprovision.example`，内容是中英文说明，不伪造二进制文件。全部文件在私有暂存目录准备后一次发布，已有工作区拒绝覆盖，也不自动迁移已有签名目录。
+- `lazyapp init [project-directory]` 与 TUI 首次创建共用上述模板。每种 iOS 签名目录包含 `config.json.example`、`certificate.p12.example`、`provisioning.mobileprovision.example`；配置和凭据说明都标明用途、证书类型、UDID 与调试限制。Development 使用 Apple Development 证书和开发描述文件，需登记 UDID、允许调试；Ad Hoc 使用 Apple Distribution 证书和 Ad Hoc 描述文件，需登记 UDID、不允许附加调试器；App Store 使用 Apple Distribution 证书和 App Store 描述文件，用于 TestFlight／正式上架，无需登记 UDID、不允许附加调试器。`ad-hoc`／`app-store` 不加入业务环境列表。
 - TUI 将示例映射为不带 `.example` 后缀的逻辑条目：只有示例时红色「缺失」，真实文件存在时绿色「存在」，不重复显示同一目标。颜色只表示存在性，不保证配置或凭据有效。浏览缺失配置不标脏；Enter 打开干净草稿，保存才创建真实配置，不读取或复制示例内容。缺失资源 Enter 询问源文件路径，确认后导入；删除真实文件保留示例并恢复红色。
 - 示例不参与真实配置加载或 Doctor 校验；Doctor 仍报告真实配置缺失。文件引用若以 `.example` 结尾会被校验拒绝，不能作为真实资源／凭据。旧版 `credentials.example` 仅显示说明，不将其当作可导入的具体凭据文件。
 - 已有工作区中的文件复制、覆盖、逐文件删除是单独确认的提交操作；对话框明确提示“取消后续表单编辑不会撤销已确认的文件复制”。移除外部引用只修改草稿，永不删除源文件。
