@@ -1,8 +1,11 @@
+import { spawn as spawnProcess } from 'node:child_process'
+import process from 'node:process'
+
 /**
  * Background job runner shared by the lazy TUIs. Jobs stream output line by
  * line into the status bar; `serialized` jobs (package DB locks, config
  * writes) run one at a time on a process-wide chain. Abort SIGTERMs the whole
- * process group when `setsid` exists so children never outlive their row.
+ * process group on POSIX so children never outlive their row.
  */
 
 export const JOB_GLYPH = {
@@ -15,19 +18,14 @@ export const JOB_GLYPH = {
 
 const ANSI_RE = /\x1B\[[0-9;]*[a-z]/gi
 const LOG_LIMIT = 200
-const SETSID = typeof Bun !== 'undefined' ? Bun.which('setsid') : null
 
 // One process-wide chain: every runner shares the serialized queue.
 let chain = Promise.resolve()
 
 async function pump(stream, onLine) {
-  const reader = stream.getReader()
   const decoder = new TextDecoder()
   let carry = ''
-  for (;;) {
-    const { value, done } = await reader.read()
-    if (done)
-      break
+  for await (const value of stream) {
     carry += decoder.decode(value, { stream: true }).replace(ANSI_RE, '')
     const parts = carry.split(/\r\n|\r|\n/)
     carry = parts.pop() ?? ''
@@ -51,16 +49,19 @@ export function createJobRunner({ onPatch = () => {} } = {}) {
   }
 
   function spawn(job, op) {
-    const argv = SETSID ? [SETSID, ...op.cmd] : op.cmd
-    const proc = Bun.spawn({
-      cmd: argv,
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: op.env ? { ...Bun.env, ...op.env } : undefined,
+    const detached = process.platform !== 'win32'
+    const proc = spawnProcess(op.cmd[0], op.cmd.slice(1), {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached,
+      env: op.env ? { ...process.env, ...op.env } : process.env,
+    })
+    const exited = new Promise((resolve, reject) => {
+      proc.once('error', reject)
+      proc.once('close', (code, signal) => resolve(signal ? 1 : code))
     })
     killers.set(job.id, () => {
       try {
-        if (SETSID)
+        if (detached && proc.pid)
           process.kill(-proc.pid, 'SIGTERM')
         else proc.kill('SIGTERM')
       }
@@ -74,8 +75,8 @@ export function createJobRunner({ onPatch = () => {} } = {}) {
       onPatch(job)
     }
     return (async () => {
-      await Promise.all([pump(proc.stdout, onLine), pump(proc.stderr, onLine)])
-      return await proc.exited
+      const [code] = await Promise.all([exited, pump(proc.stdout, onLine), pump(proc.stderr, onLine)])
+      return code
     })()
   }
 
