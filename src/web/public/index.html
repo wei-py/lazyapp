@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>LazyApp · 本地工作区</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#content">跳到主要内容</a>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">L</span><div><strong>LazyApp</strong><small>本地工作区</small></div></div>
+      <div class="workspace"><span class="local-dot" aria-hidden="true"></span><span id="root">正在连接本地服务…</span></div>
+      <button id="refresh" type="button">刷新工作区</button>
+    </header>
+    <div class="layout">
+      <aside class="sidebar" aria-label="工作区导航">
+        <p class="eyebrow">WORKSPACE</p>
+        <nav id="navigation" aria-label="功能">
+          <button type="button" data-view="documents" aria-current="page"><span>配置管理</span><span id="document-count" class="count">—</span></button>
+          <button type="button" data-view="files"><span>文件与材料</span><span id="file-count" class="count">—</span></button>
+          <button type="button" data-view="doctor"><span>工作区诊断</span><span class="nav-tag">Doctor</span></button>
+        </nav>
+        <div class="sidebar-note"><strong>仅保存在本机</strong><p>与终端界面共用同一个 .lazyapp 工作区。保存前请确认目标环境。</p></div>
+      </aside>
+      <main id="content" tabindex="-1">
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+        <section id="documents-view" aria-labelledby="documents-title">
+          <div class="section-heading"><div><p class="eyebrow">CONFIGURATION</p><h1 id="documents-title">配置管理</h1><p class="subtitle">管理应用、平台签名、环境与商店信息。</p></div><button id="new-document" class="primary" type="button">新建配置</button></div>
+          <div class="document-layout">
+            <aside class="document-sidebar" aria-label="配置列表">
+              <label class="search-label" for="document-search">查找配置</label><input id="document-search" type="search" placeholder="名称、类型或路径" autocomplete="off">
+              <div id="document-list" class="document-list"></div>
+            </aside>
+            <div id="editor" class="editor"><div class="empty"><h2>选择一份配置</h2><p>从左侧打开配置，或创建新的配置文件。</p></div></div>
+          </div>
+        </section>
+        <section id="files-view" aria-labelledby="files-title" hidden>
+          <div class="section-heading"><div><p class="eyebrow">ORIGINAL FILES</p><h1 id="files-title">文件与材料</h1><p class="subtitle">导入和管理原始文件，不修改图片内容。</p></div></div>
+          <div class="panel"><h2>导入文件</h2><p class="hint">上传会立即写入工作区，与配置保存独立。覆盖前会再次确认；外部绝对路径只作为只读引用。</p><form id="upload-form" class="upload-form"><label>本地文件<input id="upload-source" type="file" required></label><label class="grow">工作区相对目标路径<input id="upload-destination" type="text" placeholder="assets/materials/营业执照.pdf" required autocomplete="off" spellcheck="false"></label><button class="primary" type="submit">上传文件</button></form></div>
+          <div id="file-list" class="file-list"></div>
+        </section>
+        <section id="doctor-view" aria-labelledby="doctor-title" hidden>
+          <div class="section-heading"><div><p class="eyebrow">READ-ONLY CHECK</p><h1 id="doctor-title">工作区诊断</h1><p class="subtitle">检查配置完整性及引用文件，不验证证书有效性或远程凭据。</p></div><button id="run-doctor" class="primary" type="button">运行诊断</button></div>
+          <div id="doctor-results" class="panel"><p class="hint">点击“运行诊断”获取当前工作区的实际检查结果。</p></div>
+        </section>
+      </main>
+    </div>
+    <footer><span>本地服务 · 无外部资源</span><span id="activity" role="status" aria-live="polite">正在连接…</span></footer>
+  </div>
+  <dialog id="modal" aria-labelledby="modal-title"><div id="modal-body"></div></dialog>
+</body>
+</html>
