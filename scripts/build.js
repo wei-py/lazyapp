@@ -11,7 +11,12 @@ import { releaseTarget } from '../src/config/release.js'
 const root = join(import.meta.dirname, '..')
 const pkg = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
 const target = releaseTarget()
-if (process.versions.node.split('.').map(Number)[0] < 26)
+const minimumNodeVersion = pkg.engines.node.slice(2).split('.').map(Number)
+const nodeVersion = process.versions.node.split('.').map(Number)
+const nodeVersionDifference = nodeVersion
+  .map((part, index) => part - minimumNodeVersion[index])
+  .find(difference => difference !== 0) ?? 0
+if (nodeVersionDifference < 0)
   throw new Error(`Node.js ${pkg.engines.node} is required to build releases.`)
 if (process.env.GITHUB_REF_TYPE === 'tag' && process.env.GITHUB_REF_NAME !== `v${pkg.version}`)
   throw new Error(`Release tag must match package.json: v${pkg.version}`)
@@ -51,12 +56,30 @@ await build({
     LAZYAPP_VERSION: JSON.stringify(pkg.version),
   },
   banner: {
-    js: `import { mkdirSync as seaMkdirSync, mkdtempSync as seaMkdtempSync, rmSync as seaRmSync, writeFileSync as seaWriteFileSync } from 'node:fs';
+    js: `import { mkdirSync as seaMkdirSync, mkdtempSync as seaMkdtempSync, readdirSync as seaReaddirSync, rmSync as seaRmSync, writeFileSync as seaWriteFileSync } from 'node:fs';
 import { tmpdir as seaTmpdir } from 'node:os';
 import { dirname as seaDirname, join as seaJoin } from 'node:path';
 import { getRawAsset as seaGetRawAsset, isSea as seaIsSea } from 'node:sea';
 if (!seaIsSea()) throw new Error('Expected a Node SEA executable');
-const seaAssetRoot = seaMkdtempSync(seaJoin(seaTmpdir(), 'lazyapp-opentui-'));
+// Windows keeps loaded DLLs locked until exit. Reclaim only directories whose
+// owning process is gone; never remove another active invocation's assets.
+if (process.platform === 'win32') {
+  for (const seaEntry of seaReaddirSync(seaTmpdir(), { withFileTypes: true })) {
+    const seaOwner = /^lazyapp-opentui-(\\d+)-/.exec(seaEntry.name);
+    if (!seaEntry.isDirectory() || !seaOwner) continue;
+    try {
+      process.kill(Number(seaOwner[1]), 0);
+    } catch (seaError) {
+      if (seaError.code === 'ESRCH')
+        seaRmSync(seaJoin(seaTmpdir(), seaEntry.name), { recursive: true, force: true });
+      else if (seaError.code !== 'EPERM')
+        throw seaError;
+    }
+  }
+}
+const seaAssetRoot = seaMkdtempSync(seaJoin(seaTmpdir(), 'lazyapp-opentui-' + process.pid + '-'));
+if (process.platform !== 'win32')
+  process.once('exit', () => seaRmSync(seaAssetRoot, { recursive: true, force: true }));
 try {
   for (const seaKey of ${JSON.stringify(assets.map(({ key }) => key))}) {
     const seaTarget = seaJoin(seaAssetRoot, seaKey);
@@ -113,12 +136,12 @@ async function packageDirectory(name, from = root) {
   throw new Error(`Cannot locate package metadata for ${name}.`)
 }
 async function copyNotices(name, from) {
-  if (visited.has(name))
-    return
-  visited.add(name)
   const directory = await packageDirectory(name, from)
+  if (visited.has(directory))
+    return
+  visited.add(directory)
   const metadata = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
-  const destination = join(staging, 'licenses', name)
+  const destination = join(staging, 'licenses', name, metadata.version)
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     if (entry.isFile() && /^(?:licen[cs]e|copying|notice|patents|authors)(?:[.-]|$)/i.test(entry.name)) {
       await mkdir(destination, { recursive: true })
