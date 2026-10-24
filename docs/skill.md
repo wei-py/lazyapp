@@ -153,8 +153,10 @@ Derive paths with these rules (`name` must be a safe single directory name):
 ### Check if workspace exists
 
 ```javascript
+import { readFile } from "node:fs/promises";
+
 // Read app.json — if it parses with schemaVersion: 1, workspace exists
-const appJson = JSON.parse(await Bun.file("<project>/.lazyapp/app.json").text());
+const appJson = JSON.parse(await readFile("<project>/.lazyapp/app.json", "utf8"));
 ```
 
 ### Load all documents
@@ -165,7 +167,7 @@ For each enabled platform in `app.platforms`, read platform config + per-environ
 
 ### Read a specific document
 
-Given kind and optional name/environment, compute canonical path, then `JSON.parse(await Bun.file(workspaceRoot + '/' + path).text())`.
+Given kind and optional name/environment, compute canonical path, then read UTF-8 text with `node:fs/promises` and pass it to `JSON.parse`.
 
 ## Writing Workspace Data
 
@@ -174,7 +176,7 @@ Given kind and optional name/environment, compute canonical path, then `JSON.par
 - Always read the current file first to get `schemaVersion` and unedited fields
 - Preserve unknown fields (merge, don't replace)
 - Files must be UTF-8, 2-space indent, trailing newline
-- Write to a temp file then rename atomically (`Bun.write(tmp, content); await Bun.write(target, content)` — Bun handles atomic rename for small files, but for safety use: write temp, verify, rename)
+- Write to a same-directory temporary file, sync/close it as required, then publish with `rename` from `node:fs/promises`
 - Never write to `.example` files
 - Never touch `.lazyapp.lock`
 - After editing `app.json` platforms/environments, check that referenced sub-configs exist

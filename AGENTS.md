@@ -4,7 +4,7 @@
 
 lazyapp is a personal, offline TUI for organizing App metadata, assets, platform credentials, services, environments, and store materials. Initial scope: prompt-first initialization, configuration editing, file management, and read-only Doctor checks. No cloud service, telemetry, database, or build/sign/release execution.
 
-**Current state:** first-stage application implemented in JavaScript with Bun and direct OpenTUI Core. The workspace uses a narrow left column (workspace, categories, list) and a large right detail pane with status below. Numbered inset titles, square borders (ASCII for `TERM=dumb`), transparent backgrounds with `#1F2438` dialog fills, blue focus borders, full-row dark selections, and position counters follow the supplied lazygit visual reference. Missing file/configuration rows are red; existing rows are green, including selected rows. Panel switching uses `Tab`/`Shift+Tab`, `1/2/3`, and `h`/`l`; `Enter` descends categories → list → detail editor → field. The 60–99-column layout stacks the focused panel and related preview beneath workspace information, with numbers in border titles rather than a separate tab strip. Includes a pre-render terminal initialization prompt, configuration editors, managed file imports/deletion, external read-only references, and read-only Doctor. Standalone macOS arm64 packaging is verified locally; Linux/Windows runtime compatibility is not claimed.
+**Current state:** first-stage application implemented in JavaScript with Node.js and direct OpenTUI Core. The workspace uses a narrow left column (workspace, categories, list) and a large right detail pane with status below. Numbered inset titles, square borders (ASCII for `TERM=dumb`), transparent backgrounds with `#1F2438` dialog fills, blue focus borders, full-row dark selections, and position counters follow the supplied lazygit visual reference. Missing file/configuration rows are red; existing rows are green, including selected rows. Panel switching uses `Tab`/`Shift+Tab`, `1/2/3`, and `h`/`l`; `Enter` descends categories → list → detail editor → field. The 60–99-column layout stacks the focused panel and related preview beneath workspace information, with numbers in border titles rather than a separate tab strip. Includes a pre-render terminal initialization prompt, configuration editors, managed file imports/deletion, external read-only references, read-only Doctor, and a local Web editor. Standalone releases use Node SEA. macOS arm64 packaging is verified locally; Linux/Windows runtime compatibility is not claimed.
 
 ## Architecture & Data Flow
 
@@ -26,24 +26,25 @@ Dependency direction: `src/main.js → app → features → storage / config`. L
 | `src/features/` | Document loading, validated saves, safe errors, read-only Doctor     |
 | `src/storage/`  | Configuration I/O, imports, paths, write protection                  |
 | `src/config/`   | Shared schema, field definitions, defaults, canonical document paths |
-| `tests/`        | Bun behavioral tests for models, storage, features, and interactions |
+| `tests/`        | Node.js behavioral tests for models, storage, features, and interactions |
 
 Avoid parallel pages/components/layouts/stores hierarchies that duplicate these responsibilities. Assistant-skill assets are not application source or application tests.
 
 ## Development Commands
 
-Install with `bun install --frozen-lockfile`; Bun must be on `PATH`.
+Install with `pnpm install`; Node.js 26.4.0 or newer and pnpm must be on `PATH`.
 
-| Command                         | Purpose                                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------- |
-| `bun run dev /absolute/project` | Open that project's TUI; omit the path to use cwd                                           |
-| `bun run lint`                  | ESLint checks                                                                               |
-| `bun run lint:fix`              | ESLint fixes                                                                                |
-| `bun test`                      | Behavior tests using `bun:test`                                                             |
-| `bun run build`                 | Build the current platform's executable, release archive, and SHA256SUMS                    |
-| `bun run smoke:release`         | Exercise the extracted release in a PTY with no Bun on PATH (checkout read denied on macOS) |
+| Command                                    | Purpose                                                                      |
+| ------------------------------------------ | ---------------------------------------------------------------------------- |
+| `pnpm run dev -- /absolute/project`        | Open that project's TUI; omit the path to use cwd                            |
+| `pnpm run web -- /absolute/project`        | Start only the local Web editor                                               |
+| `pnpm run lint`                            | ESLint checks                                                                 |
+| `pnpm run lint:fix`                        | ESLint fixes                                                                  |
+| `pnpm test`                                | Behavior tests using `node:test`                                              |
+| `pnpm run build`                           | Build the current platform's Node SEA executable, release archive, checksums |
+| `pnpm run smoke:release`                   | Exercise the extracted release in a real PTY                                 |
 
-`package.json` declares `lazyapp` as the executable entry point. `bun src/main.js --help` prints usage without requiring a TTY. `scripts/build.js` bundles Bun and OpenTUI native assets; `dist/` is ignored. `.github/workflows/release.yml` validates and publishes GitHub Release assets on `v*` tags matching `package.json`; manual runs validate without publishing. After publication, install with `mise use -g github:wei-py/lazyapp@latest`. See `docs/spec.md` for release instructions and verification limits.
+`package.json` declares `lazyapp` as the executable entry point. `node src/main.js --help` prints usage without requiring a TTY. `scripts/build.js` bundles the ESM application with esbuild, embeds OpenTUI assets in Node SEA, and signs the macOS artifact ad hoc; `dist/` is ignored. `.github/workflows/release.yml` validates and publishes GitHub Release assets on `v*` tags matching `package.json`; manual runs validate without publishing. After publication, install with `mise use -g github:wei-py/lazyapp@latest`. See `docs/spec.md` for release instructions and verification limits.
 
 ## Code Conventions & Common Patterns
 
@@ -73,15 +74,15 @@ Install with `bun install --frozen-lockfile`; Bun must be on `PATH`.
 
 ## Runtime/Tooling Preferences
 
-Use Bun for runtime, dependency installation, and tests; keep `bun.lock` synchronized with `package.json`. Do not mix npm/pnpm/yarn lockfiles. Use JavaScript, not TypeScript, and `@opentui/core` directly without React/Vue rendering layers. `string-width` supports terminal-column clipping.
+Use Node.js for runtime, tests, scripts, and Node SEA packaging. Use pnpm for dependency installation. This repository intentionally carries no package-manager lockfile; keep direct dependency versions exact in `package.json`. Use JavaScript, not TypeScript, and `@opentui/core` directly without React/Vue rendering layers. `string-width` supports terminal-column clipping.
 
-Verified versions: Bun 1.4.2 and OpenTUI 0.5.11 on macOS arm64 and in a Linux arm64 container. These are pinned in `package.json` and `bun.lock`. Release targets additionally cover macOS x86_64, Linux x86_64/arm64, and Windows x86_64; the release workflow builds and smoke-tests each on its own OS. Managing an App platform's configuration does not establish tool runtime support for that OS. Require stdin/stdout TTY before entering raw mode. Update the verified versions only after testing startup, input, resize, and cleanup.
+Verified versions: Node.js 26.7.0, pnpm 12.5.1, and OpenTUI 0.5.11 on macOS arm64. Node/OpenTUI require `--experimental-ffi` for source TUI and renderer tests; SEA embeds that flag. Release targets additionally cover macOS x86_64, Linux x86_64/arm64, and Windows x86_64; the release workflow builds and smoke-tests each on its own OS. Managing an App platform's configuration does not establish tool runtime support for that OS. Require stdin/stdout TTY before entering raw mode. Update verified versions only after testing startup, input, resize, and cleanup.
 
 ## Testing & QA
 
-Tests use `bun:test` in `tests/`; no coverage threshold or CI requirement is imposed.
+Tests use `node:test` with the shared `expect` adapter in `support/node-test.js`; no coverage threshold or CI requirement is imposed.
 
 - Test observable contracts: validation, schema rejection, corrupt-file preservation, safe paths, write failures/conflicts, draft transitions, and secret redaction. Use isolated temporary workspaces and fictional credentials.
 - TUI changes require actual terminal verification, not only state tests: text-input isolation, focus restoration, resize, Chinese display widths, long paths, layout variants, and terminal restoration after normal exit and catchable errors.
 - Minimum end-to-end flow: initialize a temporary project → edit/save → exit/reopen with data intact → cancel edits without writes → Doctor distinguishes missing and unchecked items.
-- Run `bun test` and `bun run lint` after changes. For documentation-only work, verify consistency and paths. See `docs/spec.md` section 12 for implemented data contracts and recorded terminal verification.
+- Run `pnpm test` and `pnpm run lint` after changes. For documentation-only work, verify consistency and paths. See `docs/spec.md` section 12 for implemented data contracts and recorded terminal verification.

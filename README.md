@@ -2,9 +2,9 @@
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-A personal, offline TUI for organizing App metadata, assets, platform credentials, services, environments, and store materials — everything you keep forgetting to write down when you build and ship an app.
+A personal, offline App workspace with both an OpenTUI terminal interface and a local Node.js Web editor. Organize metadata, assets, platform credentials, services, environments, and store materials.
 
-No cloud, no telemetry, no database. Data lives in plain JSON and raw files inside a `lazyapp/` directory next to your project.
+No cloud, telemetry, or database. Both interfaces use the same plain JSON and original files in `<project>/.lazyapp/`.
 
 ## Features
 
@@ -15,7 +15,7 @@ All of your app's configuration in a single, browsable structure:
 | Category     | What it holds                                                                                               |
 | ------------ | ----------------------------------------------------------------------------------------------------------- |
 | App          | name, description, version, enabled platforms & environments                                                |
-| Assets       | icon, splash, screenshots, promo images                                                                     |
+| Assets       | icon, splash, screenshots, promo images, waiver, business license, software copyright and supplements       |
 | Platforms    | Android / iOS / HarmonyOS / Windows / macOS / mini-program identity and signing credentials per environment |
 | Services     | third-party credentials (Apple, Google, Huawei, WeChat, maps, push, …)                                      |
 | Environments | per-environment API/Web/CDN endpoints and variables                                                         |
@@ -59,14 +59,31 @@ Switch UI language from `Settings / 设置`; it applies immediately after saving
 
 ```sh
 # install
-bun install --frozen-lockfile
+pnpm install
 
-# run
-bun run dev /absolute/project   # manage /absolute/project/lazyapp/
-bun run dev                     # manage ./lazyapp/ in the current directory
+# TUI + Web — the local Web service follows the TUI lifecycle
+lazyapp tui /absolute/project
+lazyapp tui /absolute/project --port 3210
+
+# TUI only (backward-compatible entry)
+lazyapp /absolute/project
+
+# Web only; no TTY required
+lazyapp web /absolute/project --port 3210
 ```
 
-Bun must be on `PATH`. A TTY is required.
+For source runs, replace `lazyapp` above with
+`node --experimental-ffi src/main.js`; Web-only mode does not require the FFI
+flag. Press `W` inside the TUI to start the Web editor on port 3210. Its URL is
+shown in the status line, and quitting the TUI closes the service it started.
+Initialize new projects through the TUI prompt; Web-only mode never initializes.
+
+Web uses a newspaper-style interface with local CSS and JavaScript: no CDN,
+remote fonts, or network connection is required. It edits configuration and
+manages original attachments (not image pixels or OCR). Images can be previewed;
+other file types are downloaded. Absolute external references remain read-only.
+TUI and Web can stay open together; each write takes the workspace lock and stale
+configuration/attachment revisions are rejected. Reload explicitly after a conflict.
 
 Published releases install via mise:
 
@@ -111,7 +128,7 @@ While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters —
 3. Browse each platform — missing configs/resources render red. `Enter` a red config to fill a clean draft and save; `Enter` a red resource to import the file.
 4. Add third-party services and per-environment variables as you go.
 5. Run the **Doctor** to spot anything missing or inconsistent.
-6. `q` to quit; data persists in `lazyapp/` and reopens intact.
+6. `q` to quit; data persists in `.lazyapp/` and reopens intact in either interface.
 
 ## Data & security
 
@@ -122,15 +139,23 @@ While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters —
 
 ## Docs & development
 
-| Command                             | Purpose                                                                |
-| ----------------------------------- | ---------------------------------------------------------------------- |
-| `bun run dev`                       | run the TUI                                                            |
-| `bun run lint` / `bun run lint:fix` | ESLint checks / fixes                                                  |
-| `bun test`                          | behavior tests using `bun:test`                                        |
-| `bun run build`                     | build the current platform's executable + release archive + SHA256SUMS |
-| `bun run smoke:release`             | exercise the extracted release in a PTY                                |
+| Command                                                    | Purpose                                                                |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `node --experimental-ffi src/main.js tui /absolute/project` | run TUI and Web together                                               |
+| `pnpm run dev -- /absolute/project`                        | run TUI only; press `W` inside it to start Web                         |
+| `pnpm run web -- /absolute/project`                        | run the Web-only service (default port 3210)                           |
+| `pnpm run lint` / `pnpm run lint:fix`                      | ESLint checks / fixes                                                  |
+| `pnpm test`                                                | behavior tests using `node:test`                                       |
+| `pnpm run build`                                           | build the current platform's Node SEA archive and checksums            |
+| `pnpm run smoke:release`                                   | exercise the extracted SEA release in a PTY                            |
 
 - `docs/spec.md` — authoritative development contract (keyboard, layout, storage, safety, acceptance).
 - `docs/lazyapp.md` — product proposal and data-organization examples.
 
-Verified: macOS arm64 and a Linux arm64 container, Bun `1.4.2`, `@opentui/core` `0.5.11`. Release archives are provided for macOS (arm64/x86_64), Linux (x86_64/arm64), and Windows (x86_64); each target is built and smoke-tested in a real PTY by the release workflow on its OS.
+Verified locally: Node.js `26.7.0`, pnpm `12.5.1`, OpenTUI `0.5.11`, and
+Node SEA on macOS arm64. Release workflows build macOS (arm64/x86_64), Linux
+(x86_64/arm64), and Windows (x86_64) on their matching runners.
+
+OpenTUI requires Node.js >=26.4.0 and `--experimental-ffi` for source TUI runs
+and renderer tests. SEA releases embed Node.js, the FFI flag, OpenTUI native
+assets, and local Web assets; users do not need a separate Node.js installation.

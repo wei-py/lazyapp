@@ -2,9 +2,9 @@
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-一款纯本地、离线的 TUI，用于整理 App 元数据、资源、平台凭据、第三方服务、环境和商店资料——那些你在构建和发布 App 时总忘记录下来的东西。
+一款纯本地、离线的 App 资料管理工具，同时提供 OpenTUI 终端界面与 Node.js 本地 Web 编辑器，整理元数据、资源、平台凭据、服务、环境和商店资料。
 
-没有云服务、没有遥测、没有数据库。数据以纯 JSON 和原始文件的形式，存放在项目旁的 `lazyapp/` 目录中。
+没有云服务、遥测或数据库。两套界面共用 `<project>/.lazyapp/` 中的 JSON 配置与原始文件。
 
 ## 功能
 
@@ -15,7 +15,7 @@
 | 分类         | 存放内容                                                                    |
 | ------------ | --------------------------------------------------------------------------- |
 | App          | 名称、描述、版本、启用的平台与环境                                          |
-| Assets       | 图标、启动图、截图、宣传图                                                  |
+| Assets       | 图标、启动图、截图、宣传图、免责函、营业执照、软著、软著补充材料            |
 | Platforms    | Android / iOS / HarmonyOS / Windows / macOS / 小程序 的身份与各环境签名凭据 |
 | Services     | 第三方凭据（Apple、Google、华为、微信、地图、推送……）                       |
 | Environments | 各环境的 API/Web/CDN 地址与变量                                             |
@@ -59,14 +59,28 @@ No lazyapp workspace found. Create one? (y/N):
 
 ```sh
 # 安装
-bun install --frozen-lockfile
+pnpm install
 
-# 运行
-bun run dev /absolute/project   # 管理 /absolute/project/lazyapp/
-bun run dev                     # 管理当前目录的 ./lazyapp/
+# TUI + Web：TUI 生命周期内同时启动本地 Web 服务
+lazyapp tui /absolute/project
+lazyapp tui /absolute/project --port 3210
+
+# 仅 TUI（兼容原入口）
+lazyapp /absolute/project
+
+# 仅 Web，无需 TTY
+lazyapp web /absolute/project --port 3210
 ```
 
-Bun 需在 `PATH` 中，且需要 TTY。
+源码运行时，以上 `lazyapp` 替换为 `node --experimental-ffi src/main.js`；
+仅 Web 也可省略 `--experimental-ffi`。TUI 中按 `W` 也可启动默认端口 3210
+的 Web 编辑器，地址显示在状态栏。退出 TUI 会同时关闭由该 TUI 启动的 Web 服务。
+新项目可通过 TUI 启动询问创建工作区；仅 Web 不会自动创建工作区。
+
+网页采用报纸风格，本地 CSS／JavaScript，不使用 CDN、外部字体或在线资源。
+配置可编辑保存，原始附件可上传、预览图片、下载、替换、删除；不包含图片像素编辑或 OCR。
+外部绝对路径引用保持只读。TUI 与 Web 可以同时打开，每次写入独占加锁，
+过期的配置／附件版本拒绝覆盖；发生冲突后显式重新加载。
 
 已发布版本通过 mise 安装：
 
@@ -111,7 +125,7 @@ lazyapp /absolute/project
 3. 逐个浏览平台——缺失的配置/资源显示红色。`Enter` 红色配置进入干净草稿编辑后保存；`Enter` 红色资源导入文件。
 4. 逐步补充第三方服务和各环境变量。
 5. 运行 **Doctor** 找出缺失或不一致项。
-6. `q` 退出；数据持久化在 `lazyapp/`，重开完整保留。
+6. `q` 退出；数据持久化在 `.lazyapp/`，TUI 与 Web 重开共用同一份资料。
 
 ## 数据与安全
 
@@ -122,15 +136,23 @@ lazyapp /absolute/project
 
 ## 文档与开发
 
-| 命令                                | 用途                                             |
-| ----------------------------------- | ------------------------------------------------ |
-| `bun run dev`                       | 运行 TUI                                         |
-| `bun run lint` / `bun run lint:fix` | ESLint 检查 / 修复                               |
-| `bun test`                          | 基于 `bun:test` 的行为测试                       |
-| `bun run build`                     | 构建当前平台可执行文件 + 发行压缩包 + SHA256SUMS |
-| `bun run smoke:release`             | 在 PTY 中冒烟验证解压后的发行包                  |
+| 命令                                                        | 用途                                             |
+| ----------------------------------------------------------- | ------------------------------------------------ |
+| `node --experimental-ffi src/main.js tui /absolute/project` | 同时运行 TUI 与 Web                              |
+| `pnpm run dev -- /absolute/project`                         | 仅运行 TUI；TUI 内按 `W` 可启动 Web              |
+| `pnpm run web -- /absolute/project`                         | 仅启动本地 Web 服务，默认端口 3210               |
+| `pnpm run lint` / `pnpm run lint:fix`                       | ESLint 检查 / 修复                               |
+| `pnpm test`                                                 | 基于 `node:test` 的行为测试                       |
+| `pnpm run build`                                            | 构建当前平台 Node SEA 发行包及 SHA256SUMS        |
+| `pnpm run smoke:release`                                    | 在 PTY 中冒烟验证解压后的 SEA 发行包             |
 
 - `docs/spec.md` — 权威开发契约（键盘、布局、存储、安全、验收）。
 - `docs/lazyapp.md` — 产品构想与数据组织示例。
 
-已验证：macOS arm64 与 Linux arm64 容器，Bun `1.4.2`、`@opentui/core` `0.5.11`。发行包提供 macOS（arm64/x86_64）、Linux（x86_64/arm64）与 Windows（x86_64）；各平台构建与真实 PTY 冒烟验证由发布工作流在其系统上执行。
+本机已验证：Node.js `26.7.0`、pnpm `12.5.1`、OpenTUI `0.5.11` 与 macOS
+arm64 Node SEA。发布工作流在对应 runner 上构建 macOS（arm64/x86_64）、
+Linux（x86_64/arm64）与 Windows（x86_64）。
+
+源码 TUI 与渲染器测试要求 Node.js >=26.4.0 和 `--experimental-ffi`。
+SEA 发行包内嵌 Node.js、FFI 参数、OpenTUI 原生资源与本地 Web 资源，
+用户不需要另行安装 Node.js。

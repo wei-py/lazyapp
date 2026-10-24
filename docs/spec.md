@@ -1,13 +1,13 @@
 # lazyapp 技术栈与开发规范
 
-> 状态：第一阶段已实现；本文仍是开发约定，具体落地契约与验证范围见第 12 节。
-> 面向个人使用的本地 App 配置管理 TUI。
+> 状态：保留 TUI，并提供 Node.js 本地 Web 编辑器；落地契约与验证范围见第 12 节。
+> 面向个人使用的本地 App 配置与附件管理工具。
 
 ## 1. 定位与边界
 
 - 管理 App 基础信息、资源、平台配置、证书、第三方服务、环境和商店资料。
-- 第一阶段入口为 `lazyapp`，围绕启动初始化询问、配置编辑、文件管理和 Doctor 完整性检查展开。
-- 本地文件是唯一持久化来源，默认离线运行；不引入账号、服务端、数据库、云同步或遥测。
+- 入口分为 `lazyapp tui [project-directory] [--port 3210]`（TUI 与 Web 同生命周期）、`lazyapp web [project-directory] [--port 3210]`（仅 Web），以及兼容入口 `lazyapp [project-directory]`（仅 TUI）。TUI 内按 `W` 可补充启动 Web；两端共用同一工作区、字段定义与业务／存储层。
+- 本地文件是唯一持久化来源，默认离线运行；允许仅监听 `127.0.0.1` 的本机 HTTP 服务，不引入账号、远程服务、数据库、云同步或遥测。
 - 不负责构建、签名执行、发布、自动申请证书或调用第三方服务变更远端状态。
 - 环境按需创建，支持自定义名称；不强制每个平台都有 development / production。
 - `lazyapp.md` 保留产品构想；本文约束技术实现与交互。涉及明文风险、路径和 Git 忽略方式时，以本文的安全约束为准。
@@ -17,18 +17,18 @@
 
 | 类别           | 选型                            | 约束                                                                                   |
 | -------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
-| 运行时、包管理 | Bun                             | 统一使用 Bun 安装、运行与测试，提交 `bun.lock`，不混用 pnpm / npm 锁文件               |
+| 运行时、包管理 | Node.js / pnpm                  | Node.js >=26.4.0；源码 TUI 与渲染器测试使用 `--experimental-ffi`；仓库不提交包管理器锁文件 |
 | 开发语言       | JavaScript，ES Modules          | 不使用 TypeScript；通过 JSDoc 描述跨模块契约                                           |
 | TUI            | `@opentui/core`                 | 直接使用 OpenTUI Core，不引入 React / Vue 渲染层；Ratatui 仅可作为交互参考，不作为依赖 |
 | 代码风格       | ESLint + `@antfu/eslint-config` | 使用同一配置检查和修复风格，不并行维护第二套格式规则                                   |
-| 测试           | `bun:test`                      | 覆盖配置、存储和关键交互状态，不引入 Vitest、浏览器组件测试或 Playwright               |
+| 测试           | `node:test` + `expect`          | 覆盖配置、存储和关键交互状态，不引入 Vitest、浏览器组件测试或 Playwright               |
 | 持久化         | JSON + 原始资源文件             | 配置可人工阅读和编辑；证书、图片保持原始格式，不内嵌为 Base64                          |
-| 文件与进程     | Bun / `node:` 内置 API          | 优先内置能力；外部程序仅在具体功能需要时引入                                           |
+| 文件与进程     | `node:` 内置 API                | 业务运行时代码、测试、构建与发行冒烟均由 Node.js 执行                                  |
 | 工具与日期     | 原生 JavaScript 优先            | 不因旧规范预装 xe-utils、dayjs；复杂需求出现后再统一选型                               |
 
-- 初始化工程时记录实际验证的 Bun 版本与 OpenTUI 版本；升级后验证启动、输入、布局和终端恢复。
+- 记录实际验证的 Node.js、pnpm 与 OpenTUI 版本；升级后验证启动、输入、布局和终端恢复。
 - 支持 macOS、Linux 与 Windows 交互终端。App 可管理的平台不等于工具已支持的运行系统；新增运行系统支持必须实测后声明。
-- 已配置 `bun run dev`、`bun run lint`、`bun run lint:fix`、`bun test`；启动参数与实际验证范围见第 12 节。
+- 已配置 `pnpm run dev`、`pnpm run web`、`pnpm run lint`、`pnpm run lint:fix`、`pnpm test`、`pnpm run build`；启动参数与实际验证范围见第 12 节。
 - 分发与打包方式单独按实际验证结果确定，不预设单文件可执行文件包含全部原生依赖。
 
 ## 3. 代码组织与依赖方向
@@ -42,10 +42,11 @@ src/
 ├── features/           # 按需添加 app、assets、platforms、services 等模块
 ├── shared/             # 已有复用需求的控件与纯函数
 ├── storage/            # 配置读写、文件导入、路径与写入保护
+├── web/                # Node HTTP 适配器与本地 HTML/CSS/JS；复用 features/config/storage
 └── config/             # 工具自身配置与默认值
 ```
 
-- 依赖方向：`main → app → features → storage / shared / config`；底层不得反向依赖应用或业务模块。
+- 依赖方向：`main → app 或 web → features → storage / shared / config`；底层不得反向依赖界面或业务模块。
 - feature 之间不直接读取内部状态，通过应用层协调；真正共享的模型或逻辑提取到已有公共层。
 - 不再同时创建 pages、components、layouts、stores 等功能重叠的目录。
 - UI 负责展示与输入；业务逻辑负责校验与操作；storage 负责磁盘副作用。控件禁止直接写文件或启动进程。
@@ -192,7 +193,7 @@ src/
 | 安全       | 常规日志／摘要不含秘密；文件权限与忽略规则符合约定                                                              |
 | 实际终端   | 启动、向导取消、编辑保存、返回、退出、resize、长路径与中文、异常后的终端恢复；面板焦点边框与三面板/单栏布局切换 |
 
-- 纯逻辑和磁盘行为用 `bun:test`；测试使用临时目录与虚构凭据，不读取或修改真实 App 资料。
+- 纯逻辑和磁盘行为用 `node:test`；测试使用临时目录与虚构凭据，不读取或修改真实 App 资料。
 - TUI 改动必须在实际终端执行受影响流程；状态单测不能代替焦点、显示宽度和终端恢复验证。
 - 对双栏、单栏、空间不足三种布局分别检查；对正常退出和可捕获异常分别检查光标与输入恢复。
 - 最小端到端验收：在临时项目初始化 → 编辑并保存 → 退出重开数据一致 → 取消修改不落盘 → Doctor 正确区分缺失与未检查。
@@ -203,17 +204,16 @@ src/
 
 ### 运行
 
-- 已验证 macOS arm64 与 Linux arm64（Debian 容器），Bun `1.4.2`、`@opentui/core` `0.5.11`；版本固定在 `package.json` 与 `bun.lock`。
-- 先确保 `bun` 在 `PATH` 中，再运行 `bun install --frozen-lockfile`。
-- 在源码目录执行 `bun run dev /absolute/project`，管理 `/absolute/project/lazyapp/`；省略参数则只使用当前目录。不要把源码目录误当作要管理的 App 项目。
-- `bun src/main.js --help` 无需 TTY；实际 TUI 必须有交互式 stdin/stdout。各平台发行包内置 Bun 与对应平台的 OpenTUI 原生依赖，使用发行包不需要另外安装 Bun。
-- 本次环境最初未配置 Bun 命令，验证使用临时引导的 Bun `1.4.2` 并为开发脚本显式设置 `PATH`；仓库不自动修改用户全局运行时配置。
+- 本机已验证 Node.js `26.7.0`、pnpm `12.5.1`、`@opentui/core` `0.5.11`（macOS arm64）；直接依赖版本固定在 `package.json`，仓库按约定不提交锁文件。
+- 先确保 Node.js 与 pnpm 在 `PATH` 中，再运行 `pnpm install`。
+- `lazyapp tui /absolute/project` 同时启动 TUI 与 Web；`--port` 默认 3210，`0` 自动分配。`lazyapp /absolute/project` 与 `pnpm run dev -- /absolute/project` 保持仅 TUI；TUI 内按 `W` 可启动默认端口 Web。省略项目参数只使用当前目录。
+- `node src/main.js --help` 无需 TTY；源码 TUI 使用 `node --experimental-ffi src/main.js tui [project-directory]`，必须有交互式 stdin/stdout。Node SEA 发行包内置 Node.js、FFI 启动参数与 OpenTUI 原生资源，不要求宿主安装 Node.js。
 
 ### mise 安装与 GitHub Release
 
 - 发布仓库为 `wei-py/lazyapp`，发行包覆盖五个目标：macOS（arm64、x86_64）、Linux（x86_64、arm64）与 Windows（x86_64）。
-- 在各目标平台使用固定版本 Bun 执行 `bun install --frozen-lockfile`、`bun run build`、`bun run smoke:release`。构建输出 `dist/lazyapp-<slug>.tar.gz`（Windows 为 `dist/lazyapp-windows-x64.zip`）和 `dist/SHA256SUMS`；压缩包包含 `bin/lazyapp`（Windows 为 `bin/lazyapp.exe`）与第三方依赖许可。`dist/` 不提交 Git。
-- 构建禁用工作目录的 `.env` 与 `bunfig.toml` 自动加载。运行仍以当前目录或显式项目路径发现工作区，不以可执行文件安装目录发现工作区。
+- 在各目标平台使用固定版本 Node.js 与 pnpm 执行 `pnpm install`、`pnpm run build`、`pnpm run smoke:release`。`pnpm-workspace.yaml` 禁止生成锁文件。构建使用 esbuild 生成单一 ESM bundle，再通过 Node SEA 嵌入运行时与 OpenTUI 资源；macOS 产物执行 ad-hoc codesign。输出 `dist/lazyapp-<slug>.tar.gz`（Windows 为 `dist/lazyapp-windows-x64.zip`）和 `dist/SHA256SUMS`；压缩包包含 `bin/lazyapp`（Windows 为 `bin/lazyapp.exe`）、`bin/web/` 本地页面资源与第三方依赖许可。`dist/` 不提交 Git。
+- 运行仍以当前目录或显式项目路径发现工作区，不以可执行文件安装目录发现工作区。
 - `.github/workflows/release.yml` 在推送 `v*` tag 时于全部目标平台分别运行 lint、行为测试、构建与真实 PTY 发行包冒烟验证；全部成功后才创建 GitHub Release 并上传各平台压缩包与合并的 SHA-256 校验文件。tag 必须严格等于 `v` 加 `package.json` 的版本，例如 `v0.2.1` 对应 `0.2.1`，不匹配会拒绝构建。
 - 首次发布：先提交并推送这些改动，再执行 `git tag v0.1.0` 和 `git push origin v0.1.0`。后续发布先更新 `package.json` 版本，再推送对应新 tag；不要移动已发布 tag。GitHub Actions 的手动运行只验证并保留构建附件，不创建 Release。
 - Release 成功发布后执行：
@@ -234,7 +234,7 @@ src/
 | 路径                                             | 内容                                                                    |
 | ------------------------------------------------ | ----------------------------------------------------------------------- |
 | `app.json`                                       | `name`、`description`、`version`、`platforms` 数组、`environments` 数组 |
-| `assets/config.json`                             | 图标、启动图、截图和宣传图片的文件引用                                  |
+| `assets/config.json`                             | 图标、启动图、截图、宣传图，以及 `waiver`（免责函）、`businessLicense`（营业执照）、`softwareCopyright`（软著）、`copyrightSupplement`（软著补充材料）的文件引用 |
 | `platforms/<platform>/config.json`               | 平台身份与通用配置                                                      |
 | `platforms/<platform>/<environment>/config.json` | 该平台环境的签名资料与凭据引用                                          |
 | `services/<name>.json`                           | 服务身份、API 凭据、外部端点及凭据文件                                  |
@@ -250,7 +250,7 @@ src/
 - TUI 将示例映射为不带 `.example` 后缀的逻辑条目：只有示例时红色「缺失」，真实文件存在时绿色「存在」，不重复显示同一目标。颜色只表示存在性，不保证配置或凭据有效。浏览缺失配置不标脏；Enter 打开干净草稿，保存才创建真实配置，不读取或复制示例内容。缺失资源 Enter 询问源文件路径，确认后导入；删除真实文件保留示例并恢复红色。
 - 示例不参与真实配置加载或 Doctor 校验；Doctor 仍报告真实配置缺失。文件引用若以 `.example` 结尾会被校验拒绝，不能作为真实资源／凭据。旧版 `credentials.example` 仅显示说明，不将其当作可导入的具体凭据文件。
 - 已有工作区中的文件复制、覆盖、逐文件删除是单独确认的提交操作；对话框明确提示“取消后续表单编辑不会撤销已确认的文件复制”。移除外部引用只修改草稿，永不删除源文件。
-- `.lazyapp.lock` 保存写锁所有者信息；遇到遗留锁拒绝写入，用户须核实所有者进程已经失效后再处理，不自动抢锁。
+- `.lazyapp.lock` 保存写锁所有者信息；TUI、CLI 和 Web 使用操作级写锁，允许同时打开，提交时独占加锁、检查版本，结束立即释放。底层默认独占会话接口仍供初始化和显式独占调用使用。遇到遗留锁拒绝写入，用户须核实所有者进程已经失效后再处理，不自动抢锁或重试。
 - 外部修改导致保存冲突时保留草稿；使用 `r` 并通过保存／放弃／取消确认重新加载，不提供静默覆盖。
 - Doctor 只检查共享字段规则、引用存在性、配置一致性与权限。证书解析、有效期、签名兼容性及远程凭据认证标记为「未检查」；存在性通过不代表可签名或可发布。
 
@@ -265,15 +265,32 @@ src/
 - 分类末尾的 `Settings / 设置` 是语言入口：Enter 进入列表，`j/k` 选择 `中文` 或 `English`，Enter 保存并立即应用；下次启动沿用选择。设置类别不提供文档创建、删除、文件列表、搜索和刷新操作。进入设置仍遵循脏草稿保存／放弃／取消确认。
 - 语言切换覆盖 TUI 面板、字段标签、帮助、确认框、错误与诊断文案；用户输入、文件路径、配置键、平台标识和按键本身不翻译。启动初始化询问使用已保存语言；命令行 `--help` 与参数／TTY 诊断仍为英文。
 
+### 本地 Web 编辑器
+
+- `lazyapp tui /absolute/project [--port 3210]` 由 TUI 启动并持有 Web 服务；TUI 退出或可捕获失败时一并关闭。已有 TUI 可按 `W` 启动一次，重复按键只显示当前地址。`lazyapp web /absolute/project [--port 3210]` 仅运行 Web。默认端口 3210，`--port 0` 分配可用端口；不自动启动浏览器、不扫描父目录。仅 Web 不自动初始化；缺失工作区先用 CLI `init` 或 TUI 明确创建。
+- `src/web/public/index.html` 使用本地 `style.css`／`app.js`，报纸风格：纸色背景、墨色正文、衬线标题、细线分栏；小屏堆叠。不依赖 CDN、远程字体、框架或在线资源；TUI 外观不变。
+- Web 共用字段／作用域配置编辑、缺失配置创建、未知字段保留、保存／放弃／取消与失败保留草稿。敏感字段默认遮蔽；页面显式显示后只供当前使用者查看，服务不记录提交内容。
+- 文件保存原始字节，不写 Base64 到 JSON。支持上传、替换、下载、逐文件删除；PNG／JPEG／GIF／WebP 可预览，HTML／SVG 等主动内容只下载。外部绝对引用不能由 HTTP 服务读取、修改或删除。
+- 附件导入是独立提交；之后放弃配置草稿不会撤回已导入文件。替换／删除前确认，默认取消；使用文件内容版本防止静默覆盖其他界面的修改。配置引用不会因删除文件自动清空，Doctor 报告缺失。
+- 仅监听 IPv4 本机地址；API 使用每次启动生成的内存令牌，检查 Host，写请求检查精确 Origin；不启用 CORS。响应禁用缓存，页面 CSP 禁止外部资源，下载禁 MIME 嗅探。令牌不放 URL／本地持久化；本机恶意进程和有权限的浏览器扩展不在隔离边界内。
+- Web 文件上传上限 32 MiB，JSON 请求上限 1 MiB；现有配置只能通过共享校验保存，不能通过附件接口覆盖。Doctor 保持只读，文件存在与凭据有效性分开报告。
+
 ### 验证记录
 
-- `bun test`：116 个行为测试通过（1033 次断言），覆盖启动默认拒绝／EOF／信号、初始化无覆盖与回滚、模板作用域、占位凭据拒绝、逻辑条目合并、配置创建／删除、资源导入／取消／删除、语言偏好，以及 TUI 布局、状态栏通知与快捷键回归（含双栏状态盒与单栏底行的通知渲染，及 `y` 调用平台剪贴板助手 `pbcopy`／`wl-copy`／`clip` 的成功与失败路径）；`bun run lint` 通过，`bun src/main.js --help` 正常退出。回归测试不得依赖宿主 `TMPDIR` 长度或 Linux 专用助手：标题栏在可容纳根路径的宽度下断言，剪贴板断言按当前平台伪造同名助手，Windows 只断言失败路径。
+- Node.js `26.7.0` / OpenTUI `0.5.11`（macOS arm64）真实 PTY 已验证：CLI 初始化临时项目 → TUI 编辑中文名称并输入 `jq/?` → 保存 JSON → 取消字段修改不写盘 → 120×30 缩至 80×24 → 正常退出 `0` 并离开备用屏幕。偏好目录隔离，未修改真实项目／用户设置。
+- Node 进程任务实际执行验证：收集 stdout／stderr，非零退出保留 `exitCode: 7`；不存在的可执行文件收敛为失败状态，不产生未处理的 spawn 拒绝。该记录不代表 Node 已在其他操作系统验证。
+- 当前完整行为验证：`pnpm test` 的 134 项测试全部通过，`pnpm run lint` 通过；覆盖本机 API 的令牌／Host／Origin 边界、路径与主动内容防护、请求大小限制、双会话版本冲突、附件原始字节往返、配置删除保护、TUI 持有 Web 生命周期，以及 TUI 导入／删除的版本检查。
+- BrowserOS neo 实测 Web：修改中文 App 名称并输入 `jq/?`、保存重开、离开脏草稿取消／放弃、营业执照 PNG 上传与原图预览／下载（下载字节一致）、覆盖／删除默认取消、文件删除、服务配置创建／删除、密码字段默认遮蔽、Doctor 区分缺失免责函与存在但未验证的营业执照。390px 窄屏无水平溢出，桌面与窄屏报纸风格均实际截图查看。
+- 同时打开 Node TUI 与 Web 实测：TUI 读取网页已保存值并保存新名称；网页旧版本保存收到冲突，原草稿保留；重新加载默认取消且关闭恢复按钮焦点，明确放弃后读到 TUI 新值。真实终端打开资源配置看到四类资质字段；SIGTERM 返回 `143` 并离开备用屏幕。
+- 本机 `pnpm run build` 与 `pnpm run smoke:release` 通过；解压后的 Node SEA 在 macOS sandbox 禁止读取源码时，`--help`／`--version` 正常，真实 PTY 完成初始化、进入 TUI、正常退出与重开。该记录仅覆盖 macOS arm64，不扩展其他平台兼容性声明。
+- 最终 Node SEA 实测两种 Web 模式：`lazyapp web <project> --port 0` 可访问并在 SIGINT 后退出 `130`；`lazyapp tui <project> --port 0` 的 Web 可访问，按 `q` 后 TUI 退出 `0`、离开备用屏幕且监听端口关闭。
+- 源码实际 PTY 验证 `lazyapp tui <project> --port 0` 启动 TUI 与可访问 Web，退出 TUI 后端口关闭并恢复终端；兼容入口启动后按 `W` 可在 3210 启动一次，重复按键报告同一地址；`lazyapp web <project> --port 0` 保持无 TTY 独立运行并在 SIGINT 后退出 `130`。发行包中的 `lazyapp tui` 同样完成可访问 Web → `q` 退出 → 服务关闭与备用屏幕恢复。
+
+- 当前回归套件使用 `node:test` 与共享 `expect` 适配器，覆盖启动默认拒绝／EOF／信号、初始化无覆盖与回滚、模板作用域、占位凭据拒绝、逻辑条目合并、配置创建／删除、资源导入／取消／删除、语言偏好、TUI 布局、状态栏通知与快捷键。
 - 本次真实 PTY 启动 `src/main.js`，用 `pyte` 解码实际屏幕与颜色，52 项检查通过：启动询问保留 cooked mode 与回显，不进入备用屏幕；直接回车、No、EOF 均退出 `0`，Ctrl+C 退出 `130`，均不创建工作区；Yes 原子创建示例并直接进入工作台，没有元数据向导。隔离中文偏好下，启动询问显示中文，缺失条目保留红色。
 - 120×35 实际屏幕确认存在的 `app.json` 为绿色 `#87d787`，缺失配置／资源为红色 `#e06c75`，选中行蓝底 `#87afff` 仍保留状态前景色。进入缺失服务编辑器不标脏；保存创建真实配置并立即变绿；删除后恢复红色。缺失图片通过路径询问与确认导入后变绿，删除真实图片保留 `.example` 并恢复红色。80×20 resize 保留「缺失」标记。
 - 正常退出及重新打开均返回 `0`，重开已有工作区不再询问初始化；SIGTERM 返回 `143`。正常退出与 SIGTERM 均确认恢复终端输入属性、离开备用屏幕、释放工作区锁。此次脚本只使用临时项目、虚构资源与隔离的 `XDG_CONFIG_HOME`，未修改用户工作区或个人语言偏好。
-- Bun `1.4.2` 的 darwin 与 linux 构建对 `bun`／`bun:*` 内建模块的归类不一致，导致 `perfectionist/sort-imports` 对同一文件给出相反的排序要求（darwin 要求 `node:*` 在 `bun` 前；linux 要求相反）。已在 `eslint.config.js` 用 `customGroups` 按导入源模式固定分组（`node:*` → `bun*` → 其他外部 → 相对路径），两个平台判定一致且误序仍被检出。
 - 前次独立语言验证曾覆盖设置切换即时应用、退出重开持久化、80×20 中文帮助、`jq/?` 文本输入、中文脏草稿确认与 Doctor 文案。该记录不代表本次重新执行了所有旧版布局场景；已移除的初始化向导不再作为当前验收流程。
-- 发行包本地验证：Bun `1.4.2` 构建独立程序；解压到临时目录，在 `PATH` 不含 Bun 的环境执行 `--help`、真实 120×40 PTY 初始化、进入原生 TUI、正常退出与重新打开；macOS 额外用 `sandbox-exec` 禁止读取源码仓库（该机制仅 macOS 可用）。确认退出离开备用屏幕（Windows ConPTY 会重编码转义序列，该断言仅在 POSIX PTY 执行）、重开不再次询问初始化且不改写 `app.json`。发行工作流在各目标系统复用 `bun run smoke:release` 验证这些行为。同一链路已在 Linux arm64 容器（Debian、GNU tar）全量复跑通过：lint、104 项测试、构建 `lazyapp-linux-arm64.tar.gz` 与 PTY 冒烟。
-- 任务状态条重构曾使状态栏通知（含启动就绪提示）不再渲染，`bun run smoke:release` 因等不到就绪提示而超时失败；恢复双栏状态盒与单栏底行的通知渲染后，在 macOS arm64 重新全链路通过（初始化询问、就绪提示、`q` 退出、离开备用屏幕、重开不再询问且不改写 `app.json`）。
-- Windows runner 上 `bun run smoke:release` 曾因就绪检测超时失败：ConPTY 会按屏幕差分重编码输出并省略与上一帧相同的单元格，`Reading workspace…` → `Ready. Secrets…` 在字节流中呈现为 `y. Sec…ets are…`，`Ready.` 永不连续出现，`q` 从未发送，20 秒后被判定超时（TUI 本身正常就绪）。就绪检测改为匹配就绪提示中不含空格的连续片段 `encrypted`：其所在列在旧状态行中只有空格，每个单元格都会被重新输出，两种差分模型下均连续可匹配。macOS arm64 重新全链路通过（lint、116 项测试、构建与 PTY 冒烟）；Windows 仍由发布工作流在其 runner 上验证。
+- Node SEA 发行包本地验证：解压到临时目录后执行 `--help`、真实 120×40 PTY 初始化、进入原生 TUI、正常退出与重新打开；macOS 额外用 `sandbox-exec` 禁止 `--help`／`--version` 读取源码仓库。确认退出离开备用屏幕、重开不再次询问初始化且不改写 `app.json`。
+- 任务状态条与 Windows ConPTY 会影响输出字节的连续性；发行冒烟以就绪提示中稳定的 `encrypted` 片段判定渲染完成，并在各目标系统的发布 runner 上执行。
 - GitHub 托管工作流及远端 `mise use` 必须在实际推送和发布后验证；本地通过不代表远端 Release 已发布。Windows 由发布工作流在其 runner 上冒烟验证，未在本机验证；未声明真实签名凭据已经验证。
