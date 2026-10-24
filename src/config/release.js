@@ -19,7 +19,6 @@ export function releaseTarget(platform = process.platform, arch = process.arch) 
     slug,
     archiveName: `lazyapp-${slug}.${windows ? 'zip' : 'tar.gz'}`,
     binaryName: windows ? 'lazyapp.exe' : 'lazyapp',
-    bunTarget: `bun-${slug}`,
     nativePackage: `@opentui/core-${platform}-${arch}`,
   }
 }

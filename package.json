@@ -1,20 +1,24 @@
 {
   "name": "lazyapp",
   "type": "module",
-  "version": "1.1.2",
+  "version": "2.0.1",
   "private": true,
-  "packageManager": "bun@1.4.2",
+  "packageManager": "pnpm@12.5.1",
   "bin": {
     "lazyapp": "./src/main.js"
   },
+  "engines": {
+    "node": ">=26.4.0"
+  },
   "scripts": {
-    "build": "bun scripts/build.js",
-    "smoke:release": "bun scripts/smoke-release.js",
-    "dev": "bun src/main.js",
+    "build": "node scripts/build.js",
+    "smoke:release": "node scripts/smoke-release.js",
+    "dev": "node --experimental-ffi src/main.js",
+    "web": "node src/main.js web",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "npx oxfmt@latest . && eslint . --fix",
-    "test": "bun test"
+    "test": "node --experimental-ffi --no-warnings --test"
   },
   "dependencies": {
     "@opentui/core": "0.5.11",
@@ -22,7 +26,10 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "9.5.1",
-    "@types/bun": "1.4.2",
-    "eslint": "10.10.0"
+    "@lydell/node-pty": "1.2.0-beta.15",
+    "@types/node": "26.6.5",
+    "esbuild": "0.28.2",
+    "eslint": "10.10.0",
+    "expect": "30.5.2"
   }
 }

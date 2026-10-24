@@ -1,20 +1,21 @@
 import assert from 'node:assert/strict'
+import { execFile as execFileCallback } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import process from 'node:process'
-import * as Bun from 'bun'
+import { promisify } from 'node:util'
+import * as pty from '@lydell/node-pty'
 import { releaseTarget } from '../src/config/release.js'
 
-const root = resolve(import.meta.dir, '..')
+const execFile = promisify(execFileCallback)
+const root = join(import.meta.dirname, '..')
 const target = releaseTarget()
 const temporary = await mkdtemp(join(tmpdir(), 'lazyapp-release-'))
 try {
-  const unpack = Bun.spawn(['tar', '-xf', join(root, 'dist', target.archiveName), '-C', temporary])
-  assert.equal(await unpack.exited, 0, 'Release archive must extract')
+  await execFile('tar', ['-xf', join(root, 'dist', target.archiveName), '-C', temporary])
   const binary = join(temporary, 'bin', target.binaryName)
-  // Deny access to the checkout where sandbox-exec exists (macOS): absolute bundled imports
-  // must not hide missing assets. Elsewhere the binary still runs with no Bun on PATH.
+  // Deny checkout access where sandbox-exec exists: bundled imports must not hide missing assets.
   const sandboxed = process.platform === 'darwin'
   const command = sandboxed
     ? [
@@ -24,11 +25,10 @@ try {
         binary,
       ]
     : [binary]
-  const env = {
-    PATH:
-      process.platform === 'win32'
-        ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
-        : '/usr/bin:/bin',
+  const env = Object.fromEntries(Object.entries({
+    PATH: process.platform === 'win32'
+      ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
+      : '/usr/bin:/bin',
     HOME: temporary,
     XDG_CONFIG_HOME: join(temporary, 'preferences'),
     TERM: 'xterm-256color',
@@ -40,67 +40,47 @@ try {
           TMP: temporary,
         }
       : {}),
-  }
-  const help = Bun.spawn([...command, '--help'], {
-    cwd: temporary,
-    env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  assert.match(await new Response(help.stdout).text(), /Usage: lazyapp/)
-  assert.equal(await help.exited, 0)
-
-  const version = Bun.spawn([...command, '--version'], {
-    cwd: temporary,
-    env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-  })
-  assert.match(await new Response(version.stdout).text(), /^lazyapp \d+\.\d+\.\d+/)
-  assert.equal(await version.exited, 0)
+  }).filter(([, value]) => value !== undefined))
+  const help = await execFile(command[0], [...command.slice(1), '--help'], { cwd: temporary, env })
+  assert.match(help.stdout, /Usage: lazyapp/)
+  const version = await execFile(command[0], [...command.slice(1), '--version'], { cwd: temporary, env })
+  assert.match(version.stdout, /^lazyapp \d+\.\d+\.\d+/)
+  const terminalCommand = sandboxed ? [binary] : command
 
   async function exercise(initialize) {
     let output = ''
     let accepted = false
     let ready = false
     let timedOut = false
-    const child = Bun.spawn(command, {
+    const terminal = pty.spawn(terminalCommand[0], terminalCommand.slice(1), {
+      cols: 120,
+      rows: 40,
       cwd: temporary,
       env,
-      terminal: {
-        cols: 120,
-        rows: 40,
-        data(terminal, bytes) {
-          output += new TextDecoder().decode(bytes)
-          if (initialize && !accepted && output.includes('Create one? (y/N):')) {
-            accepted = true
-            // Windows cooked console input commits lines on CR; POSIX PTYs commit on LF.
-            terminal.write(process.platform === 'win32' ? 'y\r' : 'y\n')
-          }
-          // ConPTY re-encodes output as screen diffs against its own buffer and omits
-          // cells unchanged from the previous frame, so `Reading workspace…` →
-          // `Ready. Secrets…` may reach the stream as `y. Sec…ets are…` and never
-          // contain `Ready.`. Match a run of non-space characters (`encrypted` in the
-          // ready message) whose columns only held spaces in earlier status text: every
-          // one of its cells differs and is re-emitted. POSIX PTYs are verbatim.
-          if (!ready && output.includes('encrypted')) {
-            ready = true
-            terminal.write('q')
-          }
-        },
-      },
+      name: 'xterm-256color',
     })
+    terminal.onData((data) => {
+      output += data
+      if (initialize && !accepted && output.includes('Create one? (y/N):')) {
+        accepted = true
+        terminal.write(process.platform === 'win32' ? 'y\r' : 'y\n')
+      }
+      // ConPTY emits screen diffs, so the complete ready sentence may not be contiguous.
+      if (!ready && output.includes('encrypted')) {
+        ready = true
+        terminal.write('q')
+      }
+    })
+    const exited = new Promise(resolve => terminal.onExit(resolve))
     const timer = setTimeout(() => {
       timedOut = true
-      child.kill('SIGKILL')
+      terminal.kill('SIGKILL')
     }, 20000)
     try {
-      const code = await child.exited
+      const { exitCode } = await exited
       assert.ok(!timedOut, `Packaged TUI timed out: ${output}`)
-      assert.equal(code, 0, `Packaged TUI failed: ${output}`)
+      assert.equal(exitCode, 0, `Packaged TUI failed: ${output}`)
       assert.ok(ready, `Native renderer must reach the workspace: ${output}`)
-      // ConPTY re-encodes escape sequences on Windows, so byte-exact terminal state
-      // checks only hold on POSIX PTYs.
       if (process.platform !== 'win32')
         assert.ok(output.includes('\x1B[?1049l'), 'Exit must leave the alternate screen')
       assert.equal(accepted, initialize, 'Only a new workspace should require initialization')
@@ -109,7 +89,6 @@ try {
     }
     finally {
       clearTimeout(timer)
-      child.terminal.close()
     }
   }
 
@@ -123,7 +102,7 @@ try {
     'Reopening must not rewrite configuration',
   )
   process.stdout.write(
-    `Release smoke passed: archive, help, native TUI, initialization, reopen, terminal exit; no Bun on PATH${sandboxed ? ' or checkout access' : ''}.\n`,
+    `Release smoke passed: Node SEA archive, help, native TUI, initialization, reopen, terminal exit${sandboxed ? ', and checkout isolation' : ''}.\n`,
   )
 }
 finally {

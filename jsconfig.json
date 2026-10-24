@@ -6,7 +6,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "types": ["bun"],
+    "types": ["node"],
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,

@@ -17,14 +17,6 @@ export default antfu(
     },
   },
   {
-    files: ['src/**/*.js'],
-    languageOptions: {
-      globals: {
-        Bun: 'readonly',
-      },
-    },
-  },
-  {
     files: ['vendor/**/*.js'],
     rules: {
       'no-undef': 'off',
@@ -32,7 +24,6 @@ export default antfu(
     },
     languageOptions: {
       globals: {
-        Bun: 'readonly',
         process: 'readonly',
       },
     },

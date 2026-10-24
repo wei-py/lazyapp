@@ -1,0 +1,11 @@
+minimumReleaseAgeExcludePrune: true
+trustPolicy: no-downgrade
+lockfile: false
+shellEmulator: true
+
+packages:
+  - .
+
+allowBuilds:
+  '@lydell/node-pty': true
+  esbuild: true
