@@ -3,10 +3,9 @@ import { createJobRunner } from '../../vendor/lazy-kit/jobs.js'
 import { applyTextKey } from '../../vendor/lazy-kit/keys.js'
 import { DEFAULT_THEME, THEMES } from '../../vendor/lazy-kit/themes.js'
 import { t } from '../config/i18n.js'
-import { documentFields } from '../config/model.js'
+import { documentFields, identifyDocument } from '../config/model.js'
 import {
   doctorLabel,
-  identifyDocument,
   loadDocuments,
   logicalFiles,
   safeErrorMessage,
@@ -69,9 +68,12 @@ export class Application {
       detailScroll: 0,
       files: null,
       jobs: [],
+      webUrl: null,
     }
     this.generation = 0
     this.closed = false
+    this.webService = null
+    this.webStarting = null
     // Jobs stream into the status bar; patches repaint without blocking keys.
     this.runner = createJobRunner({
       onPatch: () => {
@@ -358,6 +360,11 @@ export class Application {
       this.update()
       return
     }
+    if (name === 'W' || key.text === 'W') {
+      const { startWeb } = await import('./web.js')
+      void startWeb(this)
+      return
+    }
     if (name === 'escape') {
       // Esc steps back one panel; at the categories panel it stops — q quits.
       if (s.focus !== 'nav')
@@ -591,6 +598,8 @@ export class Application {
     this.generation++
     this.runner.abortAll()
     await this.inFlight
+    await this.webStarting
+    await this.webService?.close()
     await this.session?.close()
   }
 }

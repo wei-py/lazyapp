@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S node --experimental-ffi
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { start } from './app/operations.js'
@@ -19,11 +19,47 @@ export function normalizeKey(key) {
   return { name: key.name, ctrl: key.ctrl, meta: key.meta, shift: key.shift, text }
 }
 
+/** Parse the explicit TUI command. Bare project paths retain the original TUI-only behavior. */
+export function parseTuiCommand(args) {
+  if (args[0] !== 'tui')
+    return { args, webPort: null }
+  if (args.length === 2 && ['--help', '-h'].includes(args[1]))
+    return { args: [], webPort: null, help: true }
+  let project
+  let webPort = 3210
+  for (let index = 1; index < args.length; index++) {
+    if (args[index] === '--port' && index + 1 < args.length) {
+      const raw = args[++index]
+      if (!/^\d+$/u.test(raw) || Number(raw) > 65535)
+        return { error: 'Port must be an integer from 0 to 65535.' }
+      webPort = Number(raw)
+    }
+    else if (args[index].startsWith('-') || project !== undefined) {
+      return { error: 'Usage: lazyapp tui [project-directory] [--port <port>]' }
+    }
+    else {
+      project = args[index]
+    }
+  }
+  return { args: project ? [project] : [], webPort }
+}
+
 /** CLI commands are handled first; TUI mode requires an interactive terminal. */
 export async function main(args = process.argv.slice(2)) {
-  const cliResult = await runCli(args)
+  const tui = parseTuiCommand(args)
+  if (tui.error) {
+    process.stderr.write(`${tui.error}\n`)
+    return 1
+  }
+  if (tui.help) {
+    const { printUsage } = await import('./cli.js')
+    printUsage()
+    return 0
+  }
+  const cliResult = tui.webPort === null ? await runCli(args) : null
   if (cliResult !== null)
     return cliResult
+  args = tui.args
 
   // Global flags — handled after CLI dispatch, before TUI guard.
   if (args.includes('--help') || args.includes('-h')) {
@@ -142,11 +178,15 @@ export async function main(args = process.argv.slice(2)) {
     })
     app.update()
     await start(app)
+    if (tui.webPort !== null) {
+      const { startWeb } = await import('./app/web.js')
+      await startWeb(app, tui.webPort)
+    }
   }
   catch {
     await finish(
       1,
-      'Unable to start the terminal application. Check native OpenTUI support and workspace permissions; source checkouts also require Bun.',
+      'Unable to start the terminal application. Check native OpenTUI support, workspace permissions, and Node.js >=26.4.0 with --experimental-ffi.',
     )
   }
   return await done

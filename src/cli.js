@@ -1,12 +1,14 @@
+import { execFile } from 'node:child_process'
 import { chmod, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import process from 'node:process'
+import { promisify } from 'node:util'
 import { defaultInitialization } from './config/initialization.js'
-import { documentFields, documentKinds, platformKinds, validateDocument } from './config/model.js'
+import { documentFields, documentKinds, identifyDocument, platformKinds, validateDocument } from './config/model.js'
 import { releaseTarget } from './config/release.js'
 import { VERSION } from './config/version.js'
-import { identifyDocument, loadDocuments, runDoctor } from './features/workspace.js'
+import { loadDocuments, runDoctor } from './features/workspace.js'
 import { initializeWorkspace, openWorkspace, workspaceExists } from './storage/workspace.js'
 
 /** Print JSON to stdout with trailing newline. */
@@ -45,7 +47,7 @@ async function cmdDoctor(projectDir) {
   const dir = resolve(projectDir)
   let session
   try {
-    session = await openWorkspace(dir)
+    session = await openWorkspace(dir, { lockMode: 'operation' })
   }
   catch (error) {
     return fail(error.message, 1)
@@ -68,7 +70,7 @@ async function cmdList(projectDir, options = {}) {
   const dir = resolve(projectDir)
   let session
   try {
-    session = await openWorkspace(dir)
+    session = await openWorkspace(dir, { lockMode: 'operation' })
   }
   catch (error) {
     return fail(error.message, 1)
@@ -125,7 +127,7 @@ async function cmdGet(projectDir, docPath, key) {
   const dir = resolve(projectDir)
   let session
   try {
-    session = await openWorkspace(dir)
+    session = await openWorkspace(dir, { lockMode: 'operation' })
   }
   catch (error) {
     return fail(error.message, 1)
@@ -159,7 +161,7 @@ async function cmdValidate(projectDir, docPath) {
     return fail(`Not a recognized document path: ${docPath}`, 1)
   let session
   try {
-    session = await openWorkspace(dir)
+    session = await openWorkspace(dir, { lockMode: 'operation' })
   }
   catch (error) {
     return fail(error.message, 1)
@@ -260,9 +262,7 @@ async function cmdUpdate() {
     await writeFile(archive, new Uint8Array(await blob.arrayBuffer()))
 
     // Extract (.tar.gz or .zip; both bsdtar and GNU tar read the local tar.gz)
-    const extract = Bun.spawnSync(['tar', '-xf', archive, '-C', tmpDir])
-    if (extract.exitCode !== 0)
-      throw new Error('Extraction failed')
+    await promisify(execFile)('tar', ['-xf', archive, '-C', tmpDir])
 
     // Replace binary
     const newBinary = join(tmpDir, 'bin', target.binaryName)
@@ -289,10 +289,52 @@ async function cmdUpdate() {
   }
 }
 
+async function cmdWeb(projectDir, port) {
+  const { startWebServer } = await import('./web/server.js')
+  let web
+  try {
+    web = await startWebServer(resolve(projectDir), { port })
+  }
+  catch (error) {
+    const { safeErrorMessage } = await import('./features/workspace.js')
+    return fail(safeErrorMessage(error))
+  }
+  process.stdout.write(`lazyapp Web: ${web.url}\nLocal workspace only. Press Ctrl+C to stop.\n`)
+  return new Promise((resolveDone) => {
+    let closing = false
+    const finish = async (code) => {
+      if (closing)
+        return
+      closing = true
+      process.off('SIGINT', onInterrupt)
+      process.off('SIGTERM', onTerminate)
+      try {
+        await web.close()
+        resolveDone(code)
+      }
+      catch {
+        resolveDone(fail('Web service cleanup failed.'))
+      }
+    }
+    function onInterrupt() {
+      void finish(130)
+    }
+    function onTerminate() {
+      void finish(143)
+    }
+    process.on('SIGINT', onInterrupt)
+    process.on('SIGTERM', onTerminate)
+  })
+}
+
 export function printUsage() {
   process.stdout.write(`lazyapp — local App configuration manager
 
-Usage: lazyapp [project-directory]      Open the TUI (requires interactive terminal)
+Usage: lazyapp [project-directory]      Open the TUI only (requires interactive terminal)
+  lazyapp tui [project-dir]             Open the TUI and start its Web editor
+           [--port <port>]              Web port (default: 3210; 0: choose a free port)
+  lazyapp web [project-dir]             Start only the local Web editor
+           [--port <port>]              Web port (default: 3210; 0: choose a free port)
   lazyapp --help, -h                    Show this help
   lazyapp --version, -v                 Print version
   lazyapp --update                      Check and install latest release
@@ -324,6 +366,32 @@ credential validity, expiry, and compatibility are not checked.
 }
 
 const COMMANDS = {
+  web: {
+    parse(args) {
+      let projectDir
+      let port = 3210
+      for (let index = 0; index < args.length; index++) {
+        if (args[index] === '--port' && index + 1 < args.length) {
+          const raw = args[++index]
+          if (!/^\d+$/u.test(raw))
+            return { error: 'Port must be an integer from 0 to 65535.' }
+          port = Number(raw)
+          if (!Number.isSafeInteger(port) || port > 65535)
+            return { error: 'Port must be an integer from 0 to 65535.' }
+        }
+        else if (args[index].startsWith('-') || projectDir !== undefined) {
+          return { error: 'Usage: lazyapp web [project-dir] [--port <port>]' }
+        }
+        else {
+          projectDir = args[index]
+        }
+      }
+      return { projectDir: projectDir || process.cwd(), port }
+    },
+    run({ projectDir, port }) {
+      return cmdWeb(projectDir, port)
+    },
+  },
   init: {
     parse(args) {
       let name = null
