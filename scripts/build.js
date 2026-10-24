@@ -161,7 +161,11 @@ async function copyNotices(name, from) {
   }
 }
 for (const dependency of Object.keys(pkg.dependencies)) await copyNotices(dependency, root)
-await copyNotices(target.nativePackage, root)
+// Native packages are optional dependencies of OpenTUI, not direct dependencies
+// of lazyapp. pnpm exposes them from OpenTUI's real directory, not the project root.
+const coreDirectory = await packageDirectory('@opentui/core', root)
+const nativePackage = `${target.nativePackage}${process.platform === 'linux' && libc === 'musl' ? '-musl' : ''}`
+await copyNotices(nativePackage, coreDirectory)
 
 // bsdtar and GNU tar infer the archive format from the suffix with -a.
 const archive = join(dist, target.archiveName)

@@ -214,6 +214,7 @@ src/
 - 发布仓库为 `wei-py/lazyapp`，发行包覆盖五个目标：macOS（arm64、x86_64）、Linux（x86_64、arm64）与 Windows（x86_64）。
 - 在各目标平台使用固定版本 Node.js 与 pnpm 执行 `pnpm install`、`pnpm run build`、`pnpm run smoke:release`。`pnpm-workspace.yaml` 禁止生成锁文件。构建使用 esbuild 生成单一 ESM bundle，再通过 Node SEA 嵌入运行时与 OpenTUI 资源；macOS 产物执行 ad-hoc codesign。输出 `dist/lazyapp-<slug>.tar.gz`（Windows 为 `dist/lazyapp-windows-x64.zip`）和 `dist/SHA256SUMS`；压缩包包含 `bin/lazyapp`（Windows 为 `bin/lazyapp.exe`）、`bin/web/` 本地页面资源与第三方依赖许可。`dist/` 不提交 Git。
 - 第三方许可收集从依赖所属包的 Node.js 模块搜索路径定位已安装目录，不解析或加载包入口；仅导出 ESM／Bun 入口的传递依赖（如 `bun-ffi-structs`）同样保留许可证，不要求 CommonJS 导出。按实际安装目录遍历，许可写入 `licenses/<包名>/<版本>/`，避免同名不同版本被跳过或相互覆盖。
+- OpenTUI 原生包是 `@opentui/core` 的可选依赖，不是项目直接依赖。收集其许可时必须以 `@opentui/core` 的实际安装目录为解析起点，不能依赖项目根目录提升出来的原生包；Linux 选择 musl 资源时使用相同 musl 原生包的许可。
 - 构建按完整版本号检查 Node.js `>=26.4.0`，不放行 `26.0–26.3`。SEA 原生资源写入带进程 PID 的独立临时目录；POSIX 正常退出及已处理信号退出时删除，Windows 因 DLL 锁定在下次启动时回收已退出进程的目录，保留仍在运行的实例。
 - `--update` 同时安装可执行文件与相邻 `web/`，缺少必需页面文件时拒绝更新。在安装目录所在文件系统暂存后替换，操作失败时回滚旧二进制与页面；回滚失败会报告并保留恢复文件。Windows 保留运行中的旧二进制为 `.old`；这不是断电／进程强杀下的跨文件原子事务。
 - 运行仍以当前目录或显式项目路径发现工作区，不以可执行文件安装目录发现工作区。
@@ -296,5 +297,6 @@ src/
 - 前次独立语言验证曾覆盖设置切换即时应用、退出重开持久化、80×20 中文帮助、`jq/?` 文本输入、中文脏草稿确认与 Doctor 文案。该记录不代表本次重新执行了所有旧版布局场景；已移除的初始化向导不再作为当前验收流程。
 - Node SEA 发行包本地验证：解压到临时目录后执行 `--help`、真实 120×40 PTY 初始化、进入原生 TUI、正常退出与重新打开；macOS 额外用 `sandbox-exec` 禁止 `--help`／`--version` 读取源码仓库。确认退出离开备用屏幕、重开不再次询问初始化且不改写 `app.json`。
 - 发布链路补充验证（macOS arm64）：151 项行为测试中 149 项通过、2 项 Windows 专项跳过；真实发行包冒烟覆盖 Web 静态资源、鉴权只读 API、SIGTERM 后端口关闭及原生临时资源清理。隔离的 CLI 自更新实测先拒绝不完整归档且保留旧安装，再安装本机构建的 SEA 与匹配页面并运行新程序；使用本地响应替代 GitHub 下载，不代表远端发布已验证。
+- 原生依赖定位补充验证（macOS arm64）：临时项目使用独立 pnpm store 重新安装全部依赖，确认根级 `node_modules/@opentui/core-darwin-arm64` 不存在、原生包仅从 OpenTUI 的 pnpm 间接依赖目录可达。该布局下构建、真实 PTY／Web 发行包冒烟、149 项行为测试与 lint 均通过，2 项 Windows 专项跳过；未复用原仓库的 `node_modules`。
 - 任务状态条与 Windows ConPTY 会影响输出字节的连续性；发行冒烟以就绪提示中稳定的 `encrypted` 片段判定渲染完成，并在各目标系统的发布 runner 上执行。
 - GitHub 托管工作流及远端 `mise use` 必须在实际推送和发布后验证；本地通过不代表远端 Release 已发布。Windows 由发布工作流在其 runner 上冒烟验证，未在本机验证；未声明真实签名凭据已经验证。
