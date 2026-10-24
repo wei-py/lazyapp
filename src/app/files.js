@@ -1,5 +1,6 @@
 import { basename, dirname, isAbsolute, join } from 'node:path'
-import { identifyDocument, loadDocuments } from '../features/workspace.js'
+import { identifyDocument } from '../config/model.js'
+import { loadDocuments } from '../features/workspace.js'
 import { inspectExternalReference } from '../storage/workspace.js'
 import { confirm, leave, open, prompt } from './documents.js'
 import { invalidateDoctor, operation } from './operations.js'
@@ -60,10 +61,12 @@ export function filePicker(app, field) {
 
 export async function confirmCopy(app, source, destination, editor, field) {
   let exists = false
+  let expectedRevision
   const checked = await operation(app, 'Checking copy destination', async () => {
     if (isAbsolute(destination))
       throw Object.assign(new Error('Invalid destination'), { code: 'INVALID_PATH' })
-    exists = (await app.session.inspectReference(destination)).exists
+    expectedRevision = (await app.session.readBytes(destination)).revision
+    exists = expectedRevision !== null
   })
   if (!checked)
     return
@@ -80,6 +83,7 @@ export async function confirmCopy(app, source, destination, editor, field) {
         async () => {
           const reference = await app.session.importFile(source, destination, {
             overwrite: exists,
+            expectedRevision,
           })
           if (editor && field)
             setField(editor, field, reference)
@@ -160,7 +164,15 @@ export function deleteSelected(app) {
     app.update()
     return
   }
-  return leave(app, () =>
+  return leave(app, async () => {
+    let expectedRevision = app.state.documents.find(document => document.path === item.path)?.revision
+    if (expectedRevision === undefined) {
+      const checked = await operation(app, 'Checking copy destination', async () => {
+        expectedRevision = (await app.session.readBytes(item.path)).revision
+      })
+      if (!checked)
+        return
+    }
     confirm(
       app,
       'Delete this one workspace file?',
@@ -172,7 +184,7 @@ export function deleteSelected(app) {
           app,
           app.t('Deleting {path}', { path: item.path }),
           async () => {
-            await app.session.removeFile(item.path)
+            await app.session.removeFile(item.path, expectedRevision)
             app.state.documents = await loadDocuments(app.session, { includeExamples: true })
             if (app.state.files)
               app.state.files = await app.session.list()
@@ -191,5 +203,6 @@ export function deleteSelected(app) {
         path: item.path,
       }),
       true,
-    ))
+    )
+  })
 }

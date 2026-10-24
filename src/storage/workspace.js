@@ -5,6 +5,7 @@ import * as fs from 'node:fs/promises'
 import { hostname } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { identifyDocument } from '../config/model.js'
 
 const LOCK_NAME = '.lazyapp.lock'
 const TEMP_PREFIX = '.lazyapp-tmp-'
@@ -228,8 +229,8 @@ async function acquireLock(root) {
   return owner
 }
 
-async function createSession(root, owner) {
-  const identity = await fs.lstat(root)
+async function createSession(root, owner, { lockMode = 'session', identity = null } = {}) {
+  identity ??= await fs.lstat(root)
   let queue = Promise.resolve()
   let closing = false
   let closePromise
@@ -317,11 +318,31 @@ async function createSession(root, owner) {
     }
   }
 
-  function serialize(operation) {
+  async function releaseLock() {
+    await ensureLock()
+    await fs.unlink(path.join(root, LOCK_NAME))
+    owner = null
+  }
+
+  if (lockMode === 'operation')
+    await checkRoot()
+
+  function serialize(operation, mutation = true) {
     ensureOpen()
     const pending = queue.then(async () => {
-      await ensureLock()
-      return operation()
+      await checkRoot()
+      if (!mutation)
+        return operation()
+      if (lockMode === 'operation')
+        owner = await acquireLock(root)
+      try {
+        await ensureLock()
+        return await operation()
+      }
+      finally {
+        if (lockMode === 'operation' && owner)
+          await releaseLock()
+      }
     })
     queue = pending.catch(() => undefined)
     return pending
@@ -338,6 +359,40 @@ async function createSession(root, owner) {
         return { data: null, revision: null }
       throw error
     }
+  }
+
+  async function readBytes(relative) {
+    const target = await targetPath(relative)
+    try {
+      const bytes = await readRegular(target)
+      return { bytes, revision: revision(bytes), size: bytes.length }
+    }
+    catch (error) {
+      if (error.code === 'ENOENT')
+        return { bytes: null, revision: null, size: 0 }
+      throw error
+    }
+  }
+
+  function assertFilePath(relative) {
+    components(relative)
+    if (identifyDocument(relative.normalize('NFC').toLowerCase())) {
+      throw failure(
+        'INVALID_FILE',
+        'Configuration documents must be changed through the document editor.',
+      )
+    }
+  }
+
+  async function checkByteRevision(relative, expectedRevision) {
+    const current = await readBytes(relative)
+    if (current.revision !== expectedRevision) {
+      throw failure(
+        'REVISION_CONFLICT',
+        'The file changed on disk; reload before writing. No data was overwritten.',
+      )
+    }
+    return current
   }
 
   async function replace(relative, prepare, beforeCommit, overwrite) {
@@ -405,8 +460,37 @@ async function createSession(root, owner) {
   return {
     root,
     async read(relative) {
-      ensureOpen()
-      return readDocument(relative)
+      return serialize(() => readDocument(relative), false)
+    },
+    async readBytes(relative) {
+      return serialize(() => readBytes(relative), false)
+    },
+    async writeBytes(relative, bytes, expectedRevision) {
+      assertFilePath(relative)
+      if (!Buffer.isBuffer(bytes))
+        throw failure('INVALID_FILE', 'File contents must be a byte buffer.')
+      return serialize(async () => {
+        const original = await checkByteRevision(relative, expectedRevision)
+        await replace(
+          relative,
+          handle => handle.writeFile(bytes),
+          () => checkByteRevision(relative, expectedRevision),
+          original.revision !== null,
+        )
+        return { revision: revision(bytes), size: bytes.length }
+      })
+    },
+    async removeBytes(relative, expectedRevision) {
+      assertFilePath(relative)
+      return serialize(async () => {
+        const current = await checkByteRevision(relative, expectedRevision)
+        if (current.revision === null)
+          throw failure('ENOENT', 'The requested file does not exist.')
+        const target = await targetPath(relative)
+        await ensureLock()
+        await checkByteRevision(relative, expectedRevision)
+        await fs.unlink(target)
+      })
     },
     async save(relative, data, expectedRevision) {
       const encoded = encodeDocument(data, relative)
@@ -432,16 +516,16 @@ async function createSession(root, owner) {
       })
     },
     async list() {
-      ensureOpen()
-      await checkRoot()
-      const files = []
-      await walk(root, '', async (relative, info) => {
-        if (info.isFile() && !relative.split('/').some(part => part.startsWith('.')))
-          files.push(relative)
-      })
-      return files.sort()
+      return serialize(async () => {
+        const files = []
+        await walk(root, '', async (relative, info) => {
+          if (info.isFile() && !relative.split('/').some(part => part.startsWith('.')))
+            files.push(relative)
+        })
+        return files.sort()
+      }, false)
     },
-    async importFile(source, destination, { overwrite = false } = {}) {
+    async importFile(source, destination, { overwrite = false, expectedRevision } = {}) {
       return serialize(async () => {
         if (destination === 'app.json') {
           throw failure(
@@ -460,6 +544,8 @@ async function createSession(root, owner) {
             throw failure('INVALID_FILE', 'Import source must be a readable regular file.')
           const destinationPath = await targetPath(destination)
           const existing = await statOrNull(destinationPath)
+          if (expectedRevision !== undefined)
+            await checkByteRevision(destination, expectedRevision)
           if (existing && sourceInfo.dev === existing.dev && sourceInfo.ino === existing.ino) {
             throw failure(
               'INVALID_FILE',
@@ -473,6 +559,8 @@ async function createSession(root, owner) {
             )
           }
           const check = async () => {
+            if (expectedRevision !== undefined)
+              await checkByteRevision(destination, expectedRevision)
             const current = await statOrNull(await targetPath(destination))
             if (!overwrite && current) {
               throw failure(
@@ -517,7 +605,7 @@ async function createSession(root, owner) {
         }
       })
     },
-    async removeFile(relative) {
+    async removeFile(relative, expectedRevision) {
       return serialize(async () => {
         if (relative === 'app.json') {
           throw failure(
@@ -526,6 +614,8 @@ async function createSession(root, owner) {
           )
         }
         const target = await targetPath(relative)
+        if (expectedRevision !== undefined)
+          await checkByteRevision(relative, expectedRevision)
         const current = await statOrNull(target)
         if (!current)
           throw Object.assign(new Error(`File not found: ${relative}`), { code: 'ENOENT' })
@@ -535,58 +625,64 @@ async function createSession(root, owner) {
             'Only explicitly selected internal regular files can be deleted.',
           )
         }
+        await ensureLock()
+        if (expectedRevision !== undefined)
+          await checkByteRevision(relative, expectedRevision)
         await fs.unlink(target)
       })
     },
     async inspectReference(reference) {
-      ensureOpen()
-      if (path.isAbsolute(reference))
-        return inspectExternalReference(reference)
-      const target = await targetPath(reference)
-      const entry = await statOrNull(target)
-      if (entry)
-        await fs.access(target, constants.R_OK)
-      return {
-        path: reference,
-        external: false,
-        exists: Boolean(entry),
-        regular: Boolean(entry?.isFile()),
-        permissionsWarning: Boolean(entry && process.platform !== 'win32' && entry.mode & 0o077),
-      }
+      return serialize(async () => {
+        if (path.isAbsolute(reference))
+          return inspectExternalReference(reference)
+        const target = await targetPath(reference)
+        const entry = await statOrNull(target)
+        if (entry)
+          await fs.access(target, constants.R_OK)
+        return {
+          path: reference,
+          external: false,
+          exists: Boolean(entry),
+          regular: Boolean(entry?.isFile()),
+          permissionsWarning: Boolean(entry && process.platform !== 'win32' && entry.mode & 0o077),
+        }
+      }, false)
     },
     async permissionWarnings() {
-      ensureOpen()
-      await checkRoot()
-      if (process.platform === 'win32')
-        return []
-      const warnings = []
-      const inspect = async (relative, info) => {
-        if (info.mode & 0o077) {
-          warnings.push({
-            path: relative,
-            label: 'Permissions allow group or other users access; review permissions manually.',
-          })
+      return serialize(async () => {
+        if (process.platform === 'win32')
+          return []
+        const warnings = []
+        const inspect = async (relative, info) => {
+          if (info.mode & 0o077) {
+            warnings.push({
+              path: relative,
+              label: 'Permissions allow group or other users access; review permissions manually.',
+            })
+          }
         }
-      }
-      await inspect('.', await fs.lstat(root))
-      await walk(root, '', inspect)
-      return warnings
+        await inspect('.', await fs.lstat(root))
+        await walk(root, '', inspect)
+        return warnings
+      }, false)
     },
     close() {
       if (closePromise)
         return closePromise
       closing = true
       closePromise = queue.then(async () => {
-        await ensureLock()
-        await fs.unlink(path.join(root, LOCK_NAME))
+        if (lockMode === 'session')
+          await releaseLock()
       })
       return closePromise
     },
   }
 }
 
-/** Open only projectDir/.lazyapp; missing/invalid workspaces and existing locks are explicit errors. */
-export async function openWorkspace(projectDir) {
+/** Open only projectDir/.lazyapp. Operation mode defers exclusive locking until each mutation. */
+export async function openWorkspace(projectDir, { lockMode = 'session' } = {}) {
+  if (!['session', 'operation'].includes(lockMode))
+    throw failure('INVALID_DOCUMENT', 'Unsupported workspace locking mode.')
   const { root } = await workspaceLocation(projectDir)
   const info = await statOrNull(root)
   if (!info) {
@@ -610,8 +706,8 @@ export async function openWorkspace(projectDir) {
     )
   }
   parseDocument(await readRegular(appPath), 'app.json')
-  const owner = await acquireLock(root)
-  return createSession(root, owner)
+  const owner = lockMode === 'session' ? await acquireLock(root) : null
+  return createSession(root, owner, { lockMode, identity: info })
 }
 
 /**

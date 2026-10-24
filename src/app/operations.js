@@ -57,7 +57,7 @@ export async function start(app) {
     catch (error) {
       preferenceError = error
     }
-    app.session = await openWorkspace(app.projectDir)
+    app.session = await openWorkspace(app.projectDir, { lockMode: 'operation' })
     app.state.documents = await loadDocuments(app.session, { includeExamples: true })
     app.state.status = app.t(
       'Ready. Secrets are plaintext on disk, masked here; this is not an encrypted vault.',

@@ -125,6 +125,10 @@ const FIELDS = {
     field('splash', 'Splash source', 'file'),
     field('screenshots', 'Screenshot file', 'file'),
     field('promotionalImage', 'Promotional image', 'file'),
+    field('waiver', 'Waiver letter', 'file'),
+    field('businessLicense', 'Business license', 'file'),
+    field('softwareCopyright', 'Software copyright certificate', 'file'),
+    field('copyrightSupplement', 'Software copyright supplement', 'file'),
   ],
   store: [
     field('name', 'Store name', 'text', true),
@@ -191,6 +195,34 @@ export function documentPath(kind, { name, environment } = {}) {
   if (!isSafeName(name))
     throw new Error('Document name must be a safe single directory name')
   return `${kind === 'service' ? 'services' : kind === 'environment' ? 'environments' : 'store'}/${name}.json`
+}
+/** Identify only supported configuration documents, not imported JSON credentials. */
+export function identifyDocument(path) {
+  if (path === 'app.json')
+    return { kind: 'app', scope: 'all' }
+  if (path === 'assets/config.json')
+    return { kind: 'assets', scope: 'all' }
+  const parts = path.split('/')
+  if (
+    parts[0] === 'platforms'
+    && platformKinds.includes(parts[1])
+    && parts.at(-1) === 'config.json'
+  ) {
+    if (parts.length === 3)
+      return { kind: parts[1], scope: 'platform' }
+    if (parts.length === 4 && isSafeName(parts[2]))
+      return { kind: parts[1], scope: 'signing', environment: parts[2] }
+  }
+  const kinds = { services: 'service', environments: 'environment', store: 'store' }
+  if (
+    parts.length === 2
+    && Object.hasOwn(kinds, parts[0])
+    && parts[1].endsWith('.json')
+    && isSafeName(parts[1].slice(0, -5))
+  ) {
+    return { kind: kinds[parts[0]], scope: 'all', name: parts[1].slice(0, -5) }
+  }
+  return null
 }
 
 function validReference(value) {

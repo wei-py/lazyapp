@@ -60,6 +60,10 @@ export function initializationExamples(app) {
     ['splash', 'assets/splash/source.png.example'],
     ['screenshots', 'assets/screenshots/screenshot.png.example'],
     ['promotionalImage', 'assets/promotional/source.png.example'],
+    ['waiver', 'assets/materials/免责函.jpg.example'],
+    ['businessLicense', 'assets/materials/营业执照.jpg.example'],
+    ['softwareCopyright', 'assets/materials/软著.png.example'],
+    ['copyrightSupplement', 'assets/materials/软著补充.jpg.example'],
   ]
   const assetFields = documentFields('assets')
   const chineseAssetFields = documentFields('assets', { language: 'zh' })

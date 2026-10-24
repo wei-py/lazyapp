@@ -2,39 +2,11 @@ import { t } from '../config/i18n.js'
 import {
   documentFields,
   documentPath,
+  identifyDocument,
   isSafeName,
   platformKinds,
   validateDocument,
 } from '../config/model.js'
-
-/** Identify only supported configuration documents, not imported JSON credentials. */
-export function identifyDocument(path) {
-  if (path === 'app.json')
-    return { kind: 'app', scope: 'all' }
-  if (path === 'assets/config.json')
-    return { kind: 'assets', scope: 'all' }
-  const parts = path.split('/')
-  if (
-    parts[0] === 'platforms'
-    && platformKinds.includes(parts[1])
-    && parts.at(-1) === 'config.json'
-  ) {
-    if (parts.length === 3)
-      return { kind: parts[1], scope: 'platform' }
-    if (parts.length === 4 && isSafeName(parts[2]))
-      return { kind: parts[1], scope: 'signing', environment: parts[2] }
-  }
-  const kinds = { services: 'service', environments: 'environment', store: 'store' }
-  if (
-    parts.length === 2
-    && Object.hasOwn(kinds, parts[0])
-    && parts[1].endsWith('.json')
-    && isSafeName(parts[1].slice(0, -5))
-  ) {
-    return { kind: kinds[parts[0]], scope: 'all', name: parts[1].slice(0, -5) }
-  }
-  return null
-}
 
 /** Safe user-facing summaries: unknown exception messages may contain secrets and are not echoed. */
 export function safeErrorMessage(error, language = 'en') {
