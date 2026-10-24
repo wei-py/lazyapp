@@ -1,12 +1,11 @@
-import { describe, expect, test } from 'bun:test'
-import { createApp } from '../src/config/model.js'
+import { createApp, identifyDocument } from '../src/config/model.js'
 import {
-  identifyDocument,
   loadDocuments,
   runDoctor,
   safeErrorMessage,
   saveDocument,
 } from '../src/features/workspace.js'
+import { describe, expect, test } from '../support/node-test.js'
 
 function memorySession(initial, references = {}) {
   const records = new Map(
@@ -101,6 +100,33 @@ describe('workspace features', () => {
     ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' })
     expect(session.writes).toBe(1)
     expect(session.records.get('services/push.json')).toEqual(saved)
+  })
+
+  test('qualification attachments reject unsafe references and Doctor distinguishes missing from unchecked originals', async () => {
+    const assets = {
+      schemaVersion: 1,
+      waiver: 'assets/materials/免责函.jpg',
+      businessLicense: 'assets/materials/营业执照.jpg',
+      softwareCopyright: 'assets/materials/软著.png',
+      copyrightSupplement: 'assets/materials/软著补充.jpg',
+    }
+    const session = memorySession({
+      'app.json': createApp({ name: 'Example' }),
+      'assets/config.json': assets,
+    }, { [assets.businessLicense]: true, [assets.softwareCopyright]: true })
+    for (const key of ['waiver', 'businessLicense', 'softwareCopyright', 'copyrightSupplement']) {
+      for (const reference of ['../escape.jpg', `${assets[key]}.example`]) {
+        await expect(saveDocument(session, 'assets/config.json', 'assets', { [key]: reference }, 'original:assets/config.json'))
+          .rejects
+          .toMatchObject({ code: 'VALIDATION_FAILED', issues: [{ key }] })
+      }
+    }
+    expect(session.writes).toBe(0)
+    const results = (await runDoctor(session)).filter(item => item.path === 'assets/config.json')
+    expect(results.filter(item => item.status === 'missing').map(item => item.message.params.label).sort())
+      .toEqual(['Software copyright supplement', 'Waiver letter'])
+    expect(results.filter(item => item.status === 'unchecked').map(item => item.message.params.label).sort())
+      .toEqual(['Business license', 'Software copyright certificate'])
   })
 
   test('external revision conflicts and unsupported schemas never write', async () => {

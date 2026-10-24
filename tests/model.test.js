@@ -1,4 +1,3 @@
-import { describe, expect, test } from 'bun:test'
 import {
   createApp,
   documentFields,
@@ -7,6 +6,7 @@ import {
   isSafeName,
   validateDocument,
 } from '../src/config/model.js'
+import { describe, expect, test } from '../support/node-test.js'
 
 describe('document model', () => {
   test('custom environment names remain ordered, isolated arrays', () => {

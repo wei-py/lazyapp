@@ -2,12 +2,12 @@ import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import {
   initializeWorkspace,
   inspectExternalReference,
   openWorkspace,
 } from '../src/storage/workspace.js'
+import { afterEach, beforeEach, describe, expect, test } from '../support/node-test.js'
 
 const APP = {
   schemaVersion: 1,

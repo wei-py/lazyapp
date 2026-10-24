@@ -1,7 +1,6 @@
 import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, test } from 'bun:test'
 import { Application } from '../src/app/controller.js'
 import { newDocument, save } from '../src/app/documents.js'
 import { showFiles } from '../src/app/files.js'
@@ -16,6 +15,7 @@ import {
 } from '../src/app/state.js'
 import { defaultInitialization } from '../src/config/initialization.js'
 import { initializeWorkspace } from '../src/storage/workspace.js'
+import { describe, expect, test } from '../support/node-test.js'
 import { applyTextKey } from '../vendor/lazy-kit/keys.js'
 
 const APP = {

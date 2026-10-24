@@ -1,12 +1,14 @@
 import { EventEmitter } from 'node:events'
+
 import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { PassThrough } from 'node:stream'
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { prepareStartup, promptForInitialization } from '../src/app/startup.js'
+import { parseTuiCommand } from '../src/main.js'
 import { loadPreferences } from '../src/storage/preferences.js'
 import { initializeWorkspace, openWorkspace, workspaceExists } from '../src/storage/workspace.js'
+import { afterEach, beforeEach, describe, expect, test } from '../support/node-test.js'
 
 let project
 let messages
@@ -36,6 +38,26 @@ function lineInput() {
   }
   return input
 }
+
+describe('explicit TUI command', () => {
+  test('enables the Web editor with a validated optional port', () => {
+    expect(parseTuiCommand(['tui'])).toEqual({ args: [], webPort: 3210 })
+    expect(parseTuiCommand(['tui', '/tmp/example', '--port', '0'])).toEqual({
+      args: ['/tmp/example'],
+      webPort: 0,
+    })
+    expect(parseTuiCommand(['/tmp/example'])).toEqual({
+      args: ['/tmp/example'],
+      webPort: null,
+    })
+    expect(parseTuiCommand(['tui', '--port', '65536'])).toEqual({
+      error: 'Port must be an integer from 0 to 65535.',
+    })
+    expect(parseTuiCommand(['tui', 'one', 'two'])).toEqual({
+      error: 'Usage: lazyapp tui [project-directory] [--port <port>]',
+    })
+  })
+})
 
 describe('plain-terminal startup', () => {
   for (const answer of ['', 'n', 'no', 'NO', 'anything', null]) {

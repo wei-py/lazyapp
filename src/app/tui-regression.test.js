@@ -2,8 +2,8 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { createTestRenderer } from '@opentui/core/testing'
-import { expect, test } from 'bun:test'
 import stringWidth from 'string-width'
+import { expect, test } from '../../support/node-test.js'
 import { hintSegments } from '../config/i18n.js'
 import { normalizeKey } from '../main.js'
 import { Application } from './controller.js'
@@ -394,7 +394,7 @@ test('every hint set ends with the settings and language chips in key-table orde
   expect(actionPositions.every(index => index > positions.at(-1))).toBe(true)
 })
 
-test.skipIf(!clipHelper)('y copies the focused field value through the platform clipboard', async () => {
+test('y copies the focused field value through the platform clipboard', { skip: !clipHelper, timeout: 30000 }, async () => {
   await fixture(async ({ app, press, frame }) => {
     app.state.category = 0
     app.state.selected = 0
@@ -402,14 +402,19 @@ test.skipIf(!clipHelper)('y copies the focused field value through the platform 
     app.state.editor = editDocument(app.state.documents[0])
     await frame()
     press('y')
-    for (let attempt = 0; attempt < 50 && !existsSync(clipFile); attempt++)
+    let copied = false
+    for (let attempt = 0; attempt < 250; attempt++) {
+      copied = existsSync(clipFile) && readFileSync(clipFile, 'utf8') === 'Demo'
+      if (copied)
+        break
       await new Promise(resolve => setTimeout(resolve, 20))
-    expect(readFileSync(clipFile, 'utf8')).toBe('Demo')
+    }
+    expect(copied).toBe(true)
     expect(app.state.error).toBe(false)
     expect(app.state.status).toContain('Copied')
     expect(app.state.status).toContain('App name')
   })
-}, 30000)
+})
 
 test('a clipboard helper that cannot run is reported as a failure, not a silent success', async () => {
   const emptyBin = mkdtempSync(join(tmpdir(), 'lazyapp-empty-bin-'))

@@ -2,8 +2,8 @@ import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { loadPreferences, savePreferences } from '../src/storage/preferences.js'
+import { afterEach, beforeEach, describe, expect, test } from '../support/node-test.js'
 
 let root
 let options

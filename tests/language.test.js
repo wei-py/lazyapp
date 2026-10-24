@@ -1,7 +1,6 @@
 import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Application } from '../src/app/controller.js'
 import { setLanguage, start } from '../src/app/operations.js'
 import { CATEGORIES, editDocument, isDirty } from '../src/app/state.js'
@@ -9,6 +8,7 @@ import { t } from '../src/config/i18n.js'
 import { doctorLabel, runDoctor, safeErrorMessage } from '../src/features/workspace.js'
 import { loadPreferences, savePreferences } from '../src/storage/preferences.js'
 import { initializeWorkspace } from '../src/storage/workspace.js'
+import { afterEach, beforeEach, describe, expect, test } from '../support/node-test.js'
 
 const APP = {
   schemaVersion: 1,

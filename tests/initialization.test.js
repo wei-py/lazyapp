@@ -2,11 +2,11 @@ import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { defaultInitialization, initializationExamples } from '../src/config/initialization.js'
 import { createApp, platformKinds, validateDocument } from '../src/config/model.js'
 import { loadDocuments, runDoctor } from '../src/features/workspace.js'
 import { initializeWorkspace } from '../src/storage/workspace.js'
+import { afterEach, beforeEach, describe, expect, test } from '../support/node-test.js'
 
 let project
 let sessions
