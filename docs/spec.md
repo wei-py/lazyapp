@@ -213,6 +213,7 @@ src/
 
 - 发布仓库为 `wei-py/lazyapp`，发行包覆盖五个目标：macOS（arm64、x86_64）、Linux（x86_64、arm64）与 Windows（x86_64）。
 - 在各目标平台使用固定版本 Node.js 与 pnpm 执行 `pnpm install`、`pnpm run build`、`pnpm run smoke:release`。`pnpm-workspace.yaml` 禁止生成锁文件。构建使用 esbuild 生成单一 ESM bundle，再通过 Node SEA 嵌入运行时与 OpenTUI 资源；macOS 产物执行 ad-hoc codesign。输出 `dist/lazyapp-<slug>.tar.gz`（Windows 为 `dist/lazyapp-windows-x64.zip`）和 `dist/SHA256SUMS`；压缩包包含 `bin/lazyapp`（Windows 为 `bin/lazyapp.exe`）、`bin/web/` 本地页面资源与第三方依赖许可。`dist/` 不提交 Git。
+- 第三方许可收集从依赖所属包的 Node.js 模块搜索路径定位已安装目录，不解析或加载包入口；仅导出 ESM／Bun 入口的传递依赖（如 `bun-ffi-structs`）同样保留许可证，不要求 CommonJS 导出。
 - 运行仍以当前目录或显式项目路径发现工作区，不以可执行文件安装目录发现工作区。
 - `.github/workflows/release.yml` 在推送 `v*` tag 时于全部目标平台分别运行 lint、行为测试、构建与真实 PTY 发行包冒烟验证；全部成功后才创建 GitHub Release 并上传各平台压缩包与合并的 SHA-256 校验文件。tag 必须严格等于 `v` 加 `package.json` 的版本，例如 `v0.2.1` 对应 `0.2.1`，不匹配会拒绝构建。
 - 首次发布：先提交并推送这些改动，再执行 `git tag v0.1.0` 和 `git push origin v0.1.0`。后续发布先更新 `package.json` 版本，再推送对应新 tag；不要移动已发布 tag。GitHub Actions 的手动运行只验证并保留构建附件，不创建 Release。

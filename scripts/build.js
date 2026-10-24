@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { chmod, copyFile, cp, mkdir, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import process from 'node:process'
 import { getNodeAssets } from '@opentui/core/node-assets'
 import { build } from 'esbuild'
@@ -98,24 +98,19 @@ await cp(join(root, 'src/web/public'), join(staging, 'bin/web'), { recursive: tr
 // Retain notices from the installed production dependency graph, including native code.
 const visited = new Set()
 async function packageDirectory(name, from = root) {
-  const direct = join(root, 'node_modules', name)
-  try {
-    return await realpath(direct)
-  }
-  catch {
-    const require = createRequire(join(from, 'package.json'))
-    let current = dirname(require.resolve(name))
-    while (current !== dirname(current)) {
-      try {
-        const metadata = JSON.parse(await readFile(join(current, 'package.json'), 'utf8'))
-        if (metadata.name === name)
-          return current
-      }
-      catch {}
-      current = dirname(current)
+  const require = createRequire(join(from, 'package.json'))
+  // Locate installed metadata without resolving an entry point: dependencies may
+  // export only ESM or Bun entries, while their notices still belong in releases.
+  for (const directory of require.resolve.paths(name) ?? []) {
+    try {
+      return await realpath(join(directory, name))
     }
-    throw new Error(`Cannot locate package metadata for ${name}.`)
+    catch (error) {
+      if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR')
+        throw error
+    }
   }
+  throw new Error(`Cannot locate package metadata for ${name}.`)
 }
 async function copyNotices(name, from) {
   if (visited.has(name))
