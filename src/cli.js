@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { chmod, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import process from 'node:process'
@@ -9,6 +9,7 @@ import { documentFields, documentKinds, identifyDocument, platformKinds, validat
 import { releaseTarget } from './config/release.js'
 import { VERSION } from './config/version.js'
 import { loadDocuments, runDoctor } from './features/workspace.js'
+import { installRelease } from './storage/release.js'
 import { initializeWorkspace, openWorkspace, workspaceExists } from './storage/workspace.js'
 
 /** Print JSON to stdout with trailing newline. */
@@ -264,19 +265,7 @@ async function cmdUpdate() {
     // Extract (.tar.gz or .zip; both bsdtar and GNU tar read the local tar.gz)
     await promisify(execFile)('tar', ['-xf', archive, '-C', tmpDir])
 
-    // Replace binary
-    const newBinary = join(tmpDir, 'bin', target.binaryName)
-    const fileStat = await stat(newBinary).catch(() => null)
-    if (!fileStat?.isFile())
-      throw new Error('Binary not found in release archive')
-
-    await chmod(newBinary, 0o755)
-    if (process.platform === 'win32') {
-      // Windows cannot replace a running executable in place.
-      await rm(`${process.execPath}.old`, { force: true })
-      await rename(process.execPath, `${process.execPath}.old`)
-    }
-    await rename(newBinary, process.execPath)
+    await installRelease(join(tmpDir, 'bin'), process.execPath)
 
     process.stderr.write(`Updated to v${latest}.\n`)
     return 0
