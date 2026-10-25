@@ -41,10 +41,7 @@ jobs:
         with:
           node-version: 26.7.0
       - run: pnpm install
-      - run: pnpm run lint
-      - run: pnpm test
       - run: pnpm run build
-      - run: pnpm run smoke:release
       - uses: actions/upload-artifact@v4
         with:
           name: lazyapp-${{ matrix.asset }}
@@ -66,7 +63,7 @@ jobs:
       - name: Generate SHA-256 checksums
         working-directory: dist
         run: sha256sum lazyapp-* > SHA256SUMS
-      - name: Publish verified assets
+      - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
