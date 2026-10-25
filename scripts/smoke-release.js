@@ -21,6 +21,19 @@ try {
   const binary = join(temporary, 'bin', target.binaryName)
   // Deny checkout access where sandbox-exec exists: bundled imports must not hide missing assets.
   const sandboxed = process.platform === 'darwin'
+  if (sandboxed) {
+    const entitlements = join(temporary, 'sea-entitlements.plist')
+    await execFile('codesign', ['--display', '--entitlements', entitlements, '--xml', binary])
+    const jit = await execFile('plutil', [
+      '-extract',
+      'com\\.apple\\.security\\.cs\\.allow-jit',
+      'raw',
+      '-o',
+      '-',
+      entitlements,
+    ])
+    assert.equal(jit.stdout.trim(), 'true', 'The signed SEA must retain Node JIT permission before sandbox startup')
+  }
   const command = sandboxed
     ? [
         '/usr/bin/sandbox-exec',

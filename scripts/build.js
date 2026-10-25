@@ -110,8 +110,15 @@ await writeFile(configPath, `${JSON.stringify({
   assets: Object.fromEntries(assets.map(({ key, source }) => [key, source])),
 }, null, 2)}\n`)
 run(process.execPath, ['--build-sea', configPath])
-if (process.platform === 'darwin')
-  run('codesign', ['--sign', '-', '--force', output])
+if (process.platform === 'darwin') {
+  // Re-signing without explicit entitlements drops Node's JIT/native-code
+  // permissions. Extract from the original runtime, not the modified SEA.
+  const entitlements = join(buildDirectory, 'node-entitlements.plist')
+  run('codesign', ['--display', '--entitlements', entitlements, '--xml', process.execPath])
+  run('plutil', ['-lint', entitlements])
+  run('codesign', ['--sign', '-', '--force', '--entitlements', entitlements, output])
+  run('codesign', ['--verify', '--strict', output])
+}
 if (process.platform !== 'win32')
   await chmod(output, 0o755)
 
