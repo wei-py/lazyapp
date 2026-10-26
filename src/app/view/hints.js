@@ -2,6 +2,8 @@ import { hintSegments } from '../../config/i18n.js'
 import { focusedGroup } from '../state.js'
 
 export function keyHints(s) {
+  if (s.modal?.type === 'help')
+    return []
   return hintSegments(s.language, hintId(s))
 }
 

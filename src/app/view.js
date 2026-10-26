@@ -4,6 +4,7 @@ import stringWidth from 'string-width'
 import { JOB_GLYPH } from '../../vendor/lazy-kit/jobs.js'
 import { DEFAULT_THEME, themeName } from '../../vendor/lazy-kit/themes.js'
 import { LANGUAGES, t } from '../config/i18n.js'
+import { helpPage } from './help.js'
 import { focusedGroup, isDirty, layoutMode } from './state.js'
 import { COLORS, setTheme } from './view/colors.js'
 import { keyHints } from './view/hints.js'
@@ -213,6 +214,27 @@ export function createView(renderer) {
       ? detailContent(s, app, rows, width)
       : groupContent(s, app, Number(id.slice(-1)), rows)
   }
+  function renderHelp(s) {
+    const page = helpPage(s)
+    if (page.compact) {
+      show('message', 0, 0, s.width, s.height, [
+        `${t(s.language, 'Keyboard help')} ${page.position}`,
+        ...page.lines,
+      ], COLORS.text, COLORS.surface)
+      return
+    }
+    box(
+      'modal',
+      Math.floor((s.width - page.width) / 2),
+      Math.max(0, Math.floor((s.height - page.height) / 2)),
+      page.width,
+      page.height,
+      { title: t(s.language, 'Keyboard help'), counter: page.position, lines: page.lines, selected: -1 },
+      COLORS.focus,
+      COLORS.text,
+      COLORS.surface,
+    )
+  }
   function render(s, app) {
     if (renderer.isDestroyed)
       return
@@ -229,6 +251,11 @@ export function createView(renderer) {
     const mode = layoutMode(width, height)
     for (const node of Object.values(nodes)) node.visible = false
     if (mode === 'small') {
+      if (s.modal?.type === 'help') {
+        renderHelp(s)
+        renderer.requestRender()
+        return
+      }
       const content = s.modal
         ? [
             s.modal.title,
@@ -339,7 +366,10 @@ export function createView(renderer) {
       used += size
     }
     keysNode.content = new StyledText(segments)
-    if (s.modal) {
+    if (s.modal?.type === 'help') {
+      renderHelp(s)
+    }
+    else if (s.modal) {
       const modal = s.modal
       const modalWidth = Math.min(width - 4, 84)
       const detailWidth = modalWidth - 3

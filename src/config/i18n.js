@@ -237,8 +237,6 @@ const chinese = {
   'store': '商店',
   'app': '应用',
   'assets': '资源',
-  'help_lines':
-    '1–4：聚焦左侧分组；0：详情；Tab / Shift+Tab：循环焦点（不切换当前文档）\nj/k、上下：移动；g/G、Home/End：首末；PgUp/PgDn、Ctrl+d/u：半页\nEnter：展开平台或打开编辑器；h/l、左右：折叠/展开平台或返回/进入详情\n[ ]：服务/环境/商店或文件/诊断标签；/：本地路径搜索（Esc 恢复）；?：帮助\n详情：e 编辑；Enter 查看完整非密钥值或保存行；s 保存；y 复制；Esc 返回导航\na 新建；D 删除单个文件（y/n 确认）；f 管理文件；r 刷新/重载/诊断；x 中止任务\n: 设置；L 切换语言；W 打开 Web；q / Ctrl+c 退出\n焦点切换保留草稿，仅目标变化询问保存/放弃/取消。输入时数字及 hjkl 均为文本。\n密钥以明文存储于本机，并未加密。红色缺失、绿色存在，不代表凭据有效。缺失配置保存后才创建真实文件。\n文件导入是独立确认的提交；取消草稿不会撤销导入。诊断只读，不代表已准备好发布。',
   'Configuration must be a JSON object': '配置必须是 JSON 对象',
   'Unsupported or missing schema version; expected 1': '架构版本不受支持或缺失；应为 1',
   '{label} is required': '{label}为必填项',
@@ -343,7 +341,7 @@ const hints = {
   en: {
     'dialog-input': ['Enter|submit', 'Esc|cancel', 'Ctrl+u|clear'],
     'dialog-choice': ['Enter|confirm', 'Esc|cancel', 'j/k/Tab|choose', 'PgUp/PgDn|details'],
-    'dialog-confirm': ['y/Enter|confirm', 'n/Esc|cancel'],
+    'dialog-confirm': ['Enter|choose', '↑↓/Tab|select', 'y|confirm', 'n/Esc|cancel'],
     'text-input': ['Enter|accept', 'Esc|restore', 'Ctrl+u|clear'],
     'settings': ['j/k|row', 'Enter/l|next', 'h|previous', 'Esc|close'],
     'editor': ['e|edit', 's|save', 'Enter|value/save', 'j/k|field', 'Esc|navigation', 'Tab|focus', '?|help'],
@@ -355,7 +353,7 @@ const hints = {
   zh: {
     'dialog-input': ['Enter|提交', 'Esc|取消', 'Ctrl+u|清空'],
     'dialog-choice': ['Enter|确认', 'Esc|取消', 'j/k/Tab|选择', 'PgUp/PgDn|详情'],
-    'dialog-confirm': ['y/Enter|确认', 'n/Esc|取消'],
+    'dialog-confirm': ['Enter|选择', '↑↓/Tab|切换', 'y|确认', 'n/Esc|取消'],
     'text-input': ['Enter|接受', 'Esc|恢复', 'Ctrl+u|清空'],
     'settings': ['j/k|行', 'Enter/l|下一值', 'h|上一值', 'Esc|关闭'],
     'editor': ['e|编辑', 's|保存', 'Enter|值/保存', 'j/k|字段', 'Esc|导航', 'Tab|焦点', '?|帮助'],
@@ -372,10 +370,7 @@ export const LANGUAGES = Object.freeze([
 ])
 
 const CATALOG = {
-  en: {
-    help_lines:
-      '1–4: focus left groups; 0: shared detail; Tab / Shift+Tab: cycle focus without switching the active document\nj/k or Up/Down: move; g/G or Home/End: first/last; PgUp/PgDn or Ctrl+d/u: half page\nEnter: expand a platform or open its document; h/l or Left/Right: collapse/expand platforms or return/enter detail\n[ ]: Services/Environments/Store or Managed files/Doctor tabs; /: local path search (Esc restores); ?: help\nDetail: e edit; Enter inspect a non-secret value or activate Save; s save; y copy; Esc return to navigation\na create; D delete one file (y/n confirm); f managed files; r refresh/reload/check; x abort job\n: settings; L language; W Web editor; q / Ctrl+c quit\nFocus changes preserve drafts; only target changes ask Save / Discard / Cancel. Digits and hjkl stay literal while typing.\nSecrets are plaintext on disk, not encrypted. Red means missing; green means present, never credential validity. Saving missing configuration creates the real file.\nImports are separate confirmed commits: discarding a draft does not undo them. Doctor is read-only and does not establish release readiness.',
-  },
+  en: {},
   zh: chinese,
 }
 
@@ -394,4 +389,63 @@ export function t(language, key, params = {}) {
 export function hintSegments(language, id) {
   const entries = (language === 'zh' && hints.zh[id]) || hints.en[id] || []
   return entries.map(chip)
+}
+
+const HELP = [
+  {
+    titles: ['Navigation', '导航'],
+    entries: [
+      ['1–4 / 0', 'Focus a left group / the shared detail panel.', '聚焦左侧分组 / 共享详情面板。'],
+      ['Tab / Shift+Tab', 'Cycle panel focus without changing the active document.', '循环面板焦点，不改变当前文档。'],
+      ['j/k / ↑↓', 'Move through the focused list, fields, or preview.', '移动当前列表、字段或预览。'],
+      ['g/G · Home/End', 'Go to the first / last item or field.', '跳到首个 / 末个项目或字段。'],
+      ['PgUp/PgDn', 'Move half a page; Ctrl+u / Ctrl+d also work.', '移动半页；也可用 Ctrl+u / Ctrl+d。'],
+      ['Enter', 'Expand a platform or open the selected document in detail.', '展开平台，或在详情中打开所选文档。'],
+      ['h/l / ←→', 'Collapse / expand a platform, or leave / enter detail.', '折叠 / 展开平台，或离开 / 进入详情。'],
+      ['[ / ]', 'Switch Services / Environments / Store or Files / Doctor tabs.', '切换服务 / 环境 / 商店或文件 / 诊断标签。'],
+      ['/', 'Search local document paths; Esc restores the previous filter.', '搜索本地文档路径；Esc 恢复之前的筛选。'],
+      ['Esc', 'Return from detail to the last navigation group.', '从详情返回上次导航分组。'],
+    ],
+  },
+  {
+    titles: ['Actions', '操作'],
+    entries: [
+      ['e', 'Edit the selected detail field or choose a file action.', '编辑所选详情字段，或选择文件操作。'],
+      ['Enter', 'Inspect a non-secret field, or activate the Save row.', '查看非密钥字段的完整值，或激活保存行。'],
+      ['s / y', 'Save the document / copy the selected detail field.', '保存文档 / 复制所选详情字段。'],
+      ['a', 'Create a document in the focused navigation group.', '在当前导航分组中新建文档。'],
+      ['D', 'Delete one selected workspace file after confirmation.', '确认后删除所选的单个工作区文件。'],
+      ['f', 'Show managed workspace files.', '显示工作区管理文件。'],
+      ['r', 'Refresh the workspace, reload the editor, or rerun Doctor.', '刷新工作区、重载编辑器，或重新运行诊断。'],
+      ['x', 'Cancel the most recent running or queued job.', '取消最近的运行中或排队任务。'],
+      [': / L', 'Open settings / switch English and Chinese.', '打开设置 / 切换中英文。'],
+      ['W', 'Start the local Web editor without leaving the TUI.', '启动本地 Web 编辑器，不离开终端界面。'],
+      ['?', 'Open this keyboard reference.', '打开此快捷键参考。'],
+      ['q / Ctrl+c', 'Request quit; Ctrl+c inside a dialog closes only that dialog.', '请求退出；弹窗内 Ctrl+c 仅关闭该弹窗。'],
+    ],
+  },
+  {
+    titles: ['Notes', '须知'],
+    entries: [
+      ['', 'Changing focus preserves drafts. Changing the active document asks Save / Discard / Cancel when needed.', '切换焦点保留草稿。切换当前文档时，必要时询问保存 / 放弃 / 取消。'],
+      ['', 'While typing, digits, hjkl, ?, and / are literal text. Enter accepts, Esc restores, and Ctrl+u clears the input.', '输入时，数字、hjkl、? 和 / 均为普通文本。Enter 接受，Esc 恢复，Ctrl+u 清空输入。'],
+      ['', 'Confirmations start on Cancel. Use arrows and Enter to choose; destructive y/n dialogs also accept y or n.', '确认弹窗默认选择取消。方向键选择、Enter 确认；破坏性 y/n 弹窗也可按 y 或 n。'],
+      ['', 'Secrets are stored as plaintext on this computer, not encrypted. Search excludes secret values.', '密钥以明文保存在本机，未经加密。搜索不包含密钥值。'],
+      ['', 'Saving a missing configuration creates its real file. Unsaved placeholders do not exist on disk.', '保存缺失配置后才创建真实文件。未保存的占位项不存在于磁盘。'],
+      ['', 'File imports are separately confirmed commits. Discarding a later draft does not undo an imported file.', '文件导入是单独确认的提交。放弃之后的草稿不会撤销已导入的文件。'],
+      ['', 'External file references are read-only. Removing a reference never deletes its source.', '外部文件引用为只读。移除引用不会删除源文件。'],
+      ['', 'Delete affects one workspace file, never recursively deletes directories, and cannot be undone. The App document cannot be deleted here.', '删除仅影响单个工作区文件，不递归删除目录，且无法撤销。此处不能删除应用文档。'],
+      ['', 'Doctor is read-only. Present or missing describes file existence, not credential validity or release readiness.', '诊断只读。存在或缺失仅表示文件是否存在，不代表凭据有效或已准备好发布。'],
+    ],
+  },
+]
+
+const HELP_SECTIONS = [1, 2].map(column => HELP.map(section => ({
+  title: section.titles[column - 1],
+  entries: section.entries.map(entry => ({ key: entry[0], description: entry[column] })),
+})))
+
+/** Read-only structured help copy; layout and keyboard handling share these categories. */
+export function helpSections(language) {
+  return HELP_SECTIONS[language === 'zh' ? 1 : 0]
 }

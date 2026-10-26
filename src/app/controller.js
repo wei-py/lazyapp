@@ -14,6 +14,7 @@ import { loadPreferences, savePreferences } from '../storage/preferences.js'
 import { copy } from './clipboard.js'
 import { confirm, createDocument, leave, prompt, save } from './documents.js'
 import { deleteSelected, filePicker, openFile, showFiles } from './files.js'
+import { moveHelp } from './help.js'
 import {
   doctor,
   invalidateDoctor,
@@ -166,7 +167,10 @@ export class Application {
         this,
         'Quit?',
         ['Cancel', 'Quit'],
-        proceed,
+        (index) => {
+          if (index)
+            return proceed()
+        },
         `${this.t('jobs still running: {count}', { count: active.length })}\n${this.t('y quit · n cancel')}`,
         true,
       )
@@ -331,6 +335,14 @@ export class Application {
         this.update()
         return
       }
+      if (modal.type === 'help') {
+        if (['enter', 'return', 'q'].includes(key.name))
+          closeModal(s)
+        else
+          moveHelp(s, key)
+        this.update()
+        return
+      }
       if (modal.type === 'settings') {
         if (['j', 'down'].includes(key.name))
           modal.row = 1
@@ -359,7 +371,7 @@ export class Application {
         this.update()
         return
       }
-      if (modal.yn && ['enter', 'return', 'y'].includes(key.name)) {
+      if (modal.yn && key.name === 'y') {
         const action = modal.action
         const index = modal.options.length - 1
         closeModal(s)
@@ -431,6 +443,11 @@ export class Application {
         && /^[A-Z]$/.test(key.text)
         ? key.text
         : key.name
+    if ((name === '?' || key.text === '?') && !key.ctrl && !key.meta) {
+      openModal(s, { type: 'help', title: this.t('Keyboard help'), section: 0, scrolls: [0, 0, 0] })
+      this.update()
+      return
+    }
     if (layoutMode(s.width, s.height) === 'small') {
       if (name === 'q')
         this.requestQuit()
@@ -441,10 +458,6 @@ export class Application {
       return
     if (name === 'q') {
       this.requestQuit()
-      return
-    }
-    if (name === '?' || key.text === '?') {
-      confirm(this, 'Keyboard help', ['Close'], () => {}, this.t('help_lines'))
       return
     }
     if (name === 'L' || key.text === 'L') {
