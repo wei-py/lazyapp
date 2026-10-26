@@ -16,6 +16,8 @@ const STATIC_FILES = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/index.html', ['index.html', 'text/html; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
+  ['/scroll.js', ['scroll.js', 'text/javascript; charset=utf-8']],
+  ['/virtual-list.js', ['virtual-list.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']],
 ])
 const HTTP_ERRORS = {
@@ -184,6 +186,7 @@ async function state(session) {
     fields,
     kinds: documentKinds,
     platforms: platformKinds,
+    environments,
   }
 }
 

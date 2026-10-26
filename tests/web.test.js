@@ -86,7 +86,7 @@ describe('local web workspace service', () => {
   test('serves only local static assets and fills missing canonical documents in older workspaces', async () => {
     await initialize()
     const client = await start()
-    for (const [route, type] of [['/', 'text/html'], ['/app.js', 'text/javascript'], ['/style.css', 'text/css']]) {
+    for (const [route, type] of [['/', 'text/html'], ['/app.js', 'text/javascript'], ['/scroll.js', 'text/javascript'], ['/virtual-list.js', 'text/javascript'], ['/style.css', 'text/css']]) {
       const response = await fetch(`${client.url}${route}`)
       expect(response.status).toBe(200)
       expect(response.headers.get('content-type')).toContain(type)
@@ -247,11 +247,16 @@ describe('local web workspace service', () => {
     })
     expect(invalid.status).toBe(400)
     expect(await invalid.text()).not.toContain('do-not-echo')
-    expect((await client.call('/api/document', {
+    const oversizedJson = await raw(`${client.url}/api/document`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: 'x'.repeat(1024 * 1024) }),
-    })).status).toBe(413)
+      headers: {
+        'Origin': client.url,
+        'X-Lazyapp-Token': client.token,
+        'Content-Type': 'application/json',
+        'Content-Length': String(1024 * 1024 + 1),
+      },
+    })
+    expect(oversizedJson.status).toBe(413)
     const oversized = await raw(`${client.url}/api/file?path=assets/large.bin&revision=null`, {
       method: 'PUT',
       headers: { 'Origin': client.url, 'X-Lazyapp-Token': client.token, 'Content-Length': String(32 * 1024 * 1024 + 1) },
