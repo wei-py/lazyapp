@@ -78,10 +78,11 @@ flag. Press `W` inside the TUI to start the Web editor on port 3210. Its URL is
 shown in the status line, and quitting the TUI closes the service it started.
 Initialize new projects through the TUI prompt; Web-only mode never initializes.
 
-Web uses a newspaper-style interface with local CSS and JavaScript: no CDN,
-remote fonts, or network connection is required. It edits configuration and
-manages original attachments (not image pixels or OCR). Images can be previewed;
-other file types are downloaded. Absolute external references remain read-only.
+Web uses grouped workspace navigation, expandable platforms, and a shared editor
+with field sections and a sticky save bar. Narrow screens collapse navigation behind
+the Navigation button. CSS and JavaScript are local; no CDN or remote fonts.
+Original attachments can be imported, previewed, downloaded, replaced, or deleted;
+absolute external references remain read-only.
 TUI and Web can stay open together; each write takes the workspace lock and stale
 configuration/attachment revisions are rejected. Reload explicitly after a conflict.
 
@@ -99,9 +100,13 @@ lazyapp /absolute/project
 | Key                                              | Action                                           |
 | ------------------------------------------------ | ------------------------------------------------ |
 | `j`/`k`, `↓`/`↑`                                 | move selection in the focused panel              |
-| `h`/`l`, `←`/`→`, `Tab`/`Shift+Tab`, `1`/`2`/`3` | switch focus between category/list/detail panels |
-| `Enter`                                          | descend: category → list → detail editor → field |
-| `Esc`                                            | walk back detail → list → category               |
+| `1`–`4` | focus App/assets, platforms, collections, or files/Doctor |
+| `0` | focus the shared detail editor |
+| `Tab`/`Shift+Tab` | cycle navigation groups and detail without discarding drafts |
+| `[`/`]` | switch service/environment/store or files/Doctor tabs |
+| `h`/`l`, `←`/`→` | expand/collapse platform trees or enter/leave detail |
+| `Enter` | expand a platform, open the selected item, view a value, or save on the final row |
+| `Esc` | cancel input/modal, or return from detail to the remembered group |
 | `?`                                              | context help                                     |
 
 ### Editing & files
@@ -120,6 +125,8 @@ lazyapp /absolute/project
 | `q` | quit (y/n while jobs run)          |
 
 While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters — Vim-style navigation only applies outside text input.
+
+The default **Auto (terminal)** theme follows the terminal's light/dark mode, including changes while running. Panels, dialogs, and selections use matching opaque colors; terminals that do not report their mode use the dark palette. Press `:` to choose a fixed theme, or return to Auto. Existing `default` preferences automatically gain this behavior without rewriting settings.
 
 ### Typical flow
 
