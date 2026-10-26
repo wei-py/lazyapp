@@ -11,11 +11,27 @@ export const CATEGORIES = [
 ]
 export const PLATFORM_KINDS = ['android', 'ios', 'harmony', 'windows', 'macos', 'miniprogram']
 
+export const GROUP_TABS = [
+  ['App', 'Assets'],
+  ['Platforms'],
+  ['Services', 'Environments', 'Store'],
+  ['Managed files', 'Doctor'],
+]
+
+export function isNavigation(focus) {
+  return /^group[1-4]$/.test(focus)
+}
+
+export function focusedGroup(state) {
+  const focus = state.modal?.returnFocus || state.focus
+  return isNavigation(focus) ? Number(focus.slice(-1)) : state.lastGroup
+}
+
 /** Layout decisions retain editing state across terminal resizes. */
 export function layoutMode(width, height) {
   if (width >= 100 && height >= 24)
     return 'dual'
-  if (width >= 60 && width < 100 && height >= 16)
+  if (width >= 60 && height >= 16)
     return 'single'
   return 'small'
 }
@@ -100,10 +116,9 @@ export function closeModal(state, restore = true) {
   const modal = state.modal
   if (restore && modal?.restore)
     modal.restore()
-  const target = modal?.returnFocus || 'list'
+  const target = modal?.returnFocus || `group${state.lastGroup}`
   state.modal = null
-  // docs/spec.md section 5: closing restores the original focus. Only when that focus was the
-  // document editor and the document is gone does it fall back to the list; an editor-free
-  // details panel (file or Doctor preview) stays usable and keeps focus.
-  state.focus = target === 'form' && modal?.returnEditor && !state.editor ? 'list' : target
+  state.focus = target === 'form' && modal?.returnEditor && !state.editor
+    ? `group${state.lastGroup}`
+    : target
 }

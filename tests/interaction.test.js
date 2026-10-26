@@ -59,9 +59,9 @@ function serviceApplication() {
     revision: 'original',
   }))
   app.state.documents.push(...documents)
-  app.state.category = 3
   app.state.editor = null
-  app.state.focus = 'list'
+  app.locateDocument(documents[0])
+  app.focusPanel('group3')
   app.session = {
     list: async () => app.state.documents.map(document => document.path),
     read: async (path) => {
@@ -215,12 +215,12 @@ describe('input ownership and draft transitions', () => {
     expect(exits).toEqual([0])
   })
 
-  test('modal focus falls back to list if its original editor disappeared', () => {
+  test('modal focus returns to the remembered navigation group when its editor disappeared', () => {
     const { app } = application()
     openModal(app.state, { type: 'choice', options: ['Cancel'] })
     app.state.editor = null
     closeModal(app.state)
-    expect(app.state.focus).toBe('list')
+    expect(app.state.focus).toBe('group1')
   })
 
   test('all secret values remain masked and layout thresholds preserve state', () => {
@@ -228,7 +228,7 @@ describe('input ownership and draft transitions', () => {
     expect(layoutMode(100, 24)).toBe('dual')
     expect(layoutMode(99, 24)).toBe('single')
     expect(layoutMode(80, 16)).toBe('single')
-    expect(layoutMode(100, 23)).toBe('small')
+    expect(layoutMode(100, 23)).toBe('single')
     expect(layoutMode(59, 40)).toBe('small')
   })
 })
@@ -236,7 +236,10 @@ describe('input ownership and draft transitions', () => {
 test('closing a preview modal restores the editor-free details panel', () => {
   const { app } = serviceApplication()
   app.state.editor = null
-  app.state.files = ['credentials.p12']
+  app.state.managedFiles = ['credentials.p12']
+  app.state.activeGroup = 4
+  app.state.activeTab = 0
+  app.state.target = null
   app.focusPanel('form')
   openModal(app.state, { type: 'choice', options: ['Close'] })
   closeModal(app.state)
@@ -244,390 +247,179 @@ test('closing a preview modal restores the editor-free details panel', () => {
   expect(app.state.editor).toBeNull()
 })
 
-describe('persistent three-panel navigation', () => {
-  test('panel methods cycle in both directions and create the selected editor only once', () => {
-    const { app } = serviceApplication()
-    app.focusPanel('nav')
-    expect(app.state.focus).toBe('nav')
-    for (const focus of ['list', 'form', 'nav']) {
-      app.cyclePanel(1)
-      expect(app.state.focus).toBe(focus)
-    }
-    const editor = app.state.editor
-    expect(editor.path).toBe(app.items()[app.state.selected].path)
-    expect(editor.draft).not.toBe(app.items()[app.state.selected].data)
-    editor.index = 2
-    for (const focus of ['form', 'list', 'nav']) {
-      app.cyclePanel(-1)
-      expect(app.state.focus).toBe(focus)
-    }
-    for (const focus of ['list', 'form']) {
-      app.focusPanel(focus)
-      expect(app.state.focus).toBe(focus)
-    }
-    expect(app.state.editor).toBe(editor)
-    expect(editor.index).toBe(2)
-    app.state.editor = null
-    app.state.documents = []
-    app.focusPanel('form')
-    expect(app.state.editor).toBeNull()
-  })
-
-  test('Tab, numbered jumps, vim keys, and arrows navigate panels without editing fields', async () => {
-    const { app } = serviceApplication()
-    for (const [name, extra, focus] of [
-      ['tab', {}, 'form'],
-      ['tab', {}, 'nav'],
-      ['tab', {}, 'list'],
-      ['tab', { shift: true }, 'nav'],
-      ['tab', { shift: true }, 'form'],
-      ['1', {}, 'nav'],
-      ['2', {}, 'list'],
-      ['3', {}, 'form'],
-      ['l', {}, 'nav'],
-      ['right', {}, 'list'],
-      ['h', {}, 'nav'],
-      ['left', {}, 'form'],
-    ]) {
-      await press(app, name, extra)
-      expect(app.state.focus).toBe(focus)
-      expect(app.state.modal).toBeNull()
-    }
-    expect(app.state.editor.index).toBe(0)
-    expect(app.state.editor.editing).toBe(false)
-  })
-
-  test('Enter moves nav to list to details before it edits a document', async () => {
-    const { app } = serviceApplication()
-    app.focusPanel('nav')
-    await press(app, 'return')
-    expect(app.state.focus).toBe('list')
-    expect(app.state.editor).toBeNull()
-    await press(app, 'return')
-    expect(app.state.focus).toBe('form')
-    expect(app.state.editor.path).toBe('services/alpha.json')
-    expect(app.state.editor.editing).toBe(false)
-    await press(app, 'enter')
-    expect(app.state.modal.detail).toBe('alpha')
-    await press(app, 'escape')
-    await press(app, 'e')
-    expect(app.state.editor.editing).toBe(true)
-  })
-
-  test('category and list movement immediately replace live targets without Enter', async () => {
-    const { app } = serviceApplication()
-    app.focusPanel('form')
-    app.state.editor.index = 2
-    app.focusPanel('list')
-    await press(app, 'j')
-    expect(app.state.selected).toBe(1)
-    expect(app.items()[app.state.selected].path).toBe('services/beta.json')
-    expect(app.state.editor).toBeNull()
-    await press(app, 'return')
-    expect(app.state.editor.path).toBe('services/beta.json')
-    expect(app.state.editor.index).toBe(0)
-    await press(app, '1')
-    await press(app, 'k')
-    expect(app.state.focus).toBe('nav')
-    expect(app.state.category).toBe(2)
-    expect(app.state.selected).toBe(0)
-    expect(app.state.editor).toBeNull()
-    expect(app.items()).toEqual([])
-    await press(app, 'j')
-    expect(app.items()[app.state.selected].path).toBe('services/alpha.json')
-  })
-
-  test('dirty drafts survive panel changes and cancel; discard applies the pending item only', async () => {
+describe('grouped workspace navigation', () => {
+  test('focusing other groups preserves the editing target and its dirty draft', async () => {
     const { app } = serviceApplication()
     app.focusPanel('form')
     const editor = app.state.editor
     editor.draft.name = 'Unsaved alpha'
     editor.index = 3
-    await press(app, 'escape')
-    expect(app.state.focus).toBe('list')
-    expect(app.state.modal).toBeNull()
-    await press(app, 'return')
-    expect(app.state.editor).toBe(editor)
-    expect(editor.index).toBe(3)
-    expect(editor.editing).toBe(false)
-    await press(app, '2')
-    app.state.detailScroll = 8
+    for (const key of ['1', '2', '4', '0', 'tab', 'tab']) {
+      await press(app, key)
+      expect(app.state.editor).toBe(editor)
+      expect(app.activeItem().path).toBe('services/alpha.json')
+      expect(app.state.modal).toBeNull()
+    }
+    await press(app, '3')
     await press(app, 'j')
     expect(app.state.modal.options[app.state.modal.index]).toBe('Cancel')
-    expect(app.state.selected).toBe(0)
-    expect(app.state.editor).toBe(editor)
     await choose(app, 'Cancel')
-    expect(app.state.focus).toBe('list')
     expect(editor.draft.name).toBe('Unsaved alpha')
-    expect(app.state.detailScroll).toBe(8)
+    expect(editor.index).toBe(3)
+    expect(app.activeItem().path).toBe('services/alpha.json')
     await press(app, 'j')
     await choose(app, 'Discard')
-    expect(app.state.selected).toBe(1)
-    expect(app.state.detailScroll).toBe(0)
-    expect(app.state.editor).toBeNull()
-    await press(app, '3')
-    expect(app.state.editor.path).toBe('services/beta.json')
+    expect(app.activeItem().path).toBe('services/beta.json')
+    await press(app, 'return')
     expect(app.state.editor.draft.name).toBe('beta')
   })
 
-  test('search from the categories panel focuses the list instead of leaving the workflow', async () => {
+  test('save before a target change commits only the old document, and failures block the change', async () => {
     const { app } = serviceApplication()
-    app.focusPanel('nav')
-    expect(app.state.editor).toBeNull()
-    await press(app, '/')
-    expect(app.state.focus).toBe('modal')
-    expect(app.state.modal.title).toBe('Search document paths (secrets excluded)')
-    await press(app, 'paste', { text: 'beta' })
+    app.focusPanel('form')
+    const editor = app.state.editor
+    editor.draft.name = 'Changed alpha'
+    app.session.save = async () => {
+      throw Object.assign(new Error('Denied'), { code: 'EACCES' })
+    }
+    await press(app, '3')
+    await press(app, 'j')
+    await choose(app, 'Save')
+    expect(app.state.editor).toBe(editor)
+    expect(app.activeItem().path).toBe('services/alpha.json')
+    expect(editor.revision).toBe('original')
+    app.session.save = async (path, data) => ({ data: structuredClone(data), revision: 'saved' })
+    await press(app, 'j')
+    await choose(app, 'Save')
+    expect(app.state.documents.find(doc => doc.path === 'services/alpha.json').data.name).toBe('Changed alpha')
+    expect(app.activeItem().path).toBe('services/beta.json')
     await press(app, 'return')
-    expect(app.state.focus).toBe('list')
-    expect(app.state.search).toBe('beta')
-    expect(app.items().map(item => item.path)).toEqual(['services/beta.json'])
-    await press(app, 'escape')
-    expect(app.state.focus).toBe('nav')
-    expect(app.state.search).toBe('beta')
+    expect(app.state.editor.draft.name).toBe('beta')
   })
 
-  test('cancelled category and search changes retain selected target and dirty draft', async () => {
+  test('platform expansion does not replace a dirty target, but choosing its document does', async () => {
+    const { app } = serviceApplication()
+    app.state.documents.push({ path: 'platforms/harmony/config.json', kind: 'harmony', data: null, missing: true, revision: null })
+    app.focusPanel('form')
+    app.state.editor.draft.name = 'Retained'
+    await press(app, '2')
+    await press(app, 'return')
+    expect(app.state.expanded).toContain('harmony')
+    expect(app.state.modal).toBeNull()
+    expect(app.activeItem().path).toBe('services/alpha.json')
+    await press(app, 'j')
+    await choose(app, 'Cancel')
+    expect(app.state.editor.draft.name).toBe('Retained')
+    await press(app, 'j')
+    await choose(app, 'Discard')
+    await press(app, 'return')
+    expect(app.state.editor.path).toBe('platforms/harmony/config.json')
+    expect(isDirty(app.state.editor)).toBe(false)
+    await press(app, '2')
+    await press(app, 'h')
+    await press(app, 'D')
+    expect(app.state.modal).toBeNull()
+    expect(app.state.editor.path).toBe('platforms/harmony/config.json')
+  })
+
+  test('tab selection remembers each list position and cancellation preserves the old tab', async () => {
+    const { app } = serviceApplication()
+    app.state.documents.push({ path: 'environments/preview.json', kind: 'environment', data: { schemaVersion: 1, name: 'preview' }, revision: 'original' })
+    await press(app, 'j')
+    expect(app.activeItem().path).toBe('services/beta.json')
+    await press(app, ']')
+    expect(app.activeItem().path).toBe('environments/preview.json')
+    await press(app, '[')
+    expect(app.activeItem().path).toBe('services/beta.json')
+    await press(app, 'return')
+    app.state.editor.draft.name = 'Dirty beta'
+    await press(app, '3')
+    await press(app, ']')
+    await choose(app, 'Cancel')
+    expect(app.state.groups[2].tab).toBe(0)
+    expect(app.activeItem().path).toBe('services/beta.json')
+  })
+
+  test('search cancellation restores the filter without replacing a dirty draft', async () => {
     const { app } = serviceApplication()
     app.focusPanel('form')
     const editor = app.state.editor
     editor.draft.name = 'Unsaved'
-    await press(app, '1')
-    await press(app, 'j')
-    expect(app.state.category).toBe(3)
-    await choose(app, 'Cancel')
-    expect(app.state.category).toBe(3)
-    expect(app.state.selected).toBe(0)
-    expect(app.state.editor).toBe(editor)
-    await press(app, '2')
+    await press(app, '3')
     await press(app, '/')
     await press(app, 'paste', { text: 'beta' })
     await press(app, 'return')
-    expect(app.state.modal.title).toBe('Unsaved changes')
-    expect(app.state.search).toBe('beta')
     await choose(app, 'Cancel')
-    expect(app.state.search).toBe('')
+    expect(app.state.groups[2].searches[0]).toBe('')
     expect(app.state.editor).toBe(editor)
     await press(app, '/')
     await press(app, 'paste', { text: 'beta' })
     await press(app, 'return')
     await choose(app, 'Discard')
-    expect(app.state.search).toBe('beta')
-    expect(app.items()[app.state.selected].path).toBe('services/beta.json')
-    expect(app.state.editor).toBeNull()
+    expect(app.items().map(item => item.path)).toEqual(['services/beta.json'])
+    expect(app.activeItem().path).toBe('services/beta.json')
   })
 
-  test('confirmed new-document transitions cannot mutate the previous editor snapshot', async () => {
+  test('digits, brackets and navigation letters remain literal during field and search input', async () => {
+    const { app } = serviceApplication()
+    app.focusPanel('form')
+    await press(app, 'e')
+    for (const character of '01234[]hlnrvdjq/?') await press(app, character)
+    expect(app.state.editor.draft.name).toBe('alpha01234[]hlnrvdjq/?')
+    await press(app, 'escape')
+    await press(app, '3')
+    await press(app, '/')
+    for (const character of '01234[]hlnrvdjq/?') await press(app, character)
+    expect(app.state.modal.value).toBe('01234[]hlnrvdjq/?')
+    await press(app, 'escape')
+    expect(app.state.focus).toBe('group3')
+    expect(app.state.groups[2].searches[0]).toBe('')
+  })
+
+  test('creating a new target cannot mutate the previous snapshot', async () => {
     const { app } = serviceApplication()
     app.focusPanel('form')
     const previous = app.state.editor
     previous.draft.name = 'Retained alpha'
     newDocument(app, 'service', { name: 'gamma' })
-    expect(app.state.modal.title).toBe('Unsaved changes')
-    expect(previous.snapshot.name).toBe('alpha')
-    expect(app.state.editor).toBe(previous)
     await choose(app, 'Cancel')
     expect(app.state.editor).toBe(previous)
+    expect(previous.snapshot.name).toBe('alpha')
     newDocument(app, 'service', { name: 'gamma' })
     await choose(app, 'Save')
-    expect(app.state.documents.find(item => item.path === previous.path).data.name).toBe(
-      'Retained alpha',
-    )
+    expect(app.state.documents.find(doc => doc.path === previous.path).data.name).toBe('Retained alpha')
     expect(app.state.editor.path).toBe('services/gamma.json')
-    expect(isDirty(app.state.editor)).toBe(true)
-    expect(app.state.selected).toBe(-1)
     expect(await save(app)).toBe(true)
-    expect(app.items()[app.state.selected].path).toBe('services/gamma.json')
+    expect(app.activeItem().path).toBe('services/gamma.json')
     expect(isDirty(app.state.editor)).toBe(false)
-    expect(app.state.documents.find(item => item.path === previous.path).data.name).toBe(
-      'Retained alpha',
-    )
   })
 
-  test('Save before changing items commits only the old target and constructs the new editor later', async () => {
+  test('Enter on the final editor row commits the draft', async () => {
     const { app } = serviceApplication()
     app.focusPanel('form')
-    app.state.editor.draft.name = 'Changed alpha'
-    await press(app, '2')
-    await press(app, 'j')
-    await choose(app, 'Save')
-    expect(app.state.documents.find(item => item.path === 'services/alpha.json').data.name).toBe(
-      'Changed alpha',
-    )
-    expect(app.state.editor).toBeNull()
-    expect(app.items()[app.state.selected].path).toBe('services/beta.json')
-    await press(app, '3')
-    expect(app.state.editor.draft.name).toBe('beta')
-  })
-
-  test('digits and panel shortcuts remain literal in text and modal input', async () => {
-    const { app } = serviceApplication()
-    app.focusPanel('form')
-    await press(app, 'e')
-    for (const character of '123hlnrvdjq/?') await press(app, character)
-    expect(app.state.editor.draft.name).toBe('alpha123hlnrvdjq/?')
-    expect(app.state.focus).toBe('form')
-    expect(app.state.modal).toBeNull()
+    app.state.editor.draft.name = 'Saved from final row'
+    await press(app, 'G')
     await press(app, 'return')
-    await press(app, '2')
-    await press(app, '/')
-    for (const character of '123hlnrvdjq/?') await press(app, character)
-    expect(app.state.modal.value).toBe('123hlnrvdjq/?')
-    expect(app.state.focus).toBe('modal')
-    await press(app, 'escape')
-    expect(app.state.focus).toBe('list')
-    expect(app.state.search).toBe('')
+    expect(app.state.documents.find(doc => doc.path === 'services/alpha.json').data.name).toBe('Saved from final row')
+    expect(isDirty(app.state.editor)).toBe(false)
   })
 
-  test('j/k clamp form fields, while file and Doctor details scroll independently', async () => {
+  test('Doctor loads lazily and ignores stale async results', async () => {
     const { app } = serviceApplication()
-    app.focusPanel('form')
-    await press(app, 'k')
-    expect(app.state.editor.index).toBe(0)
-    await press(app, 'j')
-    expect(app.state.editor.index).toBe(1)
-    for (let index = 0; index < app.fields().length + 2; index++) await press(app, 'j')
-    expect(app.state.editor.index).toBe(app.fields().length)
-    expect(app.state.selected).toBe(0)
-    app.state.editor = null
-    app.state.files = ['credentials.p12', 'images/icon.png']
-    await press(app, 'k')
-    expect(app.state.detailScroll).toBe(0)
-    await press(app, 'j')
-    await press(app, 'pagedown')
-    expect(app.state.detailScroll).toBe(9)
-    expect(app.state.selected).toBe(0)
-    await press(app, 'pageup')
-    expect(app.state.detailScroll).toBe(1)
-    app.focusPanel('list')
-    await app.selectItem(1)
-    expect(app.state.selected).toBe(1)
-    expect(app.state.detailScroll).toBe(0)
-    await press(app, 'return')
-    expect(app.state.focus).toBe('form')
-    expect(app.state.editor).toBeNull()
-    expect(app.state.modal).toBeNull()
-    await press(app, 'escape')
-    await press(app, 'escape')
-    expect(app.state.files).toBeNull()
-    expect(app.state.selected).toBe(0)
-    expect(app.state.focus).toBe('nav')
-    app.state.category = 6
-    app.state.doctorLoaded = true
-    app.state.doctor = [
-      { status: 'pass', label: 'First' },
-      { status: 'missing', label: 'Second' },
-    ]
-    app.state.detailScroll = 8
-    await app.selectItem(1)
-    expect(app.state.doctorIndex).toBe(1)
-    expect(app.state.selected).toBe(0)
-    expect(app.state.detailScroll).toBe(0)
-    app.focusPanel('list')
-    await press(app, 'return')
-    expect(app.state.modal).toBeNull()
-    await press(app, 'j')
-    expect(app.state.detailScroll).toBe(1)
-    expect(app.state.doctorIndex).toBe(1)
-  })
-
-  test('Escape steps back without discarding and never quits at nav', async () => {
-    const { app, exits } = serviceApplication()
-    app.focusPanel('form')
-    app.state.editor.draft.name = 'Unsaved'
-    for (const focus of ['list', 'nav']) {
-      await press(app, 'escape')
-      expect(app.state.focus).toBe(focus)
-      expect(app.state.modal).toBeNull()
-      expect(exits).toEqual([])
-    }
-    await press(app, 'escape')
-    expect(app.state.focus).toBe('nav')
-    expect(app.state.modal).toBeNull()
-    expect(exits).toEqual([])
-    await press(app, 'q')
-    expect(app.state.modal.options[app.state.modal.index]).toBe('Cancel')
-    await choose(app, 'Cancel')
-    expect(app.state.focus).toBe('nav')
-    app.state.editor.draft = structuredClone(app.state.editor.snapshot)
-    await press(app, 'q')
-    expect(exits).toEqual([0])
-  })
-
-  test('Doctor loads lazily once, clamps selection, and ignores stale generations', async () => {
-    const { app } = serviceApplication()
-    let reads = 0
-    app.session.list = async () => {
-      reads++
-      return ['app.json']
-    }
-    app.state.doctorIndex = 20
-    app.focusPanel('nav')
     await app.selectCategory(6)
     await app.inFlight
     expect(app.state.doctorLoaded).toBe(true)
-    expect(app.state.doctorIndex).toBe(0)
     expect(app.state.doctor[0].status).toBe('pass')
-    expect(reads).toBe(1)
-    app.focusPanel('list')
-    app.focusPanel('form')
-    await app.selectCategory(5)
-    await app.selectCategory(6)
-    expect(reads).toBe(1)
     let release
-    app.session.list = () =>
-      new Promise((resolve) => {
-        release = resolve
-      })
+    app.session.list = () => new Promise((resolve) => {
+      release = resolve
+    })
     const previous = app.state.doctor
     const pending = doctor(app)
     app.generation++
     release([])
     await pending
     expect(app.state.doctor).toBe(previous)
-  })
-
-  test('persistent editors do not capture list view, create, or reload actions', async () => {
-    const { app } = serviceApplication()
-    app.focusPanel('form')
-    const editor = app.state.editor
-    await press(app, '2')
-    await press(app, 'v')
-    expect(app.state.modal).toBeNull()
-    expect(app.state.focus).toBe('list')
-    await press(app, 'a')
-    expect(app.state.modal.title).toBe('New service name')
-    await press(app, 'escape')
-    expect(app.state.editor).toBe(editor)
-    await press(app, 'r')
-    expect(app.state.focus).toBe('list')
-    expect(app.state.editor).toBeNull()
-    expect(app.items()[app.state.selected].path).toBe('services/alpha.json')
-    await press(app, '3')
-    await press(app, 'a')
-    await press(app, 'D')
-    expect(app.state.modal).toBeNull()
-    await press(app, 'enter')
-    expect(app.state.modal.detail).toBe('alpha')
-  })
-
-  test('a failed save blocks a pending target change and retains the draft', async () => {
-    const { app } = serviceApplication()
-    app.focusPanel('form')
-    const editor = app.state.editor
-    editor.draft.name = 'Retain on failure'
-    app.session.save = async () => {
-      throw Object.assign(new Error('Access denied'), { code: 'EACCES' })
-    }
-    await press(app, '2')
-    await press(app, 'j')
-    await choose(app, 'Save')
-    expect(app.state.selected).toBe(0)
-    expect(app.state.editor).toBe(editor)
-    expect(editor.draft.name).toBe('Retain on failure')
-    expect(editor.revision).toBe('original')
-    expect(app.state.error).toBe(true)
-    expect(app.state.focus).toBe('list')
   })
 })
 
@@ -663,7 +455,7 @@ describe('logical file presence', () => {
       expect(app.state.documents.find(item => item.path === 'app.json').missing).toBe(false)
       await app.selectCategory(4)
       const path = 'environments/development.json'
-      app.state.selected = app.items().findIndex(item => item.path === path)
+      await app.selectItem(app.items().findIndex(item => item.path === path), 3, 1)
       const examplePath = join(project, '.lazyapp', `${path}.example`)
       const example = await fs.readFile(examplePath, 'utf8')
       expect(app.items()[app.state.selected]).toMatchObject({
@@ -675,10 +467,10 @@ describe('logical file presence', () => {
       await press(app, 'return')
       expect(app.state.editor.draft).toEqual({ schemaVersion: 1, name: 'development' })
       expect(isDirty(app.state.editor)).toBe(false)
-      await press(app, '2')
+      await press(app, '3')
       await press(app, 'j')
       expect(app.state.modal).toBeNull()
-      app.state.selected = app.items().findIndex(item => item.path === path)
+      await app.selectItem(app.items().findIndex(item => item.path === path), 3, 1)
       await press(app, 'return')
       app.state.editor.draft.apiUrl = 'https://example.test'
       await press(app, 's')
@@ -690,7 +482,7 @@ describe('logical file presence', () => {
         apiUrl: 'https://example.test',
       })
       expect(await fs.readFile(examplePath, 'utf8')).toBe(example)
-      await press(app, '2')
+      await press(app, '3')
       await press(app, 'D')
       await choose(app, 'Delete file')
       expect(app.items().find(item => item.path === path).missing).toBe(true)
@@ -720,7 +512,7 @@ describe('logical file presence', () => {
       const bytes = new Uint8Array([0, 255, 11, 42])
       await fs.writeFile(source, bytes)
       await showFiles(app)
-      app.state.selected = app.items().findIndex(item => item.path === path)
+      await app.selectItem(app.items().findIndex(item => item.path === path), 4, 0)
       expect(app.items()[app.state.selected].missing).toBe(true)
       const example = await fs.readFile(join(project, '.lazyapp', `${path}.example`), 'utf8')
       await press(app, 'return')
@@ -756,7 +548,7 @@ describe('logical file presence', () => {
       const path = 'platforms/ios/development/credentials.example'
       await fs.writeFile(join(project, '.lazyapp', path), 'Instructions only')
       await showFiles(app)
-      app.state.selected = app.items().findIndex(item => item.path === path.slice(0, -8))
+      await app.selectItem(app.items().findIndex(item => item.path === path.slice(0, -8)), 4, 0)
       expect(app.items()[app.state.selected]).toMatchObject({
         missing: true,
         instructionOnly: true,

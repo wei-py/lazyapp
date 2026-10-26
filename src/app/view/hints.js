@@ -1,5 +1,5 @@
 import { hintSegments } from '../../config/i18n.js'
-import { CATEGORIES } from '../state.js'
+import { focusedGroup } from '../state.js'
 
 export function keyHints(s) {
   return hintSegments(s.language, hintId(s))
@@ -20,11 +20,10 @@ function hintId(s) {
     return 'editor'
   if (s.focus === 'form')
     return 'preview'
-  if (s.focus === 'nav')
-    return 'nav'
-  if (s.files)
+  const group = focusedGroup(s)
+  if (group === 4 && s.groups[3].tab === 0)
     return 'files'
-  if (CATEGORIES[s.category] === 'Doctor')
+  if (group === 4)
     return 'doctor'
   return 'list'
 }

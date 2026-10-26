@@ -12,7 +12,7 @@ import {
 } from '../features/workspace.js'
 import { loadPreferences, savePreferences } from '../storage/preferences.js'
 import { copy } from './clipboard.js'
-import { confirm, createDocument, leave, open, prompt, save } from './documents.js'
+import { confirm, createDocument, leave, prompt, save } from './documents.js'
 import { deleteSelected, filePicker, openFile, showFiles } from './files.js'
 import {
   doctor,
@@ -29,6 +29,9 @@ import {
   closeModal,
   editDocument,
   fieldValue,
+  focusedGroup,
+  GROUP_TABS,
+  isNavigation,
   layoutMode,
   openModal,
   setField,
@@ -53,7 +56,13 @@ export class Application {
       documents: [],
       category: 0,
       selected: 0,
-      focus: 'list',
+      focus: 'group1',
+      lastGroup: 1,
+      activeGroup: 1,
+      groups: Array.from({ length: 4 }, () => ({ tab: 0, indices: [0, 0, 0], searches: ['', '', ''] })),
+      expanded: [],
+      target: null,
+      managedFiles: [],
       editor: null,
       modal: null,
       status: 'Reading workspace…',
@@ -96,19 +105,50 @@ export class Application {
     })
   }
 
-  items() {
+  groupItems(group, tab = this.state.groups[group - 1].tab, search) {
     const s = this.state
-    const category = CATEGORIES[s.category]
-    if (s.files) {
-      return logicalFiles(s.files).filter(item =>
-        item.path.toLowerCase().includes(s.search.toLowerCase()),
-      )
+    const query = (search ?? s.groups[group - 1].searches[tab]).toLowerCase()
+    const matches = item => item.path?.toLowerCase().includes(query)
+    if (group === 4) {
+      return tab === 1
+        ? s.doctor.map((entry, index) => ({ ...entry, doctor: true, id: `doctor:${index}` }))
+        : logicalFiles(s.files || s.managedFiles).filter(matches)
     }
-    return s.documents.filter(
-      doc =>
-        categoryFor(doc.kind) === category
-        && doc.path.toLowerCase().includes(s.search.toLowerCase()),
-    )
+    if (group === 1)
+      return s.documents.filter(doc => ['app', 'assets'].includes(doc.kind) && matches(doc))
+    if (group === 3) {
+      const category = GROUP_TABS[2][tab]
+      return s.documents.filter(doc => categoryFor(doc.kind) === category && matches(doc))
+    }
+    const documents = s.documents
+      .filter(doc => categoryFor(doc.kind) === 'Platforms')
+      .toSorted((a, b) => a.kind.localeCompare(b.kind) || Number(Boolean(identifyDocument(a.path)?.environment)) - Number(Boolean(identifyDocument(b.path)?.environment)) || a.path.localeCompare(b.path))
+    const kinds = [...new Set(documents.map(doc => doc.kind))]
+    return kinds.flatMap((kind) => {
+      const children = documents.filter(doc => doc.kind === kind && matches(doc))
+      if (query && !children.length)
+        return []
+      return [
+        { node: true, kind, path: `platform:${kind}` },
+        ...(s.expanded.includes(kind) || query ? children : []),
+      ]
+    })
+  }
+
+  items() {
+    return this.groupItems(this.state.activeGroup, this.state.activeTab ?? 0, this.state.search)
+  }
+
+  activeItem() {
+    return this.state.target || this.items()[this.state.selected]
+  }
+
+  isDoctor() {
+    return this.state.activeGroup === 4 && this.state.activeTab === 1
+  }
+
+  isFiles() {
+    return this.state.activeGroup === 4 && this.state.activeTab === 0
   }
 
   update() {
@@ -137,68 +177,124 @@ export class Application {
 
   focusPanel(focus) {
     const s = this.state
-    if (focus === 'nav' && s.files) {
-      s.files = null
-      s.selected = 0
-      s.search = ''
-      s.editor = null
-      s.detailScroll = 0
-    }
     s.focus = focus
+    if (isNavigation(focus))
+      s.lastGroup = Number(focus.slice(-1))
     if (focus === 'form' && !s.editor) {
-      const item = this.items()[s.selected]
-      if (item && !item.file)
+      const item = this.activeItem()
+      if (item && !item.file && !item.node && !item.doctor)
         s.editor = editDocument(item)
     }
-    if (CATEGORIES[s.category] === 'Doctor' && !s.files && !s.doctorLoaded && this.session)
-      void doctor(this)
     this.update()
   }
 
   cyclePanel(delta) {
-    const panels = ['nav', 'list', 'form']
-    this.focusPanel(
-      panels[(panels.indexOf(this.state.focus) + delta + panels.length) % panels.length],
-    )
+    const panels = ['group1', 'group2', 'group3', 'group4', 'form']
+    this.focusPanel(panels[(panels.indexOf(this.state.focus) + delta + panels.length) % panels.length])
   }
 
-  selectItem(index) {
+  selectItem(index, group = focusedGroup(this.state), tab = this.state.groups[group - 1].tab, after, onCancel) {
     const s = this.state
-    const doctor = CATEGORIES[s.category] === 'Doctor' && !s.files
-    if (index === (doctor ? s.doctorIndex : s.selected))
-      return
-    const path = this.items()[index]?.path
-    return leave(this, () => {
-      s.editor = null
-      s.detailScroll = 0
-      if (doctor) {
-        s.doctorIndex = index
+    const navigation = s.groups[group - 1]
+    const item = this.groupItems(group, tab)[index]
+    if (item?.node) {
+      navigation.tab = tab
+      navigation.indices[tab] = index
+      this.update()
+      return after?.(item)
+    }
+    const same = s.activeGroup === group && (s.activeTab ?? 0) === tab
+      && (this.activeItem()?.path || this.activeItem()?.id) === (item?.path || item?.id)
+    const apply = () => {
+      navigation.tab = tab
+      navigation.indices[tab] = index
+      s.activeGroup = group
+      s.activeTab = tab
+      s.selected = index
+      s.search = navigation.searches[tab]
+      s.target = item || null
+      if (!same) {
+        s.editor = null
+        s.detailScroll = 0
+      }
+      if (group === 4) {
+        s.files = tab === 0 ? s.managedFiles : null
+        if (tab === 1 && !s.doctorLoaded && this.session)
+          void doctor(this)
       }
       else {
-        s.selected = Math.max(
-          0,
-          this.items().findIndex(item => item.path === path),
-        )
+        s.files = null
+        if (item)
+          s.category = CATEGORIES.indexOf(categoryFor(item.kind))
+        else if (group === 3)
+          s.category = CATEGORIES.indexOf(GROUP_TABS[2][tab])
       }
+      if (item?.doctor)
+        s.doctorIndex = index
+      after?.(item)
       this.update()
-    })
+    }
+    return same ? apply() : leave(this, apply, onCancel)
   }
 
   selectCategory(index) {
+    const category = CATEGORIES[index]
+    const group = index < 2 ? 1 : index === 2 ? 2 : index === 6 ? 4 : 3
+    const tab = group === 3 ? index - 3 : group === 4 ? 1 : 0
+    this.focusPanel(`group${group}`)
+    const items = this.groupItems(group, tab)
+    const selected = group === 1 ? items.findIndex(item => categoryFor(item.kind) === category) : 0
+    return this.selectItem(Math.max(0, selected), group, tab)
+  }
+
+  locateDocument(document) {
     const s = this.state
-    if (index === s.category && !s.files)
+    const category = categoryFor(document.kind)
+    const group = ['App', 'Assets'].includes(category) ? 1 : category === 'Platforms' ? 2 : 3
+    const tab = group === 3 ? GROUP_TABS[2].indexOf(category) : 0
+    if (group === 2 && !s.expanded.includes(document.kind))
+      s.expanded.push(document.kind)
+    s.activeGroup = group
+    s.activeTab = tab
+    s.lastGroup = group
+    s.groups[group - 1].tab = tab
+    s.groups[group - 1].searches[tab] = ''
+    s.search = ''
+    s.files = null
+    s.category = CATEGORIES.indexOf(category)
+    s.selected = this.items().findIndex(item => item.path === document.path)
+    s.groups[group - 1].indices[tab] = Math.max(0, s.selected)
+    s.target = document
+  }
+
+  navigateHorizontal(forward) {
+    const s = this.state
+    if (s.focus === 'form') {
+      if (!forward)
+        this.focusPanel(`group${s.lastGroup}`)
       return
-    return leave(this, () => {
-      s.editor = null
-      s.files = null
-      s.category = index
-      s.selected = 0
-      s.search = ''
-      s.detailScroll = 0
-      if (CATEGORIES[index] === 'Doctor' && !s.doctorLoaded && this.session)
-        void doctor(this)
-      this.update()
-    })
+    }
+    const group = focusedGroup(s)
+    const navigation = s.groups[group - 1]
+    const index = navigation.indices[navigation.tab]
+    const item = this.groupItems(group)[index]
+    if (group === 2 && item) {
+      const expanded = s.expanded.includes(item.kind)
+      if (item.node && (forward !== expanded)) {
+        s.expanded = forward ? [...s.expanded, item.kind] : s.expanded.filter(kind => kind !== item.kind)
+        this.update()
+        return
+      }
+      if (!forward && !item.node) {
+        navigation.indices[0] = this.groupItems(2).findIndex(row => row.node && row.kind === item.kind)
+        this.update()
+        return
+      }
+      if (item.node)
+        return
+    }
+    if (forward)
+      this.selectItem(index, group, navigation.tab, () => this.focusPanel('form'))
   }
 
   #cycleSetting(modal, delta) {
@@ -366,9 +462,8 @@ export class Application {
       return
     }
     if (name === 'escape') {
-      // Esc steps back one panel; at the categories panel it stops — q quits.
-      if (s.focus !== 'nav')
-        this.focusPanel(s.focus === 'form' ? 'list' : 'nav')
+      if (s.focus === 'form')
+        this.focusPanel(`group${s.lastGroup}`)
       return
     }
     if (name === 'x') {
@@ -385,62 +480,47 @@ export class Application {
       return
     }
     if (!key.ctrl && !key.meta && !key.shift) {
-      if (['1', '2', '3'].includes(name)) {
-        this.focusPanel(['nav', 'list', 'form'][Number(name) - 1])
+      if (['0', '1', '2', '3', '4'].includes(name)) {
+        this.focusPanel(name === '0' ? 'form' : `group${name}`)
         return
       }
       if (['h', 'left', 'l', 'right'].includes(name)) {
-        this.cyclePanel(['h', 'left'].includes(name) ? -1 : 1)
+        this.navigateHorizontal(['l', 'right'].includes(name))
         return
       }
       if (name === '[' || name === ']') {
-        const step = name === ']' ? 1 : -1
-        this.selectCategory((s.category + step + CATEGORIES.length) % CATEGORIES.length)
+        const group = focusedGroup(s)
+        const navigation = s.groups[group - 1]
+        const tabs = group >= 3 ? GROUP_TABS[group - 1].length : 1
+        if (tabs > 1) {
+          const tab = (navigation.tab + (name === ']' ? 1 : -1) + tabs) % tabs
+          this.selectItem(navigation.indices[tab], group, tab)
+        }
         return
       }
     }
-    if ((name === '/' || key.text === '/') && ['nav', 'list'].includes(s.focus)) {
-      // Local-only path filter: typing filters instantly, Esc restores the list.
-      if (s.focus === 'nav')
-        this.focusPanel('list')
-      const previous = {
-        search: s.search,
-        selected: s.selected,
-        detailScroll: s.detailScroll,
-      }
+    if ((name === '/' || key.text === '/') && isNavigation(s.focus)) {
+      const group = focusedGroup(s)
+      const navigation = s.groups[group - 1]
+      const tab = navigation.tab
+      const previous = { search: navigation.searches[tab], index: navigation.indices[tab] }
       const restore = () => {
-        s.search = previous.search
-        s.selected = previous.selected
-        s.detailScroll = previous.detailScroll
+        navigation.searches[tab] = previous.search
+        navigation.indices[tab] = previous.index
         this.update()
       }
       prompt(
         this,
         'Search document paths (secrets excluded)',
-        async (value) => {
-          if (value === previous.search)
-            return
-          await leave(
-            this,
-            () => {
-              s.search = value
-              s.selected = 0
-              s.editor = null
-              s.detailScroll = 0
-              this.update()
-            },
-            restore,
-          )
-        },
-        s.search,
+        () => this.selectItem(0, group, tab, undefined, restore),
+        previous.search,
         '',
         {
           search: true,
           restore,
           onInput: (value) => {
-            s.search = value
-            s.selected = 0
-            s.detailScroll = 0
+            navigation.searches[tab] = value
+            navigation.indices[tab] = 0
             this.update()
           },
         },
@@ -464,7 +544,7 @@ export class Application {
             s.status = this.t('Reloaded disk version. You can edit and save again.')
           }))
       }
-      else if (CATEGORIES[s.category] === 'Doctor' && !s.files) {
+      else if (focusedGroup(s) === 4 && s.groups[3].tab === 1) {
         void doctor(this)
       }
       else {
@@ -476,12 +556,21 @@ export class Application {
       void showFiles(this)
       return
     }
-    if (name === 'a' && ['nav', 'list'].includes(s.focus) && this.session && !s.files) {
-      createDocument(this)
+    if (name === 'a' && isNavigation(s.focus) && this.session && focusedGroup(s) !== 4) {
+      const group = focusedGroup(s)
+      const category = group === 1
+        ? categoryFor(this.groupItems(1)[s.groups[0].indices[0]]?.kind) || 'App'
+        : GROUP_TABS[group - 1][s.groups[group - 1].tab]
+      createDocument(this, category)
       return
     }
-    if (name === 'D' && s.focus === 'list' && this.session) {
-      deleteSelected(this)
+    if (name === 'D' && isNavigation(s.focus) && this.session) {
+      const group = focusedGroup(s)
+      const navigation = s.groups[group - 1]
+      const item = this.groupItems(group)[navigation.indices[navigation.tab]]
+      if (!item || item.node || item.doctor)
+        return
+      this.selectItem(navigation.indices[navigation.tab], group, navigation.tab, () => deleteSelected(this))
       return
     }
     if (name === 's') {
@@ -523,39 +612,38 @@ export class Application {
       return
     }
     if (['return', 'enter'].includes(name)) {
-      if (s.focus === 'nav') {
-        this.focusPanel('list')
-      }
-      else if (s.focus === 'list') {
-        const item = this.items()[s.selected]
-        if (item?.file && (item.missing || identifyDocument(item.path)))
-          openFile(this, item)
-        else this.focusPanel('form')
-      }
-      else if (s.focus === 'form' && editor) {
-        // Enter expands the full non-secret value; `e` edits it.
-        const field = this.fields()[editor.index]
-        if (field && field.type !== 'secret')
-          confirm(this, field.label, ['Close'], () => {}, fieldValue(editor, field))
-      }
-      else if (CATEGORIES[s.category] === 'Doctor' && !s.files) {
-        const item = s.doctor[s.doctorIndex]
-        if (item) {
-          confirm(
-            this,
-            this.t(item.status),
-            ['Close'],
-            () => {},
-            `${doctorLabel(item, s.language)}\n${item.path || ''}`,
-          )
+      if (isNavigation(s.focus)) {
+        const group = focusedGroup(s)
+        const navigation = s.groups[group - 1]
+        const index = navigation.indices[navigation.tab]
+        const item = this.groupItems(group)[index]
+        if (item?.node) {
+          s.expanded = s.expanded.includes(item.kind)
+            ? s.expanded.filter(kind => kind !== item.kind)
+            : [...s.expanded, item.kind]
+        }
+        else {
+          this.selectItem(index, group, navigation.tab, (selected) => {
+            if (selected?.file && (selected.missing || identifyDocument(selected.path)))
+              openFile(this, selected)
+            else this.focusPanel('form')
+          })
         }
       }
-      else {
-        const item = this.items()[s.selected]
-        if (item?.file)
-          openFile(this, item)
-        else if (item)
-          open(this, item)
+      else if (s.focus === 'form' && editor) {
+        const field = this.fields()[editor.index]
+        if (!field)
+          void save(this)
+        else if (field.type !== 'secret')
+          confirm(this, field.label, ['Close'], () => {}, fieldValue(editor, field))
+      }
+      else if (this.isDoctor()) {
+        const item = this.activeItem()
+        if (item)
+          confirm(this, this.t(item.status), ['Close'], () => {}, `${doctorLabel(item, s.language)}\n${item.path || ''}`)
+      }
+      else if (this.activeItem()?.file) {
+        openFile(this, this.activeItem())
       }
       this.update()
       return
@@ -579,15 +667,17 @@ export class Application {
         : edge === 'last'
           ? Math.max(0, count - 1)
           : Math.max(0, Math.min(count - 1, index + delta))
-    if (s.focus === 'nav')
-      this.selectCategory(move(s.category, CATEGORIES.length))
-    else if (s.focus === 'form' && editor)
+    if (s.focus === 'form' && editor) {
       editor.index = move(editor.index, this.fields().length + 1)
-    else if (s.focus === 'form')
+    }
+    else if (s.focus === 'form') {
       s.detailScroll = edge === 'first' ? 0 : Math.max(0, s.detailScroll + delta)
-    else if (CATEGORIES[s.category] === 'Doctor' && !s.files)
-      this.selectItem(move(s.doctorIndex, s.doctor.length))
-    else this.selectItem(move(s.selected, this.items().length))
+    }
+    else {
+      const group = focusedGroup(s)
+      const navigation = s.groups[group - 1]
+      this.selectItem(move(navigation.indices[navigation.tab], this.groupItems(group).length), group)
+    }
     this.update()
   }
 

@@ -2,23 +2,23 @@ import process from 'node:process'
 import { fg, StyledText, TextRenderable } from '@opentui/core'
 import stringWidth from 'string-width'
 import { JOB_GLYPH } from '../../vendor/lazy-kit/jobs.js'
-import { themeName } from '../../vendor/lazy-kit/themes.js'
+import { DEFAULT_THEME, themeName } from '../../vendor/lazy-kit/themes.js'
 import { LANGUAGES, t } from '../config/i18n.js'
-import { isDirty, layoutMode } from './state.js'
+import { focusedGroup, isDirty, layoutMode } from './state.js'
 import { COLORS, setTheme } from './view/colors.js'
 import { keyHints } from './view/hints.js'
-import { detailContent, listContent, navContent } from './view/panels.js'
+import { detailContent, groupContent } from './view/panels.js'
 import { clipColumns, editingValue, padColumns, wrap } from './view/primitives.js'
 
-const PANEL_IDS = ['nav', 'list', 'detail']
-const PANEL_FOCUS = { nav: 'nav', list: 'list', detail: 'form' }
-const JOB_ROWS = 3
+const PANEL_IDS = ['group1', 'group2', 'group3', 'group4', 'detail']
+const PANEL_FOCUS = { group1: 'group1', group2: 'group2', group3: 'group3', group4: 'group4', detail: 'form' }
+const JOB_ROWS = 2
 // Modal nodes are created last so an open dialog paints above every panel.
 const NODE_IDS = [
   'keys',
   'message',
   'header',
-  ...['nav', 'list', 'detail', 'status', 'modal'].flatMap(id => [
+  ...[...PANEL_IDS, 'status', 'modal'].flatMap(id => [
     `${id}Frame`,
     `${id}Inner`,
     `${id}Selection`,
@@ -27,6 +27,11 @@ const NODE_IDS = [
 
 /** Stable native renderables; only visible rows are constructed on each state change. */
 export function createView(renderer) {
+  let detectedMode = renderer.themeMode === 'light' ? 'light' : 'dark'
+  let lastState
+  let lastApp
+  let background
+  setTheme(DEFAULT_THEME, detectedMode)
   const nodes = {}
   const border
     = process.env.TERM === 'dumb'
@@ -121,7 +126,7 @@ export function createView(renderer) {
       top + 1,
       innerWidth,
       innerHeight,
-      content.lines.map(line => ` ${line}`),
+      content.lines,
       color,
       background,
       content.colors,
@@ -137,8 +142,8 @@ export function createView(renderer) {
         top + 1 + content.selected,
         innerWidth,
         1,
-        [padColumns(` ${content.lines[content.selected]}`, innerWidth)],
-        COLORS.selectionText,
+        [padColumns(content.lines[content.selected], innerWidth)],
+        content.colors?.[content.selected] || COLORS.selectionText,
         COLORS.selection,
       )
     }
@@ -146,7 +151,7 @@ export function createView(renderer) {
   /** `[n] Title (count)`: number follows render order, focus owns title + border color. */
   function panel(id, left, top, width, height, content, s) {
     const focused = PANEL_FOCUS[id] === s.focus
-    const number = PANEL_IDS.indexOf(id) + 1
+    const number = id === 'detail' ? 0 : Number(id.slice(-1))
     const innerWidth = width - 2
     const prefix = `[${number}] `
     const suffix = content.count === undefined ? '' : ` (${content.count})`
@@ -204,17 +209,23 @@ export function createView(renderer) {
     node.content = new StyledText(segments.map(segment => fg(segment.color)(segment.text)))
   }
   function panelContent(id, s, app, rows, width) {
-    if (id === 'nav')
-      return navContent(s, rows)
-    if (id === 'list')
-      return listContent(s, app, rows)
-    return detailContent(s, app, rows, width)
+    return id === 'detail'
+      ? detailContent(s, app, rows, width)
+      : groupContent(s, app, Number(id.slice(-1)), rows)
   }
-  return (s, app) => {
+  function render(s, app) {
+    if (renderer.isDestroyed)
+      return
+    lastState = s
+    lastApp = app
     s.width = renderer.width
     s.height = renderer.height
     const { width, height } = s
-    setTheme(s.theme)
+    setTheme(s.theme, detectedMode)
+    if (background !== COLORS.background) {
+      background = COLORS.background
+      renderer.setBackgroundColor(background)
+    }
     const mode = layoutMode(width, height)
     for (const node of Object.values(nodes)) node.visible = false
     if (mode === 'small') {
@@ -237,130 +248,66 @@ export function createView(renderer) {
     }
     const activeJobs = s.jobs.filter(job => job.state === 'running' || job.state === 'queued')
     const settledJobs = s.jobs.filter(job => job.state !== 'running' && job.state !== 'queued')
-    const shownJobs = [
-      ...activeJobs,
-      ...settledJobs.slice(Math.max(0, settledJobs.length - 1)),
-    ].slice(0, JOB_ROWS)
-    // The status message is the bar's primary content (save/copy/error feedback);
-    // cap it at two wrapped lines so a long error cannot squeeze the panels away.
-    const noticeLines = wrap(s.status, width - 3).slice(0, 2)
-    const statusHeight = 4 + shownJobs.length + noticeLines.length
-    const hiddenJobs = s.jobs.length - shownJobs.length
-    const statusActive = activeJobs.length > 0
-    const stateText = statusActive
-      ? `${t(s.language, '{count} active', { count: activeJobs.length })}${hiddenJobs > 0 ? ` +${hiddenJobs}` : ''}`
-      : s.checking
-        ? t(s.language, 'checking…')
-        : t(s.language, 'idle')
-    const logs = app.runner.log()
-    const lastLog = logs.length > 0 ? logs[logs.length - 1] : ''
-    const jobColor = {
-      queued: COLORS.muted,
-      running: COLORS.warning,
-      done: COLORS.present,
-      failed: COLORS.warning,
-      canceled: COLORS.muted,
-    }
+    const shownJobs = [...activeJobs, ...settledJobs.slice(-1)].slice(0, JOB_ROWS)
+    const noticeLines = wrap(`${s.error ? `${t(s.language, 'Error')}: ` : ''}${s.status}`, width).slice(0, 2)
+    const stateText = activeJobs.length
+      ? t(s.language, '{count} active', { count: activeJobs.length })
+      : t(s.language, s.checking ? 'checking…' : 'idle')
     const jobLines = shownJobs.map((job) => {
-      let detail = job.lastLine
-      if (job.state === 'queued')
-        detail = t(s.language, 'waiting for other jobs')
-      if (job.endedAt !== null && job.startedAt !== null) {
-        const seconds = `${Math.max(1, Math.round((job.endedAt - job.startedAt) / 1000))}s`
-        if (job.state === 'canceled')
-          detail = t(s.language, 'canceled · {seconds}', { seconds })
-        else if (job.state === 'failed' && job.exitCode === null)
-          detail = job.lastLine
-        else detail = t(s.language, 'exit {code} · {seconds}', { code: job.exitCode, seconds })
-      }
-      return `${JOB_GLYPH[job.state]} ${job.label}  ${detail}`
+      const detail = job.state === 'queued'
+        ? t(s.language, 'waiting for other jobs')
+        : job.endedAt !== null && job.startedAt !== null
+          ? job.state === 'canceled'
+            ? t(s.language, 'canceled · {seconds}', { seconds: `${Math.max(1, Math.round((job.endedAt - job.startedAt) / 1000))}s` })
+            : t(s.language, 'exit {code} · {seconds}', { code: job.exitCode, seconds: `${Math.max(1, Math.round((job.endedAt - job.startedAt) / 1000))}s` })
+          : job.lastLine
+      return `${JOB_GLYPH[job.state]} ${job.label} ${detail} · ${stateText}`
     })
-    const logColor = statusActive ? COLORS.warning : COLORS.muted
-    const stateColor = statusActive ? COLORS.warning : s.error ? COLORS.error : COLORS.muted
+    const feedback = [...jobLines, ...noticeLines]
+    const feedbackHeight = Math.max(1, feedback.length)
+    const panelHeight = height - feedbackHeight - 2
+    const group = focusedGroup(s)
     renderHeader(s, width)
+    const drawPanel = (id, left, top, panelWidth, panelRows) => panel(
+      id,
+      left,
+      top,
+      panelWidth,
+      panelRows,
+      panelContent(id, s, app, Math.max(1, panelRows - 2), panelWidth - 2),
+      s,
+    )
     if (mode === 'dual') {
-      // 1:2:2 nav:list:detail columns; the nav floor keeps `[1] Title (count)` intact.
-      const navWidth = Math.max(23, Math.floor((width - 2) / 5))
-      const listWidth = Math.floor((width - navWidth - 2) / 2)
-      const detailLeft = navWidth + listWidth + 2
-      const detailWidth = width - detailLeft
-      const panelHeight = height - statusHeight - 2
-      const rows = Math.max(1, panelHeight - 2)
-      panel('nav', 1, 1, navWidth, panelHeight, navContent(s, rows), s)
-      panel('list', navWidth + 1, 1, listWidth, panelHeight, listContent(s, app, rows), s)
-      panel(
-        'detail',
-        detailLeft,
-        1,
-        detailWidth,
-        panelHeight,
-        detailContent(s, app, rows, detailWidth - 3),
-        s,
-      )
-      box(
-        'status',
-        0,
-        height - statusHeight - 1,
-        width,
-        statusHeight,
-        {
-          title: t(s.language, !statusActive && s.error ? 'Error' : 'Status'),
-          lines: [stateText, ...jobLines, lastLog ? `» ${lastLog}` : '', ...noticeLines],
-          colors: [
-            stateColor,
-            ...shownJobs.map(job => jobColor[job.state]),
-            logColor,
-            ...noticeLines.map(() => (s.error ? COLORS.error : COLORS.muted)),
-          ],
-        },
-        statusActive ? COLORS.warning : COLORS.border,
-        COLORS.text,
-        COLORS.background,
-        statusActive ? COLORS.warning : !s.error ? COLORS.muted : COLORS.error,
-      )
+      const leftWidth = Math.floor(width * 0.33)
+      let top = 1
+      for (let index = 1; index <= 4; index++) {
+        const size = index === group ? panelHeight - 9 : 3
+        drawPanel(`group${index}`, 0, top, leftWidth, size)
+        top += size
+      }
+      drawPanel('detail', leftWidth, 1, width - leftWidth, panelHeight)
+    }
+    else if (width >= 80) {
+      const leftWidth = Math.max(25, Math.floor(width * 0.33))
+      drawPanel(`group${group}`, 0, 1, leftWidth, panelHeight)
+      drawPanel('detail', leftWidth, 1, width - leftWidth, panelHeight)
     }
     else {
-      const panelTop = 1
-      const panelHeight = height - 3
-      const focus = s.modal?.returnFocus || s.focus
-      const focusId = PANEL_IDS.find(id => PANEL_FOCUS[id] === focus) || 'detail'
-      const previewId = focusId === 'detail' ? 'list' : 'detail'
-      const topHeight = Math.max(
-        4,
-        Math.min(
-          panelHeight - 4,
-          focus === 'form' ? Math.floor(panelHeight * 0.66) : Math.floor(panelHeight * 0.55),
-        ),
-      )
-      const bottomHeight = panelHeight - topHeight
-      panel(
-        focusId,
-        0,
-        panelTop,
-        width,
-        topHeight,
-        panelContent(focusId, s, app, Math.max(1, topHeight - 2), width - 3),
-        s,
-      )
-      panel(
-        previewId,
-        0,
-        panelTop + topHeight,
-        width,
-        bottomHeight,
-        panelContent(previewId, s, app, Math.max(1, bottomHeight - 2), width - 3),
-        s,
-      )
-      show(
-        'message',
-        0,
-        height - 2,
-        width,
-        1,
-        [`${stateText}${s.status ? ` » ${s.status}` : ''}`],
-        stateColor,
-      )
+      const navHeight = Math.min(5, Math.max(3, Math.floor(panelHeight * 0.3)))
+      drawPanel(`group${group}`, 0, 1, width, navHeight)
+      drawPanel('detail', 0, 1 + navHeight, width, panelHeight - navHeight)
     }
+    show(
+      'message',
+      0,
+      height - feedbackHeight - 1,
+      width,
+      feedbackHeight,
+      feedback.length ? feedback : [stateText],
+      COLORS.muted,
+      COLORS.background,
+      [...shownJobs.map(job => job.state === 'failed' ? COLORS.error : job.state === 'running' ? COLORS.warning : COLORS.muted), ...noticeLines.map(() => s.error ? COLORS.error : COLORS.muted)],
+    )
     const keysNode = nodes.keys
     keysNode.visible = true
     Object.assign(keysNode, {
@@ -375,7 +322,7 @@ export function createView(renderer) {
     const parts = []
     for (const [i, chip] of hint.entries()) {
       if (i)
-        parts.push({ text: '  ·  ', color: COLORS.border })
+        parts.push({ text: ' · ', color: COLORS.border })
       parts.push({ text: chip.key, color: COLORS.focus })
       if (chip.desc)
         parts.push({ text: ` ${chip.desc}`, color: COLORS.muted })
@@ -439,6 +386,21 @@ export function createView(renderer) {
     }
     renderer.requestRender()
   }
+  function onThemeMode(mode) {
+    const nextMode = mode === 'light' ? 'light' : 'dark'
+    if (nextMode === detectedMode)
+      return
+    detectedMode = nextMode
+    if (lastState)
+      render(lastState, lastApp)
+  }
+  renderer.on('theme_mode', onThemeMode)
+  renderer.once('destroy', () => {
+    renderer.off('theme_mode', onThemeMode)
+    lastState = undefined
+    lastApp = undefined
+  })
+  return render
 }
 
 /** Settings popup rows: `Language: 中文` and `Theme: <display name>`. */
@@ -447,6 +409,6 @@ function settingRow(s, row, width) {
   const value
     = row === 0
       ? (LANGUAGES.find(item => item.id === s.language)?.label ?? s.language)
-      : themeName(s.theme)
+      : t(s.language, themeName(s.theme))
   return clipColumns(`${label}: ${value}`, width)
 }

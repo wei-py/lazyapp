@@ -2,8 +2,6 @@ import { documentPath, isSafeName } from '../config/model.js'
 import { safeErrorMessage, saveDocument } from '../features/workspace.js'
 import { invalidateDoctor, operation } from './operations.js'
 import {
-  CATEGORIES,
-  categoryFor,
   editDocument,
   isDirty,
   openModal,
@@ -72,9 +70,8 @@ export function open(app, document, fresh = false) {
     s.editor = editDocument(document)
     if (fresh)
       s.editor.snapshot = null
-    s.files = null
-    s.category = CATEGORIES.indexOf(categoryFor(document.kind))
-    s.selected = app.items().findIndex(item => item.path === document.path)
+    app.locateDocument(document)
+    s.lastGroup = s.activeGroup
     s.focus = 'form'
     s.detailScroll = 0
     app.update()
@@ -109,9 +106,11 @@ export async function save(app) {
       if (app.state.files && !app.state.files.includes(editor.path))
         app.state.files.push(editor.path)
       invalidateDoctor(app)
-      app.state.category = CATEGORIES.indexOf(categoryFor(editor.kind))
-      if (!app.items().some(item => item.path === editor.path))
+      app.state.target = document
+      if (!app.items().some(item => item.path === editor.path)) {
         app.state.search = ''
+        app.state.groups[app.state.activeGroup - 1].searches[app.state.activeTab ?? 0] = ''
+      }
       app.state.selected = app.items().findIndex(item => item.path === editor.path)
       app.state.status = app.t('Saved {path}. Doctor can check completeness.', {
         path: editor.path,
@@ -122,8 +121,7 @@ export async function save(app) {
   return success
 }
 
-export function createDocument(app) {
-  const category = CATEGORIES[app.state.category]
+export function createDocument(app, category) {
   if (category === 'App' || category === 'Assets') {
     const kind = category.toLowerCase()
     const path = documentPath(kind)

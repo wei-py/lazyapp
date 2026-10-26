@@ -1,29 +1,45 @@
 /**
- * Terminal palettes. Four popular families (Gruvbox, Catppuccin, Tokyo Night,
- * Solarized), each shipped dark and light, plus the built-in default look.
- * `background: null` paints nothing so the terminal shows through (lazyaur's
- * default look); `surface` fills dialogs so they stay readable over panels.
- * Every palette carries the same semantic keys so the view never branches on theme.
+ * Terminal palettes. The persisted `default` choice follows the terminal mode;
+ * named palettes stay fixed. Auto palettes are opaque so an unknown terminal
+ * background cannot undermine contrast. Every palette has the same semantic keys.
  */
+const AUTO_DARK = {
+  background: '#151922',
+  surface: '#202633',
+  text: '#e6edf3',
+  muted: '#b0bac8',
+  border: '#66768e',
+  focus: '#9dc5ff',
+  selection: '#303c50',
+  selectionText: '#e6edf3',
+  warning: '#f3d28a',
+  error: '#ff9eaa',
+  present: '#a3df9b',
+  aur: '#d9b8ff',
+  repo: '#9dc5ff',
+}
+
+const AUTO_LIGHT = {
+  background: '#f8fafc',
+  surface: '#f0f4f8',
+  text: '#172436',
+  muted: '#45566c',
+  border: '#68798f',
+  focus: '#124fa3',
+  selection: '#dbe7f5',
+  selectionText: '#172436',
+  warning: '#785000',
+  error: '#9e1630',
+  present: '#1b6537',
+  aur: '#653098',
+  repo: '#124fa3',
+}
+
 export const THEMES = [
   {
     id: 'default',
-    name: 'Default',
-    colors: {
-      background: null,
-      surface: '#1f2438',
-      text: '#c0caf5',
-      muted: '#6c7390',
-      border: '#3c4361',
-      focus: '#7aa2f7',
-      selection: '#2c3550',
-      selectionText: '#c0caf5',
-      warning: '#e0af68',
-      error: '#f7768e',
-      present: '#9ece6a',
-      aur: '#BB9AF7',
-      repo: '#7aa2f7',
-    },
+    name: 'Auto (terminal)',
+    colors: AUTO_DARK,
   },
   {
     id: 'gruvbox-dark',
@@ -185,10 +201,11 @@ export function isTheme(id) {
   return THEMES.some(theme => theme.id === id)
 }
 
-export function themeColors(id) {
-  const colors = THEMES.find(theme => theme.id === id)?.colors ?? THEMES[0].colors
-  // `null` means transparent: OpenTUI must receive `undefined` to paint nothing.
-  return colors.background === null ? { ...colors, background: undefined } : colors
+export function themeColors(id, mode = 'dark') {
+  const theme = THEMES.find(theme => theme.id === id)
+  if (!theme || theme.id === DEFAULT_THEME)
+    return mode === 'light' ? AUTO_LIGHT : AUTO_DARK
+  return theme.colors
 }
 
 export function themeName(id) {

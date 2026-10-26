@@ -87,8 +87,11 @@ export async function confirmCopy(app, source, destination, editor, field) {
           })
           if (editor && field)
             setField(editor, field, reference)
-          if (app.state.files && !app.state.files.includes(destination))
-            app.state.files.push(destination)
+          app.state.managedFiles = await app.session.list()
+          if (app.isFiles()) {
+            app.state.files = app.state.managedFiles
+            app.state.target = app.items().find(item => item.path === destination) || app.state.target
+          }
           invalidateDoctor(app)
           if (identifyDocument(destination))
             app.state.documents = await loadDocuments(app.session, { includeExamples: true })
@@ -140,23 +143,29 @@ export function openFile(app, item) {
 export async function showFiles(app) {
   return leave(app, async () => {
     await operation(app, 'Listing managed files', async () => {
-      app.state.files = await app.session.list()
+      app.state.managedFiles = await app.session.list()
+      app.state.files = app.state.managedFiles
       app.state.documents = await loadDocuments(app.session, { includeExamples: true })
       invalidateDoctor(app)
       app.state.editor = null
       app.state.selected = 0
       app.state.search = ''
       app.state.detailScroll = 0
-      app.state.focus = 'list'
-      app.state.status = app.t(
-        'Managed files: panel 3 previews the path; D deletes one file after confirmation. External files are never listed.',
-      )
+      app.state.activeGroup = 4
+      app.state.activeTab = 0
+      app.state.lastGroup = 4
+      app.state.groups[3].tab = 0
+      app.state.groups[3].indices[0] = 0
+      app.state.groups[3].searches[0] = ''
+      app.state.target = app.items()[0] || null
+      app.state.focus = 'group4'
+      app.state.status = app.t('Managed files')
     })
   })
 }
 
 export function deleteSelected(app) {
-  const item = app.items()[app.state.selected]
+  const item = app.activeItem()
   if (!item || item.missing)
     return
   if (item.path === 'app.json') {
@@ -186,11 +195,13 @@ export function deleteSelected(app) {
           async () => {
             await app.session.removeFile(item.path, expectedRevision)
             app.state.documents = await loadDocuments(app.session, { includeExamples: true })
-            if (app.state.files)
-              app.state.files = await app.session.list()
+            app.state.managedFiles = await app.session.list()
+            if (app.isFiles())
+              app.state.files = app.state.managedFiles
             invalidateDoctor(app)
             app.state.selected = Math.min(app.state.selected, Math.max(0, app.items().length - 1))
             app.state.editor = null
+            app.state.target = app.items()[app.state.selected] || null
             app.state.detailScroll = 0
             app.state.status = app.t(
               'Deleted selected file only. References may now be missing; run Doctor.',

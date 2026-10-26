@@ -59,8 +59,9 @@ export async function start(app) {
     }
     app.session = await openWorkspace(app.projectDir, { lockMode: 'operation' })
     app.state.documents = await loadDocuments(app.session, { includeExamples: true })
+    app.state.managedFiles = await app.session.list()
     app.state.status = app.t(
-      'Ready. Secrets are plaintext on disk, masked here; this is not an encrypted vault.',
+      'Ready.',
     )
   })
   if (preferenceError && opened) {
@@ -79,13 +80,17 @@ export async function refresh(app) {
     const previousIndex = app.state.selected
     const documents = await loadDocuments(app.session, { includeExamples: true })
     app.state.documents = documents
-    if (app.state.files)
-      app.state.files = await app.session.list()
+    app.state.managedFiles = await app.session.list()
+    if (app.isFiles())
+      app.state.files = app.state.managedFiles
     invalidateDoctor(app)
     const items = app.items()
     const matched = items.findIndex(item => item.path === id)
     app.state.selected
       = matched >= 0 ? matched : Math.min(previousIndex, Math.max(0, items.length - 1))
+    app.state.target = items[app.state.selected] || null
+    const navigation = app.state.groups[app.state.activeGroup - 1]
+    navigation.indices[app.state.activeTab ?? 0] = app.state.selected
     app.state.editor = null
     app.state.detailScroll = 0
     app.state.status = app.t('Refreshed; existing selection restored where available.')
@@ -104,6 +109,8 @@ export async function doctor(app) {
     app.state.doctorLoaded = true
     app.state.detailScroll = 0
     app.state.doctorIndex = Math.min(app.state.doctorIndex, Math.max(0, results.length - 1))
+    if (app.isDoctor())
+      app.state.target = results[app.state.doctorIndex]
     app.state.status = app.t(
       'Doctor complete. File existence is not certificate validity or release readiness.',
     )

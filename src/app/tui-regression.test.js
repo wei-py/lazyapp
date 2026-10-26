@@ -2,9 +2,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
 import { createTestRenderer } from '@opentui/core/testing'
-import stringWidth from 'string-width'
 import { expect, test } from '../../support/node-test.js'
-import { hintSegments } from '../config/i18n.js'
 import { normalizeKey } from '../main.js'
 import { Application } from './controller.js'
 import { operation } from './operations.js'
@@ -114,86 +112,6 @@ async function fixture(run, width = 100, height = 24) {
   }
 }
 
-/** Exact first-line span color for a token, as `r,g,b` — null when absent. */
-function headerSpan(ui, token) {
-  const line = ui.captureSpans().lines[0]
-  const span = line.spans.find(candidate => candidate.text.trim() === token)
-  return span ? [...span.fg.buffer].slice(0, 3).join(',') : null
-}
-
-/** Panel-title span color, as `r,g,b` — null when absent. */
-function titleSpan(ui, token) {
-  for (const line of ui.captureSpans().lines) {
-    const span = line.spans.find(candidate => candidate.text.includes(token))
-    if (span)
-      return [...span.fg.buffer].slice(0, 3).join(',')
-  }
-  return null
-}
-
-const FOCUS = '122,162,247'
-const MUTED = '108,115,144'
-
-test('header shows the workspace root with a right-aligned zh/en chip and dirty marker', async () => {
-  await fixture(
-    async ({ app, frame, ui }) => {
-      // macOS TMPDIR roots overflow a 100-column header, so widen until the root fits verbatim.
-      ui.resize(stringWidth(app.state.root) + 40, 24)
-      const header = (await frame()).split('\n')[0]
-      expect(header).toContain(' LAZYAPP │ ')
-      expect(header).toContain(app.state.root)
-      expect(header.trimEnd().endsWith('zh en')).toBe(true)
-      expect(header).not.toContain('●')
-      expect(headerSpan(ui, 'LAZYAPP')).toBe(FOCUS)
-      expect(headerSpan(ui, 'en')).toBe(FOCUS)
-      expect(headerSpan(ui, 'zh')).toBe(MUTED)
-      // Dirty drafts add the marker to the header only.
-      app.focusPanel('form')
-      app.state.editor.draft.name = 'Changed'
-      expect((await frame()).split('\n')[0]).toContain(' ●')
-    },
-    100,
-    24,
-  )
-  await fixture(
-    async ({ app, frame }) => {
-      const lines = (await frame()).split('\n')
-      expect(lines[0]).toContain(' LAZYAPP │ ')
-      expect(lines[0].trimEnd().endsWith('zh en')).toBe(true)
-      const keysRow = lines.findIndex(line => line.includes('h/l panel'))
-      expect(keysRow).toBeGreaterThan(0)
-      expect(lines[keysRow - 1]).toContain('idle')
-      // Small layouts share the bottom line between task state and notification.
-      app.state.status = 'Probe notification'
-      expect((await frame()).split('\n')[keysRow - 1]).toContain('Probe notification')
-    },
-    70,
-    18,
-  )
-})
-
-test('1/2/3 jump between panels with [n] Title (count) chrome and focus colors', async () => {
-  await fixture(async ({ app, press, frame, ui }) => {
-    expect(app.state.focus).toBe('list')
-    press('1')
-    expect(app.state.focus).toBe('nav')
-    let out = await frame()
-    expect(out).toContain('[1] Categories (7)')
-    expect(titleSpan(ui, '[1] Categories')).toBe(FOCUS)
-    expect(titleSpan(ui, '[2] App documents')).toBe(MUTED)
-    press('2')
-    expect(app.state.focus).toBe('list')
-    out = await frame()
-    expect(out).toContain('[2] App documents (1)')
-    expect(titleSpan(ui, '[2] App documents')).toBe(FOCUS)
-    press('3')
-    expect(app.state.focus).toBe('form')
-    expect(await frame()).toContain('[3] ')
-    press('tab')
-    expect(app.state.focus).toBe('nav')
-  })
-})
-
 test('s enqueues a save job that streams into the status box', async () => {
   await fixture(async ({ app, press, frame }) => {
     app.focusPanel('form')
@@ -215,7 +133,7 @@ test('s enqueues a save job that streams into the status box', async () => {
 
 test('a creates a new document for the focused category', async () => {
   await fixture(async ({ app, press, frame }) => {
-    app.state.category = 3
+    app.selectCategory(3)
     press('a')
     expect(app.state.modal).not.toBeNull()
     expect(app.state.modal.title).toBe('New service name')
@@ -228,8 +146,7 @@ test('a creates a new document for the focused category', async () => {
 
 test('D opens the y/n delete confirmation and y/n drive it', async () => {
   await fixture(async ({ app, press, frame }) => {
-    app.state.category = 3
-    press('2')
+    app.selectCategory(3)
     press('D')
     expect(app.state.modal).toMatchObject({ type: 'choice', yn: true })
     expect(app.state.modal.options).toEqual(['Cancel', 'Delete file'])
@@ -247,7 +164,7 @@ test('D opens the y/n delete confirmation and y/n drive it', async () => {
 
 test('a slow background job never drops j/k and x aborts it', async () => {
   await fixture(async ({ app, press, frame }) => {
-    app.state.category = 3
+    app.selectCategory(3)
     let release
     const pending = operation(
       app,
@@ -307,7 +224,6 @@ test(': opens the two-row Settings popup, switches to Chinese, and persists', as
     const english = await frame()
     expect(english).toContain('Settings')
     expect(english).toContain('Language: English')
-    expect(english).toContain('Theme: Default')
     press('j')
     expect(app.state.modal.row).toBe(1)
     press('k')
@@ -320,78 +236,21 @@ test(': opens the two-row Settings popup, switches to Chinese, and persists', as
     press('escape')
     expect(app.state.modal).toBeNull()
     const chinese = await frame()
-    expect(chinese).toContain('[1] 分类 (7)')
     expect(chinese).toContain('✓ Saving language preference')
-    expect(chinese.split('\n')[0].trimEnd().endsWith('zh en')).toBe(true)
   })
 })
 
 test('L toggles the language instantly and persists it', async () => {
-  await fixture(async ({ app, press, frame, settingsPath }) => {
+  await fixture(async ({ app, press, settingsPath }) => {
     press('L')
     await app.inFlight
     expect(app.state.language).toBe('zh')
     expect(JSON.parse(readFileSync(settingsPath, 'utf8')).language).toBe('zh')
-    expect(await frame()).toContain('[1] 分类 (7)')
     press('L')
     await app.inFlight
     expect(app.state.language).toBe('en')
     expect(JSON.parse(readFileSync(settingsPath, 'utf8')).language).toBe('en')
   })
-})
-
-test('every hint set ends with the settings and language chips in key-table order', () => {
-  for (const language of ['en', 'zh']) {
-    for (const id of [
-      'nav',
-      'list',
-      'files',
-      'doctor',
-      'editor',
-      'preview',
-      'dialog-input',
-      'dialog-choice',
-      'dialog-confirm',
-      'text-input',
-      'settings',
-    ]) {
-      const chips = hintSegments(language, id)
-      expect(chips.at(-2)).toEqual({
-        key: ':',
-        desc: language === 'zh' ? '设置' : 'settings',
-      })
-      expect(chips.at(-1)).toEqual({
-        key: 'L',
-        desc: language === 'zh' ? '语言' : 'language',
-      })
-    }
-  }
-  const list = hintSegments('en', 'list')
-  expect(list.some(chip => chip.key === '1 2 3' && chip.desc === 'panels')).toBe(true)
-  expect(
-    hintSegments('zh', 'list').some(chip => chip.key === '1 2 3' && chip.desc === '面板'),
-  ).toBe(true)
-  const order = [
-    'j/k',
-    'h/l',
-    'tab',
-    '1 2 3',
-    'g/G',
-    'PgUp/PgDn',
-    'enter',
-    'esc',
-    '/',
-    '?',
-    'r',
-    'x',
-    '[ ]',
-  ]
-  const positions = order.map(key => list.findIndex(chip => chip.key === key))
-  expect(positions.every(index => index >= 0)).toBe(true)
-  expect([...positions].sort((a, b) => a - b)).toEqual(positions)
-  const actions = ['a', 'D', 's', 'f', 'q']
-  const actionPositions = actions.map(key => list.findIndex(chip => chip.key === key))
-  expect(actionPositions.every(index => index > positions.at(-1))).toBe(true)
 })
 
 test('y copies the focused field value through the platform clipboard', { skip: !clipHelper, timeout: 30000 }, async () => {

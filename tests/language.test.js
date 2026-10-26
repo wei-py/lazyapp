@@ -170,6 +170,7 @@ describe('language settings interactions', () => {
 
   test('canceling a dirty category transition keeps category and draft unchanged', async () => {
     const app = application()
+    app.state.documents.push({ path: 'assets/config.json', kind: 'assets', data: null, revision: null, missing: true })
     app.state.editor = editDocument(app.state.documents[0])
     app.state.editor.draft.name = 'Unsaved'
     await app.selectCategory(CATEGORIES.indexOf('Assets'))
