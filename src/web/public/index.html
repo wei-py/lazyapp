@@ -20,6 +20,7 @@
     <div class="layout">
       <div id="navigation-slot"><aside id="workspace-navigation" class="sidebar scroll-section" data-scroll-section tabindex="0" aria-label="工作区导航">
         <div class="navigation-heading"><strong>工作区 <span id="document-count" class="count">—</span></strong><button id="new-document" type="button" class="small">新建配置</button></div>
+        <nav class="overview-navigation" aria-label="工作区首页"><button type="button" data-view="overview" aria-current="page">总览</button></nav>
         <div class="search"><label class="search-label" for="document-search">查找配置</label><input id="document-search" type="search" placeholder="名称、类型或路径" autocomplete="off"></div>
         <div id="document-list" class="document-list">
           <section class="navigation-panel" aria-labelledby="app-navigation-title"><h2 id="app-navigation-title">App / 资源</h2><div id="app-documents"></div></section>
@@ -38,7 +39,11 @@
         <section class="navigation-panel tools-panel" aria-labelledby="tools-title"><h2 id="tools-title">工具</h2><nav id="navigation" aria-label="工作区工具"><button type="button" data-view="files"><span>文件与材料</span><span id="file-count" class="count">—</span></button><button type="button" data-view="doctor"><span>Doctor</span><span class="nav-tag">诊断</span></button></nav></section>
       </aside></div>
       <main id="content" data-scroll-root tabindex="0" aria-label="工作区内容">
-        <section id="documents-view" aria-label="配置编辑器">
+        <section id="overview-view" aria-labelledby="overview-title">
+          <div class="section-heading"><h1 id="overview-title" tabindex="-1">总览</h1></div>
+          <div id="overview-content"><p class="hint">正在读取工作区…</p></div>
+        </section>
+        <section id="documents-view" aria-label="配置编辑器" hidden>
           <div id="editor" class="editor"><div class="empty"><h1>选择配置</h1></div></div>
         </section>
         <section id="files-view" aria-labelledby="files-title" hidden>

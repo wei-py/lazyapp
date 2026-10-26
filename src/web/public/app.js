@@ -7,7 +7,7 @@ const statuses = { pass: '通过', missing: '缺失', warning: '警告', error: 
 let token
 let workspace
 let current = null
-let view = 'documents'
+let view = 'overview'
 let busy = false
 let restoreFocus = null
 let actionFocus = null
@@ -51,14 +51,42 @@ function openNavigation() {
 
 function showView(next, route = next) {
   closeNavigation()
-  scroll.navigate(route, { restore: next !== 'documents' })
+  scroll.navigate(route, { restore: next === 'files' || next === 'doctor' })
   view = next
-  for (const section of ['documents', 'files', 'doctor'])
+  for (const section of ['overview', 'documents', 'files', 'doctor'])
     $(`#${section}-view`).hidden = section !== view
-  for (const entry of $('#navigation').children)
+  for (const entry of $('#workspace-navigation').querySelectorAll('[data-view]'))
     entry.setAttribute('aria-current', entry.dataset.view === view ? 'page' : 'false')
+  $('.keyboard-hint').hidden = view !== 'documents'
   if (view !== 'documents')
     restoreFocus = $(`#${view}-title`)
+}
+
+async function switchView(next) {
+  if (next === view) {
+    closeNavigation()
+    return
+  }
+  if (!await guard())
+    return
+  if (next === 'overview' || next === 'files')
+    await loadState()
+  // A discarded draft must not reappear when returning to configuration.
+  if (current) {
+    current.draft = structuredClone(current.base)
+    renderEditor()
+  }
+  showView(next)
+  renderDocumentList()
+}
+
+async function selectDocument(path) {
+  if (view === 'documents' && current?.path === path) {
+    closeNavigation()
+    return
+  }
+  if (await guard())
+    await openDocument(path)
 }
 
 function node(tag, text, className) {
@@ -275,6 +303,85 @@ async function loadState() {
   $('#file-count').textContent = workspace.files.length
   renderDocumentList()
   renderFiles()
+  renderOverview()
+}
+
+function renderOverview() {
+  const target = $('#overview-content')
+  const documents = workspace.documents
+  const app = documents.find(info => info.kind === 'app')?.data || {}
+  const platforms = Array.isArray(app.platforms) ? app.platforms.filter(kind => workspace.platforms.includes(kind)) : []
+  const files = workspace.files.filter(file => !file.external)
+  const profile = node('section', undefined, 'panel overview-profile')
+  const heading = node('div', undefined, 'section-heading')
+  heading.append(node('h2', app.name || '未命名 App', 'overview-name'), button('编辑应用信息', () => selectDocument('app.json')))
+  profile.append(heading)
+  if (app.description)
+    profile.append(node('p', app.description, 'overview-description'))
+  const metadata = node('dl', undefined, 'overview-metadata')
+  for (const [label, value] of [
+    ['版本', app.version || '未设置'],
+    ['启用平台', platforms.map(kind => labels[kind]).join('、') || '未启用'],
+    ['环境', workspace.environments.join('、') || '未设置'],
+  ]) {
+    const row = node('div')
+    row.append(node('dt', label), node('dd', value))
+    metadata.append(row)
+  }
+  profile.append(metadata)
+  const stats = node('dl', undefined, 'overview-stats')
+  for (const [label, count] of [
+    ['已有配置', documents.filter(info => !info.missing).length],
+    ['已有工作区文件', files.filter(file => !file.missing).length],
+    ['启用平台', platforms.length],
+    ['环境', workspace.environments.length],
+  ]) {
+    const stat = node('div')
+    stat.append(node('dt', label), node('dd', String(count)))
+    stats.append(stat)
+  }
+  const configurations = node('section', undefined, 'panel overview-configurations')
+  const title = node('div', undefined, 'section-heading')
+  title.append(node('h2', '配置清单'), button('新建配置', createDocument, 'small'))
+  configurations.append(title)
+  for (const kind of ['assets', ...workspace.platforms, 'service', 'environment', 'store']) {
+    const entries = documents.filter(info => info.kind === kind)
+    const present = entries.filter(info => !info.missing).length
+    const label = node('div', undefined, 'overview-row-label')
+    label.append(node('span', labels[kind] || kind))
+    if (workspace.platforms.includes(kind))
+      label.append(node('span', platforms.includes(kind) ? '已启用' : '未启用', 'badge'))
+    const counts = node('div', undefined, 'overview-row-status')
+    counts.append(node('span', `存在 ${present}`, present ? 'present' : ''))
+    if (entries.length > present)
+      counts.append(node('span', `缺失 ${entries.length - present}`, 'missing'))
+    if (!entries.length)
+      counts.append(node('span', '暂无配置'))
+    const document = entries.find(info => !info.missing) || entries[0]
+    const action = document
+      ? button('查看配置', () => selectDocument(document.path), 'small')
+      : button('新建配置', () => createDocument(kind), 'small')
+    action.setAttribute('aria-label', `${document ? '查看' : '新建'}${labels[kind] || kind}配置`)
+    const row = node('div', undefined, 'overview-row')
+    row.append(label, counts, action)
+    configurations.append(row)
+  }
+  configurations.append(node('p', '存在仅表示文件已创建，不代表凭据有效或已具备发布条件。', 'hint'))
+  const tools = node('section', undefined, 'panel')
+  const toolsHeading = node('div', undefined, 'section-heading')
+  toolsHeading.append(node('h2', '文件与检查'))
+  tools.append(toolsHeading)
+  const fileRow = node('div', undefined, 'overview-row')
+  const external = workspace.files.filter(file => file.external).length
+  fileRow.append(
+    node('span', '文件与材料'),
+    node('span', `存在 ${files.filter(file => !file.missing).length} · 缺失 ${files.filter(file => file.missing).length}${external ? ` · 外部引用 ${external}` : ''}`, 'overview-row-status'),
+    button('查看清单', () => switchView('files'), 'small'),
+  )
+  const doctorRow = node('div', undefined, 'overview-row')
+  doctorRow.append(node('span', 'Doctor'), node('span', '按需运行只读诊断', 'overview-row-status'), button('打开诊断', () => switchView('doctor'), 'small'))
+  tools.append(fileRow, doctorRow)
+  target.replaceChildren(profile, stats, configurations, tools)
 }
 
 async function openDocument(path) {
@@ -298,12 +405,7 @@ function renderDocumentList() {
     if (!list) {
       list = createVirtualList({ element: target, scroll, rowHeight: 44, keyOf: info => info.path, label: '配置清单', renderRow: (info) => {
         const selected = view === 'documents' && current?.path === info.path
-        const entry = button('', async () => {
-          if (view === 'documents' && current?.path === info.path)
-            return
-          if (await guard())
-            await openDocument(info.path)
-        }, `document-item ${info.missing ? 'missing' : 'present'}${selected ? ' selected' : ''}`)
+        const entry = button('', () => selectDocument(info.path), `document-item ${info.missing ? 'missing' : 'present'}${selected ? ' selected' : ''}`)
         entry.setAttribute('aria-current', selected ? 'page' : 'false')
         entry.title = info.path
         const title = compact ? info.environment ? `${info.environment} · 签名` : '平台信息' : documentTitle(info)
@@ -611,7 +713,7 @@ function renderFile(file) {
   return row
 }
 
-async function createDocument() {
+async function createDocument(initialKind) {
   if (!await guard())
     return
   const safeName = value => value && value === value.trim() && value.length <= 120 && !/^\.|\.$|[<>:"/\\|?*\u0000-\u001F\u007F]/u.test(value)
@@ -627,6 +729,8 @@ async function createDocument() {
       option.value = kind
       kindInput.append(option)
     }
+    if (kinds.includes(initialKind))
+      kindInput.value = initialKind
     kindLabel.append(kindInput)
     const nameLabel = node('label', '名称（服务 / 环境 / 商店）')
     const nameInput = node('input')
@@ -763,23 +867,11 @@ $('#collection-tabs').addEventListener('keydown', (event) => {
     $(`#${collection}-tab`).focus({ preventScroll: true })
   })
 })
-$('#navigation').addEventListener('click', (event) => {
+$('#workspace-navigation').addEventListener('click', (event) => {
   const item = event.target.closest('[data-view]')
-  if (!item || item.dataset.view === view)
+  if (!item)
     return
-  void perform(async () => {
-    if (!await guard())
-      return
-    if (item.dataset.view === 'files')
-      await loadState()
-    // A discarded draft must not reappear when returning to configuration.
-    if (current) {
-      current.draft = structuredClone(current.base)
-      renderEditor()
-    }
-    showView(item.dataset.view)
-    renderDocumentList()
-  })
+  void perform(() => switchView(item.dataset.view))
 })
 $('#upload-source').addEventListener('change', () => {
   const file = $('#upload-source').files[0]
@@ -830,5 +922,5 @@ window.addEventListener('pagehide', (event) => {
 void perform(async () => {
   token = (await api('/api/session')).token
   await loadState()
-  await openDocument('app.json')
+  showView('overview')
 })
