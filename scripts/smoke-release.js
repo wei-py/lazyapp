@@ -103,8 +103,8 @@ try {
         accepted = true
         terminal.write(process.platform === 'win32' ? 'y\r' : 'y\n')
       }
-      // ConPTY emits screen diffs, so the complete ready sentence may not be contiguous.
-      if (!ready && output.includes('encrypted')) {
+      // Wait for a real loaded document, not explanatory copy that may be removed or localized.
+      if (!ready && output.includes('app.json')) {
         ready = true
         terminal.write('q')
       }
@@ -229,6 +229,8 @@ try {
       assert.match(html, /src=["']\/app\.js["']/u, 'Packaged HTML must reference the Web JavaScript sidecar')
       assert.match(html, /href=["']\/style\.css["']/u, 'Packaged HTML must reference the Web stylesheet sidecar')
       await request(url, '/app.js', /^text\/javascript\b/u)
+      await request(url, '/scroll.js', /^text\/javascript\b/u)
+      await request(url, '/virtual-list.js', /^text\/javascript\b/u)
       await request(url, '/style.css', /^text\/css\b/u)
       const { token } = JSON.parse(await request(url, '/api/session', /^application\/json\b/u))
       assert.equal(typeof token, 'string', 'Packaged Web must issue an API session token')

@@ -5,7 +5,7 @@ import process from 'node:process'
 import { installRelease } from '../src/storage/release.js'
 import { afterEach, beforeEach, describe, expect, test } from '../support/node-test.js'
 
-const webFiles = ['index.html', 'app.js', 'style.css']
+const webFiles = ['index.html', 'app.js', 'scroll.js', 'virtual-list.js', 'style.css']
 let root
 let release
 let installation

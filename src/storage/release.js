@@ -18,7 +18,7 @@ async function validateRelease(directory, binaryName) {
     throw new Error('Binary not found in release archive')
   if (!(await statOrNull(join(directory, 'web')))?.isDirectory())
     throw new Error('Web directory not found in release archive')
-  for (const name of ['index.html', 'app.js', 'style.css']) {
+  for (const name of ['index.html', 'app.js', 'scroll.js', 'virtual-list.js', 'style.css']) {
     if (!(await statOrNull(join(directory, 'web', name)))?.isFile())
       throw new Error(`Web file ${name} not found in release archive`)
   }
