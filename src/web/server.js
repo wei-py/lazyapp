@@ -358,15 +358,31 @@ export async function startWebServer(projectDir, { port = 0 } = {}) {
   }
 
   try {
-    await new Promise((resolve, reject) => {
-      server.once('error', reject)
-      server.listen(port, '127.0.0.1', () => {
-        server.off('error', reject)
-        url = `http://127.0.0.1:${server.address().port}`
-        host = new URL(url).host
-        resolve()
-      })
-    })
+    for (;;) {
+      try {
+        await new Promise((resolve, reject) => {
+          function onError(error) {
+            server.off('listening', onListening)
+            reject(error)
+          }
+          function onListening() {
+            server.off('error', onError)
+            resolve()
+          }
+          server.once('error', onError)
+          server.once('listening', onListening)
+          server.listen(port, '127.0.0.1')
+        })
+        break
+      }
+      catch (error) {
+        if (error.code !== 'EADDRINUSE' || port === 0 || port === 65535)
+          throw error
+        port++
+      }
+    }
+    url = `http://127.0.0.1:${server.address().port}`
+    host = new URL(url).host
   }
   catch (error) {
     await session.close()

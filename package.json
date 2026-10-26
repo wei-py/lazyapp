@@ -1,7 +1,7 @@
 {
   "name": "lazyapp",
   "type": "module",
-  "version": "2.0.7",
+  "version": "2.0.8",
   "private": true,
   "packageManager": "pnpm@12.5.1",
   "bin": {
