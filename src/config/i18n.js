@@ -119,6 +119,7 @@ const chinese = {
   'APNs key ID': 'APNs 密钥 ID',
   'Bundle name': '包名称',
   'Bundle type': '包类型',
+  'Material archive (.zip)': 'Material 材料包 (.zip)',
   'Certificate (.cer)': '证书 (.cer)',
   'Profile (.p7b)': '描述文件 (.p7b)',
   'Keystore (.p12)': '密钥库 (.p12)',

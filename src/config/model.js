@@ -66,6 +66,7 @@ const FIELDS = {
   harmony: [
     field('bundleName', 'Bundle name', 'text', true, 'platform'),
     field('bundleType', 'Bundle type', 'text', false, 'platform'),
+    field('material', 'Material archive (.zip)', 'file', false, 'platform'),
     field('certificate', 'Certificate (.cer)', 'file', true, 'signing'),
     field('profile', 'Profile (.p7b)', 'file', true, 'signing'),
     field('keystore', 'Keystore (.p12)', 'file', true, 'signing'),

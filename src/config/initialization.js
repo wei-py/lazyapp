@@ -83,6 +83,15 @@ export function initializationExamples(app) {
   for (const name of app.environments) examples.push(configurationExample('environment', { name }))
   for (const kind of app.platforms) {
     examples.push(configurationExample(kind, { scope: 'platform' }))
+    if (kind === 'harmony') {
+      examples.push({
+        path: 'platforms/harmony/material.zip.example',
+        data: instruction(
+          'Archive your existing material directory as material.zip with the material/ top-level folder preserved, then import it and set the material file reference in platforms/harmony/config.json. This JSON is not a ZIP archive; do not rename it. The archive may contain sensitive signing material; keep it private.',
+          '将已有 material 目录压缩为 material.zip，保留 material/ 顶层目录，再导入并在 platforms/harmony/config.json 中设置 material 文件引用。此 JSON 不是 ZIP 压缩包，请勿重命名冒充。包内可能含敏感签名材料，请勿公开。',
+        ),
+      })
+    }
     const fields = documentFields(kind, { scope: 'signing' }).filter(
       field => field.type === 'file',
     )
