@@ -81,6 +81,13 @@ Initialize new projects through the TUI prompt; Web-only mode never initializes.
 Web uses grouped workspace navigation, expandable platforms, and a shared editor
 with field sections and a sticky save bar. Narrow screens collapse navigation behind
 the Navigation button. CSS and JavaScript are local; no CDN or remote fonts.
+
+Web opens on **Overview**, with App metadata, existing configuration/file counts,
+enabled platforms and environments, and a compact per-category presence list.
+Open configuration drafts, files, or Doctor directly from it. Counts come from the
+disk snapshot, not unsaved edits; opening Overview never runs Doctor automatically
+or treats file existence as credential validity.
+
 Original attachments can be imported, previewed, downloaded, replaced, or deleted;
 absolute external references remain read-only.
 TUI and Web can stay open together; each write takes the workspace lock and stale
@@ -126,7 +133,9 @@ lazyapp /absolute/project
 
 While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters — Vim-style navigation only applies outside text input.
 
-The default **Auto (terminal)** theme follows the terminal's light/dark mode, including changes while running. Panels, dialogs, and selections use matching opaque colors; terminals that do not report their mode use the dark palette. Press `:` to choose a fixed theme, or return to Auto. Existing `default` preferences automatically gain this behavior without rewriting settings.
+The default **Gruvbox Light** theme is a fixed, opaque light palette, regardless of terminal light/dark detection. Missing preferences and the old generic `default` value use Gruvbox Light without rewriting settings; existing named choices stay selected. Press `:` to choose another palette or explicitly select **Auto (terminal)** (`auto`), which follows terminal mode changes and uses an opaque dark fallback when detection is unavailable. Semantic text and file-status colors in Gruvbox Light remain readable on both panels and selected rows.
+
+Press `?` for a categorized reference: **Navigation**, **Actions**, and **Notes** (also available in Chinese). Use `←`/`→` or `[`/`]` to change category, `↑`/`↓` or `PgUp`/`PgDn` to scroll, and `Esc`/`Enter` to close and restore the previous focus. Each category remembers its scroll position while open; descriptions wrap into a separate column at narrow terminal widths. Safety and storage explanations live in Notes instead of crowding the shortcut list.
 
 ### Typical flow
 
