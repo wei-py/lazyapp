@@ -47,6 +47,8 @@ Colors carry meaning: **red** = missing config/resource, **green** = file exists
 
 Missing resources (`source.png`, `certificate.p12`, …) show red. Press `Enter` on one, confirm the source path, and it's copied into the workspace. Alternatively reference an external file read-only. Deleting a real file keeps its `.example` placeholder so the entry stays visible.
 
+HarmonyOS platform configuration supports an optional `material` file reference, normally `platforms/harmony/material.zip`. Zip an existing `material/` directory with that top-level folder preserved, then import the archive through the file field. New workspaces include an inert `material.zip.example` instruction file, not a generated ZIP. The archive may contain sensitive signing material; keep it private. Importing and downloading do not extract or validate its contents.
+
 ### Read-only Doctor
 
 One keypress runs an integrity check across field completeness, reference existence, and config consistency. It distinguishes _exists_ from _valid_, and reports "not checked" rather than "pass" when a credential can't actually be parsed.

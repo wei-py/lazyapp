@@ -47,6 +47,8 @@ No lazyapp workspace found. Create one? (y/N):
 
 缺失的资源（`source.png`、`certificate.p12`……）显示红色。`Enter` 一个缺失资源，确认源文件路径后即复制进工作区；也可只读引用外部文件。删除真实文件会保留其 `.example` 占位，条目依旧可见。
 
+HarmonyOS 平台配置支持可选的 `material` 文件引用，通常为 `platforms/harmony/material.zip`。将已有 `material/` 目录压缩并保留该顶层目录，再通过文件字段导入。新工作区生成的是 `material.zip.example` 占位说明，不会伪造 ZIP 文件。材料包可能含敏感签名数据，请勿公开；导入与下载不会解压或校验包内内容。
+
 ### 只读 Doctor
 
 一键检查字段完整性、引用存在性与配置一致性。严格区分「存在」与「有效」，凭据无法真正解析时报告「未检查」而非「通过」。
