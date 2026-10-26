@@ -9,6 +9,7 @@ import { doctorLabel, runDoctor, safeErrorMessage } from '../src/features/worksp
 import { loadPreferences, savePreferences } from '../src/storage/preferences.js'
 import { initializeWorkspace } from '../src/storage/workspace.js'
 import { afterEach, beforeEach, describe, expect, test } from '../support/node-test.js'
+import { DEFAULT_THEME } from '../vendor/lazy-kit/themes.js'
 
 const APP = {
   schemaVersion: 1,
@@ -63,7 +64,7 @@ describe('language settings interactions', () => {
     expect(app.state.language).toBe('zh')
     expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({
       language: 'zh',
-      theme: 'default',
+      theme: DEFAULT_THEME,
     })
     const reopened = application()
     await fs.mkdir(join(root, 'project'))
@@ -79,7 +80,7 @@ describe('language settings interactions', () => {
     expect(app.state.language).toBe('en')
     expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({
       language: 'en',
-      theme: 'default',
+      theme: DEFAULT_THEME,
     })
   })
 
@@ -89,14 +90,15 @@ describe('language settings interactions', () => {
     await press(app, 'j')
     expect(app.state.modal.row).toBe(1)
     await press(app, 'return')
-    expect(app.state.theme).toBe('gruvbox-dark')
+    const nextTheme = app.state.theme
+    expect(nextTheme).not.toBe(DEFAULT_THEME)
     expect(app.state.language).toBe('en')
     expect(await loadPreferences({ directory: join(root, 'preferences') })).toEqual({
       language: 'en',
-      theme: 'gruvbox-dark',
+      theme: nextTheme,
     })
     await press(app, 'h')
-    expect(app.state.theme).toBe('default')
+    expect(app.state.theme).toBe(DEFAULT_THEME)
     await press(app, 'escape')
     expect(app.state.modal).toBeNull()
   })

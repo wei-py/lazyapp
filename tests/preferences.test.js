@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import { loadPreferences, savePreferences } from '../src/storage/preferences.js'
 import { afterEach, beforeEach, describe, expect, test } from '../support/node-test.js'
+import { DEFAULT_THEME } from '../vendor/lazy-kit/themes.js'
 
 let root
 let options
@@ -17,7 +18,7 @@ afterEach(async () => {
 
 describe('personal language preferences', () => {
   test('missing settings default to English without creating any files', async () => {
-    expect(await loadPreferences(options)).toEqual({ language: 'en', theme: 'default' })
+    expect(await loadPreferences(options)).toEqual({ language: 'en', theme: DEFAULT_THEME })
     expect(await fs.readdir(root)).toEqual([])
   })
 
@@ -54,21 +55,23 @@ describe('personal language preferences', () => {
       join(options.directory, 'settings.json'),
       JSON.stringify({ schemaVersion: 1, language: 'zh' }),
     )
-    expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'default' })
+    expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: DEFAULT_THEME })
   })
 
   test('corrupt, unknown-schema, and unsupported stored values fall back to defaults on read', async () => {
     await fs.mkdir(options.directory)
     const file = join(options.directory, 'settings.json')
     const expectations = new Map([
-      ['{broken', { language: 'en', theme: 'default' }],
-      ['{"schemaVersion":2,"language":"zh"}', { language: 'zh', theme: 'default' }],
-      ['{"schemaVersion":1,"language":"fr"}', { language: 'en', theme: 'default' }],
+      ['{broken', { language: 'en', theme: DEFAULT_THEME }],
+      ['{"schemaVersion":2,"language":"zh"}', { language: 'zh', theme: DEFAULT_THEME }],
+      ['{"schemaVersion":1,"language":"fr"}', { language: 'en', theme: DEFAULT_THEME }],
       [
         '{"schemaVersion":1,"language":"zh","theme":"gruvbox-brutal"}',
-        { language: 'zh', theme: 'default' },
+        { language: 'zh', theme: DEFAULT_THEME },
       ],
-      ['null', { language: 'en', theme: 'default' }],
+      ['null', { language: 'en', theme: DEFAULT_THEME }],
+      ['{"language":"zh","theme":"default"}', { language: 'zh', theme: DEFAULT_THEME }],
+      ['{"language":"en","theme":"auto"}', { language: 'en', theme: 'auto' }],
     ])
     for (const [bytes, expected] of expectations) {
       await fs.writeFile(file, bytes)
@@ -82,7 +85,7 @@ describe('personal language preferences', () => {
     const file = join(options.directory, 'settings.json')
     await fs.writeFile(file, '{broken')
     await savePreferences({ language: 'zh' }, options)
-    expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'default' })
+    expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: DEFAULT_THEME })
     // POSIX permission bits are not enforced on Windows.
     if (process.platform !== 'win32')
       expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
@@ -105,10 +108,10 @@ describe('personal language preferences', () => {
     await fs.writeFile(external, bytes)
     await fs.mkdir(options.directory)
     await fs.symlink(external, join(options.directory, 'settings.json'))
-    expect(await loadPreferences(options)).toEqual({ language: 'en', theme: 'default' })
+    expect(await loadPreferences(options)).toEqual({ language: 'en', theme: DEFAULT_THEME })
     await savePreferences({ language: 'zh' }, options)
     expect(await fs.readFile(external, 'utf8')).toBe(bytes)
     expect((await fs.lstat(join(options.directory, 'settings.json'))).isSymbolicLink()).toBe(false)
-    expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: 'default' })
+    expect(await loadPreferences(options)).toEqual({ language: 'zh', theme: DEFAULT_THEME })
   })
 })

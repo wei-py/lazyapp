@@ -1,7 +1,7 @@
 /**
- * Terminal palettes. The persisted `default` choice follows the terminal mode;
- * named palettes stay fixed. Auto palettes are opaque so an unknown terminal
- * background cannot undermine contrast. Every palette has the same semantic keys.
+ * Terminal palettes. Gruvbox Light is the fixed default; explicit `auto` follows
+ * the terminal mode. Auto palettes are opaque so unknown terminal backgrounds
+ * cannot undermine contrast. Every palette has the same semantic keys.
  */
 const AUTO_DARK = {
   background: '#151922',
@@ -37,7 +37,7 @@ const AUTO_LIGHT = {
 
 export const THEMES = [
   {
-    id: 'default',
+    id: 'auto',
     name: 'Auto (terminal)',
     colors: AUTO_DARK,
   },
@@ -67,16 +67,16 @@ export const THEMES = [
       background: '#fbf1c7',
       surface: '#fbf1c7',
       text: '#3c3836',
-      muted: '#7c6f64',
+      muted: '#504945',
       border: '#bdae93',
-      focus: '#076678',
+      focus: '#07525f',
       selection: '#d5c4a1',
       selectionText: '#282828',
-      warning: '#b57614',
+      warning: '#734600',
       error: '#9d0006',
-      present: '#79740e',
-      aur: '#BB9AF7',
-      repo: '#076678',
+      present: '#4f5600',
+      aur: '#653098',
+      repo: '#07525f',
     },
   },
   {
@@ -195,7 +195,7 @@ export const THEMES = [
   },
 ]
 
-export const DEFAULT_THEME = THEMES[0].id
+export const DEFAULT_THEME = 'gruvbox-light'
 
 export function isTheme(id) {
   return THEMES.some(theme => theme.id === id)
@@ -203,11 +203,12 @@ export function isTheme(id) {
 
 export function themeColors(id, mode = 'dark') {
   const theme = THEMES.find(theme => theme.id === id)
-  if (!theme || theme.id === DEFAULT_THEME)
+  if (theme?.id === 'auto')
     return mode === 'light' ? AUTO_LIGHT : AUTO_DARK
-  return theme.colors
+  return (theme || THEMES.find(theme => theme.id === DEFAULT_THEME)).colors
 }
 
 export function themeName(id) {
-  return THEMES.find(theme => theme.id === id)?.name ?? THEMES[0].name
+  return THEMES.find(theme => theme.id === id)?.name
+    ?? THEMES.find(theme => theme.id === DEFAULT_THEME).name
 }

@@ -1,5 +1,5 @@
 import { expect, test } from '../support/node-test.js'
-import { DEFAULT_THEME, themeColors, THEMES } from '../vendor/lazy-kit/themes.js'
+import { DEFAULT_THEME, isTheme, themeColors, themeName, THEMES } from '../vendor/lazy-kit/themes.js'
 
 function luminance(hex) {
   const channels = hex.slice(1).match(/../g).map(channel => Number.parseInt(channel, 16) / 255)
@@ -19,7 +19,7 @@ const textKeys = ['text', 'muted', 'focus', 'warning', 'error', 'present', 'aur'
 
 for (const mode of ['light', 'dark']) {
   test(`auto ${mode} keeps text and file statuses readable on panels, dialogs, and selected rows`, () => {
-    const colors = themeColors(DEFAULT_THEME, mode)
+    const colors = themeColors('auto', mode)
     for (const background of ['background', 'surface', 'selection']) {
       for (const foreground of textKeys)
         expect(contrast(colors[foreground], colors[background])).toBeGreaterThanOrEqual(4.5)
@@ -32,26 +32,32 @@ for (const mode of ['light', 'dark']) {
   })
 }
 
-test('an existing default preference adapts to both terminal modes', () => {
-  expect(luminance(themeColors('default', 'light').background)).toBeGreaterThan(0.8)
-  expect(luminance(themeColors('default', 'dark').background)).toBeLessThan(0.1)
-})
-
-test('unknown themes follow detected mode and an unknown terminal gets a readable opaque fallback', () => {
-  const dark = themeColors(DEFAULT_THEME, 'dark')
-  const light = themeColors(DEFAULT_THEME, 'light')
-  for (const id of [DEFAULT_THEME, 'removed-theme', undefined, null]) {
-    expect(themeColors(id, 'light')).toEqual(light)
-    expect(themeColors(id, 'dark')).toEqual(dark)
-    expect(themeColors(id)).toEqual(dark)
-    expect(themeColors(id, null)).toEqual(dark)
-    expect(themeColors(id, 'unknown')).toEqual(dark)
-    expect(contrast(themeColors(id).text, themeColors(id).background)).toBeGreaterThanOrEqual(7)
+test('Gruvbox Light is the fixed fallback and old generic preferences are not active aliases', () => {
+  expect(DEFAULT_THEME).toBe('gruvbox-light')
+  expect(isTheme('default')).toBe(false)
+  expect(isTheme('auto')).toBe(true)
+  const palette = themeColors(DEFAULT_THEME)
+  for (const id of [DEFAULT_THEME, 'default', 'removed-theme', undefined, null]) {
+    for (const mode of ['light', 'dark', 'unknown', null, undefined]) {
+      expect(themeColors(id, mode)).toEqual(palette)
+      expect(themeName(id)).toBe(themeName(DEFAULT_THEME))
+    }
+  }
+  for (const background of ['background', 'surface', 'selection']) {
+    for (const foreground of [...textKeys, 'selectionText'])
+      expect(contrast(palette[foreground], palette[background])).toBeGreaterThanOrEqual(4.5)
   }
 })
 
+test('explicit auto follows detected mode and uses opaque dark for unknown terminals', () => {
+  expect(luminance(themeColors('auto', 'light').background)).toBeGreaterThan(0.8)
+  expect(luminance(themeColors('auto', 'dark').background)).toBeLessThan(0.1)
+  expect(themeColors('auto', 'unknown')).toEqual(themeColors('auto', 'dark'))
+  expect(themeColors('auto', null)).toEqual(themeColors('auto', 'dark'))
+})
+
 test('manual palettes keep their chosen brightness regardless of terminal mode', () => {
-  for (const theme of THEMES.filter(theme => theme.id !== DEFAULT_THEME)) {
+  for (const theme of THEMES.filter(theme => theme.id !== 'auto')) {
     const inLightTerminal = themeColors(theme.id, 'light')
     const inDarkTerminal = themeColors(theme.id, 'dark')
     expect(inLightTerminal).toEqual(inDarkTerminal)

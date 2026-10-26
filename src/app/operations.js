@@ -52,7 +52,7 @@ export async function start(app) {
     try {
       const preferences = await app.preferences.load()
       app.state.language = preferences.language
-      app.state.theme = preferences.theme ?? DEFAULT_THEME
+      app.state.theme = isTheme(preferences.theme) ? preferences.theme : DEFAULT_THEME
     }
     catch (error) {
       preferenceError = error
