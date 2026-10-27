@@ -1,4 +1,4 @@
-#!/usr/bin/env -S node --experimental-ffi
+#!/usr/bin/env bun
 import { resolve } from 'node:path'
 import process from 'node:process'
 import { start } from './app/operations.js'
@@ -186,7 +186,7 @@ export async function main(args = process.argv.slice(2)) {
   catch {
     await finish(
       1,
-      'Unable to start the terminal application. Check native OpenTUI support, workspace permissions, and Node.js >=26.4.0 with --experimental-ffi.',
+      'Unable to start the terminal application. Check native OpenTUI support, workspace permissions, and Bun >=1.4.2.',
     )
   }
   return await done

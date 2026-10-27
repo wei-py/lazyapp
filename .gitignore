@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+# Repository policy: do not commit package-manager lockfiles.
+bun.lock
+bun.lockb
 
 # Test and coverage output
 coverage/
@@ -7,7 +10,7 @@ coverage/
 # Standalone release output
 /dist/
 
-# Managed App data. Running `pnpm run dev` from this source directory would create
+# Managed App data. Running `bun run dev` from this source directory would create
 # ./lazyapp/ with plaintext credentials; the workspace carries its own
 # `lazyapp/.gitignore` containing `*` (docs/spec.md section 9).
 /lazyapp/

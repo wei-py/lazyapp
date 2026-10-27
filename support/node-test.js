@@ -1,3 +1,4 @@
+import { expect } from 'bun:test'
 import {
   after,
   afterEach,
@@ -7,7 +8,6 @@ import {
   it,
   test,
 } from 'node:test'
-import { expect } from 'expect'
 
 expect.extend({
   toBeArray(received) {
