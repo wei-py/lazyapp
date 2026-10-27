@@ -49,6 +49,8 @@ No lazyapp workspace found. Create one? (y/N):
 
 HarmonyOS 平台配置支持可选的 `material` 文件引用，通常为 `platforms/harmony/material.zip`。将已有 `material/` 目录压缩并保留该顶层目录，再通过文件字段导入。新工作区生成的是 `material.zip.example` 占位说明，不会伪造 ZIP 文件。材料包可能含敏感签名数据，请勿公开；导入与下载不会解压或校验包内内容。
 
+HarmonyOS 平台根配置也支持 `foreground`（图标前景图）、`background`（图标背景图）、`startWindowBackground`（`#RRGGBB` 启动背景色）和 `startWindowIcon`（启动中部图标）。三个图片字段沿用文件导入、预览与 Doctor 存在性检查；建议前景和背景使用 1024×1024 图片，中部图标使用正方形图片。这些字段不属于环境签名配置。对应 uni-app manifest 时，前两项放入 `app-harmony.distribute.icons`，后两项放入 `app-harmony.distribute.splashScreens`；lazyapp 保存配置，不自动改写 manifest。
+
 ### 只读 Doctor
 
 一键检查字段完整性、引用存在性与配置一致性。严格区分「存在」与「有效」，凭据无法真正解析时报告「未检查」而非「通过」。
