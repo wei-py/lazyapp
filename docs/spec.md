@@ -230,7 +230,7 @@ src/
 ### mise 安装与 GitHub Release
 
 - 发布仓库为 `wei-py/lazyapp`，发行包覆盖五个目标：macOS（arm64、x86_64）、Linux（x86_64、arm64）与 Windows（x86_64）。
-- 在各目标平台使用固定 Bun 1.4.2 执行 `bun install`、`bun run build`。构建通过 `Bun.build({ compile: ... })` 内嵌运行时与 OpenTUI 资源；Linux 显式选择 glibc，Bun 目标使用 `darwin`／`linux`／`windows` 平台名称。macOS 使用 Bun 编译器自带签名并严格校验，不再维护 Node SEA 打包、资源解压或 Node entitlements。输出 `dist/lazyapp-<slug>.tar.gz`（Windows 为 `dist/lazyapp-windows-x64.zip`）和 `dist/SHA256SUMS`；压缩包包含 `bin/lazyapp`（Windows 为 `bin/lazyapp.exe`）、`bin/web/` 本地页面资源与第三方依赖许可。`dist/` 不提交 Git。
+- 在各目标平台使用固定 Bun 1.4.2 执行 `bun install`、`bun run build`。构建通过 `Bun.build({ compile: ... })` 内嵌运行时与 OpenTUI 资源；Linux 显式选择 glibc，Bun 目标使用 `darwin`／`linux`／`windows` 平台名称。macOS 在编译及可执行权限设置完成后，以固定 `lazyapp` 标识和无时间戳的 ad-hoc 签名重新封装最终二进制，再执行 `codesign --verify --strict`；签名或校验失败均终止构建，之后才归档并生成校验和。重新签名保留 Bun 现有的 entitlements（包括存在时的 JIT 权限）、签名选项与 hardened runtime 版本，不继承原 Developer ID 身份要求，也不需要证书或发布密钥；不再维护 Node SEA 打包、资源解压或 Node entitlements。输出 `dist/lazyapp-<slug>.tar.gz`（Windows 为 `dist/lazyapp-windows-x64.zip`）和 `dist/SHA256SUMS`；压缩包包含 `bin/lazyapp`（Windows 为 `bin/lazyapp.exe`）、`bin/web/` 本地页面资源与第三方依赖许可。`dist/` 不提交 Git。
 - `bun run smoke:source` 和 `bun run smoke:release` 仅供本地验证，覆盖真实 PTY 初始化、重开、缩放、退出及 Web 静态资源、鉴权只读 API 与服务关闭。macOS 发行包额外验证签名，并禁止非交互检查读取源码仓库。CI/CD 不得执行这些命令，也不得用直接启动二进制等方式变相执行冒烟。
 - 第三方许可收集从依赖所属包的模块搜索路径定位已安装目录，不解析或加载包入口；仅导出 ESM／Bun 入口的传递依赖同样保留许可证，不要求 CommonJS 导出。按实际安装目录遍历，许可写入 `licenses/<包名>/<版本>/`，避免同名不同版本被跳过或相互覆盖。
 - OpenTUI 原生包是 `@opentui/core` 的可选依赖，不是项目直接依赖。收集其许可时以 `@opentui/core` 的实际安装目录为解析起点；Linux 构建选择的 libc 与原生包许可保持一致。

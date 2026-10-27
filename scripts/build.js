@@ -31,7 +31,7 @@ function run(command, args) {
 const libc = process.platform === 'linux' && process.env.OPENTUI_LIBC === 'musl' ? 'musl' : 'glibc'
 const output = join(staging, 'bin', target.binaryName)
 const bunTarget = `bun-${target.slug}${process.platform === 'linux' && libc === 'musl' ? '-musl' : ''}`
-// Bun embeds OpenTUI's native library and runtime assets and signs macOS output.
+// Bun embeds OpenTUI's native library and runtime assets.
 const result = await Bun.build({
   entrypoints: [join(root, 'src/main.js')],
   target: 'bun',
@@ -44,10 +44,24 @@ const result = await Bun.build({
 })
 if (!result.success)
   throw new AggregateError(result.logs, 'Bun executable compilation failed.')
-if (process.platform === 'darwin')
-  run('codesign', ['--verify', '--strict', output])
 if (process.platform !== 'win32')
   await chmod(output, 0o755)
+if (process.platform === 'darwin') {
+  // Seal the finalized executable, not Bun's pre-compilation runtime bytes.
+  // Keep Bun's JIT entitlements and runtime flags when present, but generate
+  // fresh ad-hoc requirements instead of retaining its Developer ID identity.
+  run('codesign', [
+    '--force',
+    '--sign',
+    '-',
+    '--identifier',
+    'lazyapp',
+    '--timestamp=none',
+    '--preserve-metadata=entitlements,flags,runtime',
+    output,
+  ])
+  run('codesign', ['--verify', '--strict', output])
+}
 
 // The Web interface is local and ships beside the executable without a CDN.
 await cp(join(root, 'src/web/public'), join(staging, 'bin/web'), { recursive: true })
