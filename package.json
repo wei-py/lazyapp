@@ -16,6 +16,7 @@
     "smoke:source": "bun scripts/smoke-release.js --source",
     "dev": "bun src/main.js",
     "web": "bun src/main.js web",
+    "icons": "bun scripts/icons.js",
     "lint": "bun --bun eslint .",
     "lint:fix": "bun --bun eslint . --fix",
     "format": "bunx --bun oxfmt@latest . && bun run lint:fix",
@@ -27,7 +28,10 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "9.5.1",
+    "@iconify-json/vscode-icons": "1.2.94",
     "@types/node": "26.6.5",
+    "@unocss/core": "66.12.0",
+    "@unocss/preset-icons": "66.12.0",
     "eslint": "10.10.0"
   }
 }

@@ -19,6 +19,7 @@ const STATIC_FILES = new Map([
   ['/scroll.js', ['scroll.js', 'text/javascript; charset=utf-8']],
   ['/virtual-list.js', ['virtual-list.js', 'text/javascript; charset=utf-8']],
   ['/style.css', ['style.css', 'text/css; charset=utf-8']],
+  ['/icons.css', ['icons.css', 'text/css; charset=utf-8']],
 ])
 const HTTP_ERRORS = {
   BAD_REQUEST: [400, 'The request is not valid.'],
@@ -244,7 +245,7 @@ export async function startWebServer(projectDir, { port = 0 } = {}) {
     response.setHeader('X-Content-Type-Options', 'nosniff')
     response.setHeader('Referrer-Policy', 'no-referrer')
     response.setHeader('X-Frame-Options', 'DENY')
-    response.setHeader('Content-Security-Policy', 'default-src \'none\'; script-src \'self\'; style-src \'self\'; img-src \'self\' blob:; connect-src \'self\'; base-uri \'none\'; form-action \'none\'; frame-ancestors \'none\'; object-src \'none\'')
+    response.setHeader('Content-Security-Policy', 'default-src \'none\'; script-src \'self\'; style-src \'self\'; img-src \'self\' blob: data:; connect-src \'self\'; base-uri \'none\'; form-action \'none\'; frame-ancestors \'none\'; object-src \'none\'')
     if (closing)
       throw Object.assign(new Error('Closing'), { code: 'SESSION_CLOSED' })
     if (request.headers.host !== host || request.headersDistinct?.host?.length > 1)
