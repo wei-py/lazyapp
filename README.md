@@ -2,7 +2,7 @@
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-A personal, offline App workspace with both an OpenTUI terminal interface and a local Node.js Web editor. Organize metadata, assets, platform credentials, services, environments, and store materials.
+A personal, offline App workspace with both an OpenTUI terminal interface and a local Bun Web editor. Organize metadata, assets, platform credentials, services, environments, and store materials.
 
 No cloud, telemetry, or database. Both interfaces use the same plain JSON and original files in `<project>/.lazyapp/`.
 
@@ -61,7 +61,7 @@ Switch UI language from `Settings / 设置`; it applies immediately after saving
 
 ```sh
 # install
-pnpm install
+bun install
 
 # TUI + Web — the local Web service follows the TUI lifecycle
 lazyapp tui /absolute/project
@@ -74,9 +74,8 @@ lazyapp /absolute/project
 lazyapp web /absolute/project --port 3210
 ```
 
-For source runs, replace `lazyapp` above with
-`node --experimental-ffi src/main.js`; Web-only mode does not require the FFI
-flag. Press `W` inside the TUI to start the Web editor on port 3210. Its URL is
+For source runs, replace `lazyapp` above with `bun src/main.js`.
+Press `W` inside the TUI to start the Web editor on port 3210. Its URL is
 shown in the status line, and quitting the TUI closes the service it started.
 Initialize new projects through the TUI prompt; Web-only mode never initializes.
 
@@ -137,6 +136,8 @@ While editing text, `j`/`k`/`h`/`l`/`q`/`?`/`g`/`G`/`/` are plain characters —
 
 The default **Gruvbox Light** theme is a fixed, opaque light palette, regardless of terminal light/dark detection. Missing preferences and the old generic `default` value use Gruvbox Light without rewriting settings; existing named choices stay selected. Press `:` to choose another palette or explicitly select **Auto (terminal)** (`auto`), which follows terminal mode changes and uses an opaque dark fallback when detection is unavailable. Semantic text and file-status colors in Gruvbox Light remain readable on both panels and selected rows.
 
+Available dark/light pairs: **Gruvbox**, **Catppuccin Mocha / Latte**, **Tokyo Night / Tokyo Night Day**, and **Solarized**. To switch: `:` opens settings → `j` selects Theme → `Enter`/`l` for next or `h` for previous; changes apply and save immediately, `Esc` closes. Preferences are stored in `~/.config/lazyapp/settings.json` (or under `XDG_CONFIG_HOME`). English and Chinese built-in help (`?`) lists these steps in Actions and the palettes/default in Notes.
+
 Press `?` for a categorized reference: **Navigation**, **Actions**, and **Notes** (also available in Chinese). Use `←`/`→` or `[`/`]` to change category, `↑`/`↓` or `PgUp`/`PgDn` to scroll, and `Esc`/`Enter` to close and restore the previous focus. Each category remembers its scroll position while open; descriptions wrap into a separate column at narrow terminal widths. Safety and storage explanations live in Notes instead of crowding the shortcut list.
 
 ### Typical flow
@@ -159,21 +160,24 @@ Press `?` for a categorized reference: **Navigation**, **Actions**, and **Notes*
 
 | Command                                                    | Purpose                                                                |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `node --experimental-ffi src/main.js tui /absolute/project` | run TUI and Web together                                               |
-| `pnpm run dev -- /absolute/project`                        | run TUI only; press `W` inside it to start Web                         |
-| `pnpm run web -- /absolute/project`                        | run the Web-only service (default port 3210)                           |
-| `pnpm run lint` / `pnpm run lint:fix`                      | ESLint checks / fixes                                                  |
-| `pnpm test`                                                | behavior tests using `node:test`                                       |
-| `pnpm run build`                                           | build the current platform's Node SEA archive and checksums            |
-| `pnpm run smoke:release`                                   | exercise the extracted SEA release in a PTY                            |
+| `bun src/main.js tui /absolute/project`                    | run TUI and Web together                                               |
+| `bun run dev /absolute/project`                            | run TUI only; press `W` inside it to start Web                         |
+| `bun run web /absolute/project`                            | run the Web-only service (default port 3210)                           |
+| `bun run lint` / `bun run lint:fix`                         | ESLint checks / fixes under Bun                                        |
+| `bun test`                                                 | behavior tests using Bun's `node:test` compatibility                   |
+| `bun run build`                                            | build the current platform's Bun standalone archive and checksums     |
+| `bun run smoke:source` / `bun run smoke:release`             | locally exercise source / extracted release in a real PTY             |
 
 - `docs/spec.md` — authoritative development contract (keyboard, layout, storage, safety, acceptance).
 - `docs/lazyapp.md` — product proposal and data-organization examples.
 
-Verified locally: Node.js `26.7.0`, pnpm `12.5.1`, OpenTUI `0.5.11`, and
-Node SEA on macOS arm64. Release workflows build macOS (arm64/x86_64), Linux
-(x86_64/arm64), and Windows (x86_64) on their matching runners.
+Tooling is pinned to Bun `1.4.2` and OpenTUI `0.5.11`. Use Bun >=1.4.2 for
+source execution; no experimental FFI flag is needed. `bunfig.toml` disables
+lockfile writes under the repository's no-lockfile policy.
 
-OpenTUI requires Node.js >=26.4.0 and `--experimental-ffi` for source TUI runs
-and renderer tests. SEA releases embed Node.js, the FFI flag, OpenTUI native
-assets, and local Web assets; users do not need a separate Node.js installation.
+Release workflows build macOS (arm64/x86_64), Linux (x86_64/arm64, glibc), and
+Windows (x86_64) on matching runners. Bun standalone releases embed the runtime
+and OpenTUI native assets, with local Web files alongside the executable;
+users do not need a separate Bun or Node.js installation. CI/CD never runs
+smoke tests; run both smoke commands locally. See `docs/spec.md` for actual
+verification scope and target-platform limitations.

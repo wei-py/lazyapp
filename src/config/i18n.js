@@ -419,7 +419,8 @@ const HELP = [
       ['f', 'Show managed workspace files.', '显示工作区管理文件。'],
       ['r', 'Refresh the workspace, reload the editor, or rerun Doctor.', '刷新工作区、重载编辑器，或重新运行诊断。'],
       ['x', 'Cancel the most recent running or queued job.', '取消最近的运行中或排队任务。'],
-      [': / L', 'Open settings / switch English and Chinese.', '打开设置 / 切换中英文。'],
+      [':', 'Change theme: open settings, use j/k to select Theme, Enter/l for next or h for previous. Applies and saves immediately; Esc closes.', '切换主题：打开设置，j/k 选中主题，Enter/l 下一主题、h 上一主题。即时生效并保存，Esc 关闭。'],
+      ['L', 'Switch English and Chinese.', '切换中英文。'],
       ['W', 'Start the local Web editor without leaving the TUI.', '启动本地 Web 编辑器，不离开终端界面。'],
       ['?', 'Open this keyboard reference.', '打开此快捷键参考。'],
       ['q / Ctrl+c', 'Request quit; Ctrl+c inside a dialog closes only that dialog.', '请求退出；弹窗内 Ctrl+c 仅关闭该弹窗。'],
@@ -428,6 +429,7 @@ const HELP = [
   {
     titles: ['Notes', '须知'],
     entries: [
+      ['', 'Default: Gruvbox Light. Dark / light themes: Gruvbox, Catppuccin (Mocha / Latte), Tokyo Night (Night / Day), Solarized. Use : → Theme; Auto (terminal) follows terminal mode.', '默认 Gruvbox Light。深色／浅色主题：Gruvbox、Catppuccin（Mocha／Latte）、Tokyo Night（Night／Day）、Solarized。按 : → 主题切换；自动（终端）跟随终端深浅色。'],
       ['', 'Changing focus preserves drafts. Changing the active document asks Save / Discard / Cancel when needed.', '切换焦点保留草稿。切换当前文档时，必要时询问保存 / 放弃 / 取消。'],
       ['', 'While typing, digits, hjkl, ?, and / are literal text. Enter accepts, Esc restores, and Ctrl+u clears the input.', '输入时，数字、hjkl、? 和 / 均为普通文本。Enter 接受，Esc 恢复，Ctrl+u 清空输入。'],
       ['', 'Confirmations start on Cancel. Use arrows and Enter to choose; destructive y/n dialogs also accept y or n.', '确认弹窗默认选择取消。方向键选择、Enter 确认；破坏性 y/n 弹窗也可按 y 或 n。'],

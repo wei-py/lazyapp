@@ -2,7 +2,7 @@
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-一款纯本地、离线的 App 资料管理工具，同时提供 OpenTUI 终端界面与 Node.js 本地 Web 编辑器，整理元数据、资源、平台凭据、服务、环境和商店资料。
+一款纯本地、离线的 App 资料管理工具，同时提供 OpenTUI 终端界面与 Bun 本地 Web 编辑器，整理元数据、资源、平台凭据、服务、环境和商店资料。
 
 没有云服务、遥测或数据库。两套界面共用 `<project>/.lazyapp/` 中的 JSON 配置与原始文件。
 
@@ -61,7 +61,7 @@ HarmonyOS 平台配置支持可选的 `material` 文件引用，通常为 `platf
 
 ```sh
 # 安装
-pnpm install
+bun install
 
 # TUI + Web：TUI 生命周期内同时启动本地 Web 服务
 lazyapp tui /absolute/project
@@ -74,8 +74,8 @@ lazyapp /absolute/project
 lazyapp web /absolute/project --port 3210
 ```
 
-源码运行时，以上 `lazyapp` 替换为 `node --experimental-ffi src/main.js`；
-仅 Web 也可省略 `--experimental-ffi`。TUI 中按 `W` 也可启动默认端口 3210
+源码运行时，以上 `lazyapp` 替换为 `bun src/main.js`。
+无需实验性 FFI 参数。TUI 中按 `W` 也可启动默认端口 3210
 的 Web 编辑器，地址显示在状态栏。退出 TUI 会同时关闭由该 TUI 启动的 Web 服务。
 新项目可通过 TUI 启动询问创建工作区；仅 Web 不会自动创建工作区。
 
@@ -150,21 +150,22 @@ lazyapp /absolute/project
 
 | 命令                                                        | 用途                                             |
 | ----------------------------------------------------------- | ------------------------------------------------ |
-| `node --experimental-ffi src/main.js tui /absolute/project` | 同时运行 TUI 与 Web                              |
-| `pnpm run dev -- /absolute/project`                         | 仅运行 TUI；TUI 内按 `W` 可启动 Web              |
-| `pnpm run web -- /absolute/project`                         | 仅启动本地 Web 服务，默认端口 3210               |
-| `pnpm run lint` / `pnpm run lint:fix`                       | ESLint 检查 / 修复                               |
-| `pnpm test`                                                 | 基于 `node:test` 的行为测试                       |
-| `pnpm run build`                                            | 构建当前平台 Node SEA 发行包及 SHA256SUMS        |
-| `pnpm run smoke:release`                                    | 在 PTY 中冒烟验证解压后的 SEA 发行包             |
+| `bun src/main.js tui /absolute/project`                    | 同时运行 TUI 与 Web                              |
+| `bun run dev /absolute/project`                            | 仅运行 TUI；TUI 内按 `W` 可启动 Web              |
+| `bun run web /absolute/project`                            | 仅启动本地 Web 服务，默认端口 3210               |
+| `bun run lint` / `bun run lint:fix`                         | 通过 Bun 执行 ESLint 检查 / 修复                 |
+| `bun test`                                                 | 使用 Bun 的 `node:test` 兼容层执行行为测试       |
+| `bun run build`                                            | 构建当前平台 Bun 独立发行包及 SHA256SUMS         |
+| `bun run smoke:source` / `bun run smoke:release`             | 仅本地通过真实 PTY 验证源码 / 解压后的发行包      |
 
 - `docs/spec.md` — 权威开发契约（键盘、布局、存储、安全、验收）。
 - `docs/lazyapp.md` — 产品构想与数据组织示例。
 
-本机已验证：Node.js `26.7.0`、pnpm `12.5.1`、OpenTUI `0.5.11` 与 macOS
-arm64 Node SEA。发布工作流在对应 runner 上构建 macOS（arm64/x86_64）、
-Linux（x86_64/arm64）与 Windows（x86_64）。
+工具链固定为 Bun `1.4.2` 与 OpenTUI `0.5.11`；源码运行要求 Bun >=1.4.2，
+无需实验性 FFI 参数。按仓库无锁文件约定，`bunfig.toml` 禁止写入锁文件。
 
-源码 TUI 与渲染器测试要求 Node.js >=26.4.0 和 `--experimental-ffi`。
-SEA 发行包内嵌 Node.js、FFI 参数、OpenTUI 原生资源与本地 Web 资源，
-用户不需要另行安装 Node.js。
+发布工作流在对应 runner 构建 macOS（arm64/x86_64）、Linux（x86_64/arm64，
+glibc）与 Windows（x86_64）。Bun 独立发行包内嵌运行时与 OpenTUI 原生资源，
+本地 Web 资源位于可执行文件旁，用户无需另行安装 Bun 或 Node.js。
+CI/CD 不执行任何冒烟测试；两个冒烟命令仅供本地运行。
+实际验证范围与目标平台限制见 `docs/spec.md`。
