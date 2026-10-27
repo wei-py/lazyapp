@@ -689,6 +689,64 @@ function renderFiles() {
     $('#file-list').append(node('p', '暂无文件。', 'empty-list'))
 }
 
+function fileIcon(path) {
+  const extension = path.replace(/\.example$/i, '').split('.').at(-1).toLowerCase()
+  const types = {
+    image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif'],
+    pdf2: ['pdf'],
+    json: ['json'],
+    text: ['txt', 'log', 'csv'],
+    zip: ['zip', 'gz', 'tar', '7z', 'rar'],
+    video: ['mp4', 'mov', 'webm'],
+    audio: ['mp3', 'wav', 'ogg', 'm4a'],
+    key: ['key', 'keystore', 'jks', 'p12', 'pfx'],
+    cert: ['pem', 'cer', 'crt', 'mobileprovision'],
+    font: ['ttf', 'otf', 'woff', 'woff2'],
+    excel: ['xls', 'xlsx'],
+    word: ['doc', 'docx'],
+    markdown: ['md'],
+    xml: ['xml', 'plist'],
+  }
+  const type = Object.keys(types).find(type => types[type].includes(extension))
+  const icon = node('span', undefined, `file-icon i-vscode-icons-${type ? `file-type-${type}` : 'default-file'}`)
+  icon.setAttribute('aria-hidden', 'true')
+  return icon
+}
+
+function fileVisual(file) {
+  const visual = node('div', undefined, 'file-visual')
+  visual.append(fileIcon(file.path))
+  if (!file.external && !file.missing && /\.(?:png|jpe?g|gif|webp)$/i.test(file.path)) {
+    const preview = button('', () => showFile(file.path), 'thumbnail-button')
+    preview.setAttribute('aria-label', `预览 ${file.path}`)
+    const image = node('img', undefined, 'file-thumbnail')
+    image.alt = ''
+    image.decoding = 'async'
+    preview.append(image)
+    void api(`/api/file?path=${encodeURIComponent(file.path)}`, { binary: true }).then(async (response) => {
+      if (!response.headers.get('content-disposition')?.startsWith('inline'))
+        return
+      const blob = await response.blob()
+      if (!visual.isConnected)
+        return
+      const url = URL.createObjectURL(blob)
+      image.addEventListener('load', () => {
+        URL.revokeObjectURL(url)
+        if (visual.isConnected)
+          visual.replaceChildren(preview)
+      }, { once: true })
+      image.addEventListener('error', () => {
+        URL.revokeObjectURL(url)
+        visual.title = '图片无法解码，可下载原文件。'
+      }, { once: true })
+      image.src = url
+    }).catch(() => {
+      visual.title = '图片预览加载失败，可点击预览 / 下载重试。'
+    })
+  }
+  return visual
+}
+
 function renderFile(file) {
   const row = node('div', undefined, 'file-row')
   const info = node('div', undefined, 'file-info')
@@ -709,7 +767,9 @@ function renderFile(file) {
       notice('已删除文件。配置引用可能缺失，请运行诊断。')
     }, 'small danger'))
   }
-  row.append(info, actions)
+  const identity = node('div', undefined, 'file-identity')
+  identity.append(fileVisual(file), info)
+  row.append(identity, actions)
   return row
 }
 
