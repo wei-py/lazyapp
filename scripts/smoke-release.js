@@ -1,39 +1,28 @@
+/* global Bun */
 import assert from 'node:assert/strict'
 import { execFile as execFileCallback, spawn } from 'node:child_process'
-import { mkdir, mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { get } from 'node:http'
 import { createConnection } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import process from 'node:process'
 import { promisify } from 'node:util'
-import * as pty from '@lydell/node-pty'
 import { releaseTarget } from '../src/config/release.js'
 
 const execFile = promisify(execFileCallback)
 const root = join(import.meta.dirname, '..')
 const target = releaseTarget()
+const source = process.argv.includes('--source')
 const temporary = await mkdtemp(join(tmpdir(), 'lazyapp-release-'))
 try {
-  const assetTemporary = join(temporary, 'native-assets')
-  await mkdir(assetTemporary)
-  await execFile('tar', ['-xf', join(root, 'dist', target.archiveName), '-C', temporary])
-  const binary = join(temporary, 'bin', target.binaryName)
-  // Deny checkout access where sandbox-exec exists: bundled imports must not hide missing assets.
-  const sandboxed = process.platform === 'darwin'
-  if (sandboxed) {
-    const entitlements = join(temporary, 'sea-entitlements.plist')
-    await execFile('codesign', ['--display', '--entitlements', entitlements, '--xml', binary])
-    const jit = await execFile('plutil', [
-      '-extract',
-      'com\\.apple\\.security\\.cs\\.allow-jit',
-      'raw',
-      '-o',
-      '-',
-      entitlements,
-    ])
-    assert.equal(jit.stdout.trim(), 'true', 'The signed SEA must retain Node JIT permission before sandbox startup')
-  }
+  if (!source)
+    await execFile('tar', ['-xf', join(root, 'dist', target.archiveName), '-C', temporary])
+  const binary = source ? process.execPath : join(temporary, 'bin', target.binaryName)
+  // Deny checkout access for extracted releases where sandbox-exec exists.
+  const sandboxed = !source && process.platform === 'darwin'
+  if (sandboxed)
+    await execFile('codesign', ['--verify', '--strict', binary])
   const command = sandboxed
     ? [
         '/usr/bin/sandbox-exec',
@@ -41,7 +30,7 @@ try {
         `(version 1)(allow default)(deny file-read* (subpath ${JSON.stringify(root)}))`,
         binary,
       ]
-    : [binary]
+    : [binary, ...(source ? [join(root, 'src/main.js')] : [])]
   const env = Object.fromEntries(Object.entries({
     PATH: process.platform === 'win32'
       ? join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')
@@ -49,9 +38,6 @@ try {
     HOME: temporary,
     XDG_CONFIG_HOME: join(temporary, 'preferences'),
     TERM: 'xterm-256color',
-    TMPDIR: assetTemporary,
-    TEMP: assetTemporary,
-    TMP: assetTemporary,
     ...(process.platform === 'win32'
       ? {
           SystemRoot: process.env.SystemRoot,
@@ -59,30 +45,10 @@ try {
         }
       : {}),
   }).filter(([, value]) => value !== undefined))
-  let previousAssetDirectories = []
-  async function assertAssetLifecycle(activePid) {
-    const directories = (await readdir(assetTemporary)).filter(name => name.startsWith('lazyapp-opentui-'))
-    if (process.platform !== 'win32') {
-      if (activePid === undefined)
-        assert.deepEqual(directories, [], 'Exited packaged processes must remove their extracted native assets')
-      return
-    }
-    for (const name of previousAssetDirectories)
-      assert.ok(!directories.includes(name), `The next packaged invocation must reclaim exited native assets: ${name}`)
-    if (activePid !== undefined) {
-      assert.ok(directories.some(name => name.startsWith(`lazyapp-opentui-${activePid}-`)), 'A running packaged Web process must retain its native assets')
-    }
-    else {
-      assert.ok(directories.length > 0, 'Windows must retain extracted native assets until a later invocation')
-      previousAssetDirectories = directories
-    }
-  }
   const help = await execFile(command[0], [...command.slice(1), '--help'], { cwd: temporary, env })
   assert.match(help.stdout, /Usage: lazyapp/)
-  await assertAssetLifecycle()
   const version = await execFile(command[0], [...command.slice(1), '--version'], { cwd: temporary, env })
   assert.match(version.stdout, /^lazyapp \d+\.\d+\.\d+/)
-  await assertAssetLifecycle()
   const terminalCommand = sandboxed ? [binary] : command
 
   async function exercise(initialize) {
@@ -90,32 +56,42 @@ try {
     let accepted = false
     let ready = false
     let timedOut = false
-    const terminal = pty.spawn(terminalCommand[0], terminalCommand.slice(1), {
-      cols: 120,
-      rows: 40,
+    let inputTimer
+    let quitTimer
+    const decoder = new TextDecoder()
+    const child = Bun.spawn(terminalCommand, {
       cwd: temporary,
       env,
-      name: 'xterm-256color',
+      terminal: {
+        cols: 120,
+        rows: 40,
+        name: 'xterm-256color',
+        data(terminal, data) {
+          output += decoder.decode(data, { stream: true })
+          if (initialize && !accepted && output.includes('Create one? (y/N):')) {
+            accepted = true
+            terminal.write(process.platform === 'win32' ? 'y\r' : 'y\n')
+          }
+          // Wait for a real loaded document, not localized explanatory copy.
+          if (!ready && output.includes('app.json')) {
+            ready = true
+            terminal.resize(80, 24)
+            terminal.write('?')
+            inputTimer = setTimeout(() => {
+              terminal.write('\x1B')
+              terminal.resize(120, 40)
+              quitTimer = setTimeout(() => terminal.write('q'), 100)
+            }, 200)
+          }
+        },
+      },
     })
-    terminal.onData((data) => {
-      output += data
-      if (initialize && !accepted && output.includes('Create one? (y/N):')) {
-        accepted = true
-        terminal.write(process.platform === 'win32' ? 'y\r' : 'y\n')
-      }
-      // Wait for a real loaded document, not explanatory copy that may be removed or localized.
-      if (!ready && output.includes('app.json')) {
-        ready = true
-        terminal.write('q')
-      }
-    })
-    const exited = new Promise(resolve => terminal.onExit(resolve))
     const timer = setTimeout(() => {
       timedOut = true
-      terminal.kill('SIGKILL')
+      child.kill('SIGKILL')
     }, 20000)
     try {
-      const { exitCode } = await exited
+      const exitCode = await child.exited
       assert.ok(!timedOut, `Packaged TUI timed out: ${output}`)
       assert.equal(exitCode, 0, `Packaged TUI failed: ${output}`)
       assert.ok(ready, `Native renderer must reach the workspace: ${output}`)
@@ -124,10 +100,12 @@ try {
       assert.equal(accepted, initialize, 'Only a new workspace should require initialization')
       if (!initialize)
         assert.ok(!output.includes('Create one?'), 'Existing workspace must reopen directly')
-      await assertAssetLifecycle()
     }
     finally {
       clearTimeout(timer)
+      clearTimeout(inputTimer)
+      clearTimeout(quitTimer)
+      child.terminal.close()
     }
   }
 
@@ -219,11 +197,6 @@ try {
         }),
       ]), 20000, 'Packaged Web startup timed out')
       assert.ok(Number(new URL(url).port) > 0, 'Packaged Web must announce its assigned ephemeral port')
-      await assertAssetLifecycle(child.pid)
-      if (process.platform === 'win32') {
-        await execFile(command[0], [...command.slice(1), '--version'], { cwd: temporary, env, timeout: 20000 })
-        await assertAssetLifecycle(child.pid)
-      }
       const html = await request(url, '/', /^text\/html\b/u)
       assert.match(html, /<!doctype html>/iu)
       assert.match(html, /src=["']\/app\.js["']/u, 'Packaged HTML must reference the Web JavaScript sidecar')
@@ -249,7 +222,6 @@ try {
         assert.equal(result.signal, null, `Packaged Web must handle SIGTERM rather than die from it: ${output}`)
         assert.equal(result.code, 143, `Packaged Web must finish its SIGTERM cleanup: ${output}`)
       }
-      await assertAssetLifecycle()
       await new Promise((resolve, reject) => {
         const address = new URL(url)
         const socket = createConnection({ host: address.hostname, port: Number(address.port) })
@@ -276,12 +248,8 @@ try {
     }
   }
   await exerciseWeb()
-  if (process.platform === 'win32') {
-    await execFile(command[0], [...command.slice(1), '--version'], { cwd: temporary, env, timeout: 20000 })
-    await assertAssetLifecycle()
-  }
   process.stdout.write(
-    `Release smoke passed: Node SEA archive, help, native TUI, initialization, reopen, terminal exit, Web sidecar assets, read-only API, service shutdown, and native asset lifecycle${sandboxed ? ', and checkout isolation' : ''}.\n`,
+    `${source ? 'Source' : 'Release'} smoke passed: ${source ? 'Bun runtime' : 'Bun standalone archive'}, help, native TUI, initialization, resize, reopen, terminal exit, Web assets, read-only API, and service shutdown${sandboxed ? ', signature verification, and checkout isolation' : ''}.\n`,
   )
 }
 finally {

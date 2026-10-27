@@ -34,14 +34,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 12.5.1
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26.7.0
-      - run: pnpm install
-      - run: pnpm run build
+          bun-version: 1.4.2
+      - run: bun install
+      - run: bun run build
       - uses: actions/upload-artifact@v4
         with:
           name: lazyapp-${{ matrix.asset }}
@@ -72,4 +69,4 @@ jobs:
           gh release create "$RELEASE_TAG"
           dist/lazyapp-* dist/SHA256SUMS
           --verify-tag --title "$RELEASE_TAG" --generate-notes
-          --notes 'Prebuilt Node SEA binaries for macOS (Apple Silicon/x86_64), Linux (x86_64/aarch64), and Windows (x86_64). Install: mise use -g github:wei-py/lazyapp@latest. Node.js is embedded; no separate runtime installation is required.'
+          --notes 'Prebuilt Bun executables for macOS (Apple Silicon/x86_64), Linux (x86_64/aarch64), and Windows (x86_64). Install: mise use -g github:wei-py/lazyapp@latest. Bun and OpenTUI native assets are embedded; no separate runtime installation is required.'
