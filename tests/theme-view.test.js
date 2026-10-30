@@ -4,7 +4,7 @@ import { Application } from '../src/app/controller.js'
 import { setTheme } from '../src/app/operations.js'
 import { createView } from '../src/app/view.js'
 import { expect, test } from '../support/node-test.js'
-import { DEFAULT_THEME, themeColors } from '../vendor/lazy-kit/themes.js'
+import { DEFAULT_THEME, themeColors, THEMES } from '../vendor/lazy-kit/themes.js'
 
 async function fixture(initialMode, run, theme = DEFAULT_THEME) {
   const ui = await createTestRenderer({
@@ -64,6 +64,30 @@ function expectPalette(ui, palette) {
   // This column is outside the inset panels, so it verifies the renderer's clear color.
   expectColor(ui.captureSpans().lines[1].spans[0].bg, palette.background)
 }
+
+test('every theme paints header and footer blank cells after switching and resizing', async () => {
+  await fixture('dark', async ({ ui, app, emitMode }) => {
+    for (const { id } of THEMES) {
+      await setTheme(app, id)
+      for (const mode of ['light', 'dark']) {
+        emitMode(mode)
+        for (const [width, height] of [[100, 24], [80, 30]]) {
+          ui.renderer.resize(width, height)
+          app.update()
+          await ui.renderOnce()
+          const lines = ui.captureSpans().lines
+          const palette = themeColors(id, mode)
+          for (const row of [0, height - 2, height - 1]) {
+            const spans = lines[row].spans
+            expect(spans.map(span => span.text).join('')).toHaveLength(width)
+            for (const span of spans)
+              expectColor(span.bg, palette.background)
+          }
+        }
+      }
+    }
+  })
+})
 
 for (const mode of ['light', 'dark', null]) {
   test(`the fixed default stays light in a ${mode ?? 'undetected'} terminal`, async () => {
