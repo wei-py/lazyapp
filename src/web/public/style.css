@@ -131,6 +131,8 @@ main[data-scroll-root]:focus-visible, .scroll-section:focus-visible, .virtual-li
 .file-reference-status { font-size: 11px; color: var(--muted); margin-top: 5px; }
 .file-reference-status.present { color: var(--green); }
 .file-reference-status.missing { color: var(--red); }
+.field-file-preview { margin-top: 8px; }
+.field-file-preview .file-visual { width: 160px; height: 120px; max-width: 100%; }
 .editor-actions { position: sticky; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; background: var(--paper); border-top: 1px solid var(--line); }
 .notice { max-height: 30px; margin: 0; padding-left: 8px; border-left: 2px solid var(--accent); font-size: 12px; line-height: 15px; overflow-wrap: anywhere; overflow-y: auto; overflow-x: hidden; }
 .notice.error { border-color: var(--red); color: var(--red); }
@@ -146,7 +148,7 @@ main[data-scroll-root]:focus-visible, .scroll-section:focus-visible, .virtual-li
 .file-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .file-info { min-width: 0; max-width: 100%; }
 .file-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.file-visual { display: grid; place-items: center; width: 64px; height: 64px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); overflow: hidden; }
+.file-visual { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; width: 64px; height: 64px; flex-shrink: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); overflow: hidden; }
 .file-icon { display: inline-block; }
 .thumbnail-button { width: 100%; height: 100%; padding: 4px; border: 0; border-radius: 0; }
 .file-thumbnail { display: block; width: 100%; height: 100%; object-fit: contain; }

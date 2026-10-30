@@ -218,6 +218,39 @@ describe('local web workspace service', () => {
     expect(await fs.readFile(outside, 'utf8')).toBe('fictional external secret')
   })
 
+  test('absolute references inside the workspace preview without exposing external paths or allowing absolute writes', async () => {
+    await initialize()
+    const root = await fs.realpath(path.join(project, '.lazyapp'))
+    const relative = 'assets/icon/source.png'
+    const absolute = path.join(root, relative)
+    const bytes = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXioAAAAASUVORK5CYII=', 'base64')
+    await fs.mkdir(path.dirname(absolute), { recursive: true })
+    await fs.writeFile(absolute, bytes)
+    const client = await start()
+    expect((await putDocument(client, { path: 'assets/config.json', revision: null }, { schemaVersion: 1, icon: absolute })).status).toBe(200)
+    const route = `/api/file?path=${encodeURIComponent(absolute)}`
+    const response = await client.call(route)
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-disposition')).toContain('inline')
+    expect(Buffer.from(await response.arrayBuffer())).toEqual(bytes)
+    const state = await (await client.call('/api/state')).json()
+    expect(state.files.filter(file => file.path === absolute)).toEqual([])
+    expect(state.files).toContainEqual(expect.objectContaining({ path: relative, missing: false }))
+    expect((await client.call(`${route}&revision=null`, { method: 'PUT', body: 'bad' })).status).toBe(403)
+    expect((await client.call('/api/file', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: absolute, revision: null }),
+    })).status).toBe(403)
+    const outside = path.join(project, 'outside.png')
+    await fs.writeFile(outside, bytes)
+    await fs.symlink(outside, path.join(root, 'assets/escape.png'))
+    for (const unsafe of [outside, `${root}-other/image.png`, path.join(root, 'assets/escape.png'), `${root}/../outside.png`]) {
+      expect((await client.call(`/api/file?path=${encodeURIComponent(unsafe)}`)).status).toBe(403)
+    }
+    expect(await fs.readFile(absolute)).toEqual(bytes)
+  })
+
   test('only byte-sniffed raster files preview inline; HTML and SVG always download', async () => {
     await initialize()
     const client = await start()

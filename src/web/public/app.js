@@ -538,21 +538,28 @@ function renderEditor() {
         if (file)
           void perform(() => importField(field, file))
       })
-      actions.append(button('上传并引用', () => chooser.click(), 'small'), button('预览 / 下载', () => showFile(current.draft[field.key]), 'small'), button('移除引用', () => {
+      const previewButton = button('预览 / 下载', () => showFile(current.draft[field.key]), 'small')
+      actions.append(button('上传并引用', () => chooser.click(), 'small'), previewButton, button('移除引用', () => {
         input.value = ''
         input.dispatchEvent(new Event('input'))
       }, 'small'), chooser)
       const referenceStatus = node('p', undefined, 'file-reference-status')
+      const referenceVisual = node('div', undefined, 'field-file-preview')
       const updateReference = () => {
-        const path = input.value
+        const path = internalReference(input.value)
         const external = /^(?:\/|[a-z]:[\\/])/i.test(path)
         const file = workspace.files.find(file => file.path === path)
-        referenceStatus.textContent = !path ? '未设置' : external ? '外部引用 · 只读' : file && !file.missing ? '存在' : '缺失'
+        referenceStatus.textContent = !path ? '未设置' : external ? '外部引用 · 只读（网页不读取）' : file && !file.missing ? '存在' : '缺失'
         referenceStatus.className = `file-reference-status ${!path || external ? '' : file && !file.missing ? 'present' : 'missing'}`
+        previewButton.disabled = !path || external || !file || file.missing || file.unsafe
+        referenceVisual.replaceChildren()
+        referenceVisual.hidden = previewButton.disabled
+        if (!referenceVisual.hidden)
+          referenceVisual.append(fileVisual(file))
       }
       input.addEventListener('input', updateReference)
       updateReference()
-      group.append(actions, referenceStatus)
+      group.append(actions, referenceStatus, referenceVisual)
     }
     sectionFor(field).append(group)
   }
@@ -637,9 +644,16 @@ async function importField(field, file) {
   notice('文件已导入。请保存配置以提交引用；放弃草稿不会撤销文件导入。')
 }
 
+function internalReference(value) {
+  const root = workspace.root.replaceAll('\\', '/')
+  const normalized = value.replaceAll('\\', '/')
+  return normalized.startsWith(`${root}/`) ? normalized.slice(root.length + 1) : value
+}
+
 async function showFile(path) {
   if (!path)
     throw new Error('尚未设置文件引用。')
+  path = internalReference(path)
   if (/^(?:\/|[a-z]:[\\/])/i.test(path))
     throw new Error('外部引用只读，网页不读取或下载外部文件。')
   const response = await api(`/api/file?path=${encodeURIComponent(path)}`, { binary: true })

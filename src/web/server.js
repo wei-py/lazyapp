@@ -122,6 +122,14 @@ function relativePath(value) {
   return value
 }
 
+// Absolute references beneath this workspace share its existing safe relative-path checks.
+// This mapping is for reads only; writes still require explicit relative paths.
+function internalReference(value, root) {
+  return typeof value === 'string' && value.startsWith(`${root}${path.sep}`)
+    ? path.relative(root, value).split(path.sep).join('/')
+    : value
+}
+
 function documentInfo(relative) {
   relativePath(relative)
   const info = identifyDocument(relative)
@@ -169,10 +177,12 @@ async function state(session) {
       const reference = document.data[field.key]
       if (field.type !== 'file' || typeof reference !== 'string' || !reference || files.has(reference))
         continue
-      // References are metadata only. Absolute references are never accepted by file routes.
+      const filePath = internalReference(reference, session.root)
+      if (files.has(filePath))
+        continue
       try {
-        const info = await session.inspectReference(reference)
-        files.set(reference, { ...info, file: true, missing: !info.exists })
+        const info = await session.inspectReference(filePath)
+        files.set(filePath, { ...info, file: true, missing: !info.exists })
       }
       catch {
         files.set(reference, { path: reference, file: true, missing: true, external: path.isAbsolute(reference), unsafe: true })
@@ -322,7 +332,7 @@ export async function startWebServer(projectDir, { port = 0 } = {}) {
     }
     if (target.pathname === '/api/file') {
       if (method === 'GET') {
-        const relative = relativePath(target.searchParams.get('path'))
+        const relative = relativePath(internalReference(target.searchParams.get('path'), session.root))
         const file = await session.readBytes(relative)
         if (file.bytes === null)
           throw failure('NOT_FOUND')
