@@ -72,7 +72,7 @@ function editorContent(s, app, rows, width) {
   let section
   for (let index = 0; index < fields.length; index++) {
     const field = fields[index]
-    const nextSection = field.type === 'date' ? 'Expiry dates' : field.type === 'file' ? 'File references' : field.type === 'secret' || editor.scope === 'signing' || editor.path.split('/').length === 4 ? 'Credentials' : 'Basic information'
+    const nextSection = field.type === 'date' ? 'Expiry dates' : ['file', 'files'].includes(field.type) ? 'File references' : field.type === 'secret' || editor.scope === 'signing' || editor.path.split('/').length === 4 ? 'Credentials' : 'Basic information'
     if (section !== nextSection) {
       if (lines.length)
         lines.push('')
@@ -80,11 +80,14 @@ function editorContent(s, app, rows, width) {
       section = nextSection
     }
     positions.push(lines.length)
-    lines.push(`${field.label}${field.required ? ' *' : ''}${field.type === 'file' ? ` ${t(s.language, '[file actions]')}` : ''}`)
+    lines.push(`${field.label}${field.required ? ' *' : ''}${['file', 'files'].includes(field.type) ? ` ${t(s.language, '[file actions]')}` : ''}`)
     const value = editor.index === index && editor.editing
       ? editingValue(editor.input, editor.cursor, field.type === 'secret', text)
       : displayValue(field, editor.draft[field.key], s.language)
-    lines.push(`  ${value}`)
+    if (field.type === 'files')
+      lines.push(...wrap(value, Math.max(1, text - 2)).map(line => `  ${line}`))
+    else
+      lines.push(`  ${value}`)
     if (field.type === 'date' && editor.index === index) {
       const hint = field.allowPermanent ? 'YYYY-MM-DD or never for permanent validity.' : 'YYYY-MM-DD; leave blank if unknown.'
       lines.push(...wrap(t(s.language, hint), text).map(line => `  ${line}`))

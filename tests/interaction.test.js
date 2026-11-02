@@ -568,6 +568,148 @@ describe('logical file presence', () => {
   })
 })
 
+describe('ordered screenshot references', () => {
+  test('legacy screenshots append uniquely, reorder and remove only draft references, then save without deleting images', async () => {
+    await withWorkspace(async (app, project) => {
+      const first = 'assets/screenshots/first,screen.png'
+      const second = 'assets/screenshots/second,jq.png'
+      const source = join(project, 'second,jq.png')
+      const firstSource = join(project, 'first,screen.png')
+      await fs.writeFile(firstSource, 'first image bytes')
+      await fs.writeFile(source, 'second image bytes')
+      await app.session.importFile(firstSource, first)
+      const data = { schemaVersion: 1, screenshots: first }
+      const stored = await app.session.save('assets/config.json', data, null)
+      const document = { path: 'assets/config.json', kind: 'assets', ...stored }
+      app.state.documents = app.state.documents.filter(item => item.path !== document.path)
+      app.state.documents.push(document)
+      app.state.editor = editDocument(document)
+      app.locateDocument(document)
+      app.focusPanel('form')
+      const editor = app.state.editor
+      editor.index = app.fields().findIndex(field => field.key === 'screenshots')
+
+      await press(app, 'return')
+      expect(app.state.modal.options).toContain(`1. ${first}`)
+      expect(app.state.modal.index).toBe(0)
+      await press(app, 'return')
+      expect(app.state.focus).toBe('form')
+      expect(editor.draft.screenshots).toBe(first)
+      expect(isDirty(editor)).toBe(false)
+
+      async function prepareCopy() {
+        await press(app, 'return')
+        await choose(app, 'Copy into workspace')
+        await press(app, 'paste', { text: source })
+        expect(app.state.modal.value).toBe(source)
+        expect(app.state.focus).toBe('modal')
+        expect(editor.editing).toBe(false)
+        await press(app, 'return')
+        expect(app.state.modal.value).toBe(second)
+        await press(app, 'return')
+        expect(app.state.modal.options[app.state.modal.index]).toBe('Cancel')
+        expect(app.state.modal.detail).toContain('independent file commit')
+      }
+
+      await prepareCopy()
+      await press(app, 'return')
+      expect(isDirty(editor)).toBe(false)
+      await expect(fs.stat(join(project, '.lazyapp', second))).rejects.toMatchObject({ code: 'ENOENT' })
+      await prepareCopy()
+      await choose(app, 'Copy file')
+      expect(app.state.focus).toBe('form')
+      expect(editor.draft.screenshots).toEqual([first, second])
+      expect(isDirty(editor)).toBe(true)
+      expect((await app.session.read(document.path)).data.screenshots).toBe(first)
+      expect(app.state.status).toContain('discarding the draft retains')
+
+      await prepareCopy()
+      await choose(app, 'Overwrite file')
+      expect(editor.draft.screenshots).toEqual([first, second])
+      await press(app, 'return')
+      await choose(app, `2. ${second}`)
+      expect(app.state.modal.index).toBe(0)
+      await press(app, 'return')
+      expect(editor.draft.screenshots).toEqual([first, second])
+      await press(app, 'return')
+      await choose(app, `2. ${second}`)
+      await choose(app, 'Move up')
+      expect(editor.draft.screenshots).toEqual([second, first])
+      expect(app.state.modal.index).toBe(0)
+      await choose(app, `1. ${second}`)
+      await choose(app, 'Move down')
+      expect(editor.draft.screenshots).toEqual([first, second])
+      await choose(app, `1. ${first}`)
+      await choose(app, 'Remove reference')
+      expect(editor.draft.screenshots).toEqual([second])
+      expect((await app.session.read(document.path)).data.screenshots).toBe(first)
+      await press(app, 'escape')
+      expect(app.state.focus).toBe('form')
+      await press(app, 's')
+      expect(isDirty(editor)).toBe(false)
+      expect((await app.session.read(document.path)).data.screenshots).toEqual([second])
+      expect(await fs.readFile(join(project, '.lazyapp', first), 'utf8')).toBe('first image bytes')
+      expect(await fs.readFile(join(project, '.lazyapp', second), 'utf8')).toBe('second image bytes')
+      expect(await fs.readFile(source, 'utf8')).toBe('second image bytes')
+    })
+  })
+
+  test('store screenshot defaults are scoped and external references remain unique, read-only and removable', async () => {
+    await withWorkspace(async (app, project) => {
+      const source = join(project, 'outside,jq.png')
+      await fs.writeFile(source, 'external image bytes')
+      const document = {
+        path: 'store/example.json',
+        kind: 'store',
+        revision: null,
+        missing: true,
+        data: { schemaVersion: 1, name: 'Example', screenshots: [] },
+      }
+      app.state.documents.push(document)
+      app.state.editor = editDocument(document)
+      app.locateDocument(document)
+      app.focusPanel('form')
+      const editor = app.state.editor
+      editor.index = app.fields().findIndex(field => field.key === 'screenshots')
+      await press(app, 'return')
+      await choose(app, 'Copy into workspace')
+      await press(app, 'paste', { text: source })
+      await press(app, 'return')
+      expect(app.state.modal.value).toBe('assets/screenshots/example/outside,jq.png')
+      await press(app, 'escape')
+      expect(isDirty(editor)).toBe(false)
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await press(app, 'return')
+        await choose(app, 'Reference external file')
+        await press(app, 'paste', { text: source })
+        await press(app, 'return')
+        expect(app.state.modal.index).toBe(0)
+        if (attempt === 0) {
+          await press(app, 'return')
+          expect(isDirty(editor)).toBe(false)
+          await press(app, 'return')
+          await choose(app, 'Reference external file')
+          await press(app, 'paste', { text: source })
+          await press(app, 'return')
+        }
+        await choose(app, 'Use reference')
+        expect(editor.draft.screenshots).toEqual([source])
+        expect(isDirty(editor)).toBe(true)
+      }
+      await press(app, 'return')
+      await choose(app, `1. ${source}`)
+      await choose(app, 'Remove reference')
+      expect(editor.draft.screenshots).toEqual([])
+      expect(isDirty(editor)).toBe(false)
+      await press(app, 'return')
+      expect(app.state.focus).toBe('form')
+      expect(await fs.readFile(source, 'utf8')).toBe('external image bytes')
+      await expect(fs.stat(join(project, '.lazyapp', 'assets/screenshots/example/outside,jq.png'))).rejects.toMatchObject({ code: 'ENOENT' })
+    })
+  })
+})
+
 test('expiry entries distinguish credentials in one document and protect invalid date drafts', async () => {
   await withWorkspace(async (app) => {
     const path = 'platforms/ios/ad-hoc/config.json'

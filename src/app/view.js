@@ -9,7 +9,7 @@ import { focusedGroup, isDirty, layoutMode } from './state.js'
 import { COLORS, setTheme } from './view/colors.js'
 import { keyHints } from './view/hints.js'
 import { detailContent, groupContent } from './view/panels.js'
-import { clipColumns, editingValue, padColumns, wrap } from './view/primitives.js'
+import { clipColumns, editingValue, padColumns, windowContent, wrap } from './view/primitives.js'
 
 const PANEL_IDS = ['group1', 'group2', 'group3', 'group4', 'detail']
 const PANEL_FOCUS = { group1: 'group1', group2: 'group2', group3: 'group3', group4: 'group4', detail: 'form' }
@@ -384,12 +384,15 @@ export function createView(renderer) {
           : ''
         : modal.detail || ''
       const detail = wrap(detailText, detailWidth)
+      const choices = modal.type === 'choice'
+        ? windowContent(modal.options, modal.index, Math.max(1, available - 6))
+        : null
       const optionLines
         = modal.type === 'input'
           ? [editingValue(modal.value, modal.cursor, false, detailWidth)]
           : modal.type === 'settings'
             ? [settingRow(s, 0, detailWidth), settingRow(s, 1, detailWidth)]
-            : modal.options
+            : choices.lines
       const detailCount = Math.max(0, available - optionLines.length - 4)
       const start = Math.min(modal.scroll || 0, Math.max(0, detail.length - detailCount))
       const content = [
@@ -399,7 +402,7 @@ export function createView(renderer) {
       ]
       const selected
         = modal.type === 'choice'
-          ? content.length + modal.index
+          ? content.length + choices.selected
           : modal.type === 'settings'
             ? content.length + modal.row
             : -1

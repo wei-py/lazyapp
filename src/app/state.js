@@ -62,6 +62,9 @@ export function setField(editor, field, value) {
       .map(item => item.trim())
       .filter(Boolean)
   }
+  else if (field.type === 'files') {
+    editor.draft[field.key] = Array.isArray(value) ? [...value] : value ? [value] : []
+  }
   else if (field.type === 'number') {
     editor.draft[field.key] = value === '' ? '' : Number(value)
   }
@@ -72,6 +75,8 @@ export function setField(editor, field, value) {
 
 export function fieldValue(editor, field) {
   const value = editor.draft[field.key]
+  if (field.type === 'files')
+    return (Array.isArray(value) ? value : value ? [value] : []).join('\n')
   return Array.isArray(value) ? value.join(', ') : String(value ?? '')
 }
 
@@ -96,6 +101,10 @@ export function displayValue(field, value, language = 'en') {
       return t(language, 'Permanent')
     if (value === undefined || value === null || value === '')
       return t(language, 'Expiry date not set')
+  }
+  if (field.type === 'files') {
+    const references = Array.isArray(value) ? value : value ? [value] : []
+    return references.map((reference, index) => `${index + 1}. ${reference}`).join('\n') || t(language, '(not set)')
   }
   if (Array.isArray(value))
     return value.join(', ') || t(language, '(not set)')

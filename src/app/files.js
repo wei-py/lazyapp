@@ -6,8 +6,114 @@ import { confirm, leave, open, prompt } from './documents.js'
 import { invalidateDoctor, operation } from './operations.js'
 import { setField } from './state.js'
 
+function screenshotReferences(editor, field) {
+  const value = editor.draft[field.key]
+  return Array.isArray(value) ? [...value] : value ? [value] : []
+}
+
+function linkReference(editor, field, reference) {
+  if (field.type === 'files') {
+    const references = screenshotReferences(editor, field)
+    if (!references.includes(reference))
+      references.push(reference)
+    setField(editor, field, references)
+  }
+  else {
+    setField(editor, field, reference)
+  }
+}
+
+function screenshotManager(app, field) {
+  const editor = app.state.editor
+  const references = screenshotReferences(editor, field)
+  confirm(
+    app,
+    field.label,
+    ['Cancel', 'Copy into workspace', 'Reference external file', ...references.map((reference, index) => `${index + 1}. ${reference}`)],
+    (index) => {
+      if (index === 1 || index === 2)
+        return chooseSource(app, field, editor, index === 2)
+      const selected = index - 3
+      if (selected < 0)
+        return
+      const actions = ['Cancel', 'Remove reference']
+      if (selected > 0)
+        actions.push('Move up')
+      if (selected < references.length - 1)
+        actions.push('Move down')
+      confirm(
+        app,
+        app.t('Screenshot {number}', { number: selected + 1 }),
+        actions,
+        (actionIndex) => {
+          const action = actions[actionIndex]
+          if (action === 'Cancel')
+            return
+          if (action === 'Remove reference') {
+            references.splice(selected, 1)
+          }
+          else {
+            const target = selected + (action === 'Move up' ? -1 : 1)
+            const reference = references[selected]
+            references[selected] = references[target]
+            references[target] = reference
+          }
+          setField(editor, field, references)
+          screenshotManager(app, field)
+        },
+        `${references[selected]}\n${app.t('Removing or reordering references only changes the draft; image files are never deleted.')}`,
+      )
+    },
+    app.t('Screenshots keep their listed order. Select an item to remove or move its reference. Image files are never deleted.'),
+  )
+}
+
+function chooseSource(app, field, editor, external) {
+  prompt(app, 'Source file: absolute path', async (source) => {
+    const valid = await operation(app, 'Checking source file', async () => {
+      const info = await inspectExternalReference(source)
+      if (!info.exists)
+        throw Object.assign(new Error('Missing file'), { code: 'ENOENT' })
+    })
+    if (!valid)
+      return
+    if (external) {
+      confirm(
+        app,
+        'Use read-only external reference?',
+        ['Cancel', 'Use reference'],
+        (selected) => {
+          if (selected) {
+            linkReference(editor, field, source)
+            app.state.status = app.t(
+              'External file is read-only and will not move with this workspace.',
+            )
+            app.update()
+          }
+        },
+        source,
+      )
+      return
+    }
+    const directory = field.type === 'files'
+      ? editor.kind === 'store'
+        ? join('assets', 'screenshots', basename(editor.path, '.json'))
+        : join('assets', 'screenshots')
+      : dirname(editor.path)
+    prompt(
+      app,
+      'Destination relative to workspace',
+      destination => confirmCopy(app, source, destination, editor, field),
+      join(directory, basename(source)),
+      app.t('No traversal. Copy never modifies the source file.'),
+    )
+  })
+}
+
 export function filePicker(app, field) {
   const editor = app.state.editor
+  if (field.type === 'files')
+    return screenshotManager(app, field)
   confirm(
     app,
     app.t('{field}: file action', { field: field.label }),
@@ -20,40 +126,7 @@ export function filePicker(app, field) {
       }
       if (index !== 1 && index !== 2)
         return
-      prompt(app, 'Source file: absolute path', async (source) => {
-        const valid = await operation(app, 'Checking source file', async () => {
-          const info = await inspectExternalReference(source)
-          if (!info.exists)
-            throw Object.assign(new Error('Missing file'), { code: 'ENOENT' })
-        })
-        if (!valid)
-          return
-        if (index === 2) {
-          confirm(
-            app,
-            'Use read-only external reference?',
-            ['Cancel', 'Use reference'],
-            (selected) => {
-              if (selected) {
-                setField(editor, field, source)
-                app.state.status = app.t(
-                  'External file is read-only and will not move with this workspace.',
-                )
-                app.update()
-              }
-            },
-            source,
-          )
-          return
-        }
-        prompt(
-          app,
-          'Destination relative to workspace',
-          destination => confirmCopy(app, source, destination, editor, field),
-          join(dirname(editor.path), basename(source)),
-          app.t('No traversal. Copy never modifies the source file.'),
-        )
-      })
+      return chooseSource(app, field, editor, index === 2)
     },
     app.t('External references are read-only. Removing a reference never deletes its source.'),
   )
@@ -86,7 +159,7 @@ export async function confirmCopy(app, source, destination, editor, field) {
             expectedRevision,
           })
           if (editor && field)
-            setField(editor, field, reference)
+            linkReference(editor, field, reference)
           app.state.managedFiles = await app.session.list()
           if (app.isFiles()) {
             app.state.files = app.state.managedFiles

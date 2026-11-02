@@ -618,7 +618,7 @@ export class Application {
       if (!field) {
         void save(this)
       }
-      else if (field.type === 'file') {
+      else if (field.type === 'file' || field.type === 'files') {
         filePicker(this, field)
       }
       else {
@@ -674,6 +674,8 @@ export class Application {
         const field = this.fields()[editor.index]
         if (!field)
           void save(this)
+        else if (field.type === 'files')
+          filePicker(this, field)
         else if (field.type !== 'secret')
           confirm(this, field.label, ['Close'], () => {}, fieldValue(editor, field))
       }
