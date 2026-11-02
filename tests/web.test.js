@@ -106,6 +106,50 @@ describe('local web workspace service', () => {
     expect((await client.call('/api/doctor')).status).toBe(200)
   })
 
+  test('state exposes localized expiry summaries without credential references and dates round-trip safely', async () => {
+    await initialize({ documents: [{
+      path: 'assets/config.json',
+      data: {
+        schemaVersion: 1,
+        businessLicense: 'assets/private-license.pdf',
+        businessLicenseExpiresOn: '2000-01-01',
+        waiver: 'assets/private-waiver.pdf',
+        waiverExpiresOn: 'never',
+        copyrightSupplement: 'assets/private-supplement.pdf',
+        notes: 'private credential details',
+      },
+    }] })
+    const client = await start()
+    const state = await (await client.call('/api/state')).json()
+    expect(state.expiries).toHaveLength(3)
+    expect(state.expiries).toContainEqual(expect.objectContaining({
+      path: 'assets/config.json',
+      key: 'businessLicenseExpiresOn',
+      referenceKey: 'businessLicense',
+      value: '2000-01-01',
+      status: 'expired',
+    }))
+    expect(state.expiries).toContainEqual(expect.objectContaining({ key: 'waiverExpiresOn', value: 'never', status: 'permanent' }))
+    expect(state.expiries).toContainEqual(expect.objectContaining({ key: 'copyrightSupplementExpiresOn', status: 'unset' }))
+    expect(state.expiries.every(expiry => typeof expiry.label === 'string' && expiry.label.length > 0)).toBe(true)
+    expect(JSON.stringify(state.expiries)).not.toContain('private-')
+    expect(JSON.stringify(state.expiries)).not.toContain('private credential details')
+    expect(state.fields.assets.all).toContainEqual(expect.objectContaining({
+      key: 'waiverExpiresOn',
+      type: 'date',
+      expiresFor: 'waiver',
+      allowPermanent: true,
+    }))
+    const snapshot = await (await client.call('/api/document?path=assets/config.json')).json()
+    const invalid = await putDocument(client, snapshot, { ...snapshot.data, businessLicenseExpiresOn: '2026-02-30' })
+    expect(invalid.status).toBe(422)
+    const saved = await putDocument(client, snapshot, { ...snapshot.data, businessLicenseExpiresOn: '2028-02-29', waiverExpiresOn: '' })
+    expect(saved.status).toBe(200)
+    expect((await saved.json()).data).toMatchObject({ businessLicenseExpiresOn: '2028-02-29', waiverExpiresOn: '' })
+    const updated = await (await client.call('/api/state')).json()
+    expect(updated.expiries).toContainEqual(expect.objectContaining({ key: 'waiverExpiresOn', status: 'unset' }))
+  })
+
   test('rejects missing tokens, rebinding Hosts, foreign Origins and missing mutation Origins', async () => {
     await initialize()
     const client = await start()

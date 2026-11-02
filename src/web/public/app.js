@@ -13,6 +13,8 @@ let restoreFocus = null
 let actionFocus = null
 let previewUrl = null
 let collection = 'service'
+let expiryDay = ''
+let refreshingExpiries = false
 const expandedPlatforms = new Set()
 const lifecycle = new AbortController()
 const scroll = createScrollManager({ root: $('#content'), backToTop: $('#back-to-top') })
@@ -80,13 +82,14 @@ async function switchView(next) {
   renderDocumentList()
 }
 
-async function selectDocument(path) {
+async function selectDocument(path, fieldKey) {
   if (view === 'documents' && current?.path === path) {
     closeNavigation()
+    focusField(fieldKey)
     return
   }
   if (await guard())
-    await openDocument(path)
+    await openDocument(path, fieldKey)
 }
 
 function node(tag, text, className) {
@@ -298,12 +301,79 @@ function documentTitle(info) {
 
 async function loadState() {
   workspace = await api('/api/state')
+  expiryDay = localDay()
   $('#root').textContent = workspace.root
   $('#document-count').textContent = workspace.documents.length
   $('#file-count').textContent = workspace.files.length
   renderDocumentList()
   renderFiles()
   renderOverview()
+}
+
+function localDay() {
+  const now = new Date()
+  return `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`
+}
+
+async function refreshExpiries(force = false) {
+  if (!workspace || view !== 'overview' || document.hidden || busy || $('#modal').open || refreshingExpiries || (!force && expiryDay === localDay()))
+    return
+  refreshingExpiries = true
+  const previousWorkspace = workspace
+  try {
+    const state = await api('/api/state')
+    if (lifecycle.signal.aborted || workspace !== previousWorkspace || view !== 'overview' || document.hidden || busy || $('#modal').open)
+      return
+    workspace.expiries = state.expiries
+    expiryDay = localDay()
+    await scroll.preserve(() => $('#expiry-reminders').replaceWith(renderExpiries()))
+  }
+  catch {
+    const status = $('#expiry-refresh-status')
+    if (status)
+      status.textContent = '到期提醒更新失败；当前结果可能已过时，可点击重新加载重试。'
+  }
+  finally {
+    refreshingExpiries = false
+  }
+}
+
+function renderExpiries() {
+  const section = node('section', undefined, 'panel expiry-reminders')
+  section.id = 'expiry-reminders'
+  const heading = node('div', undefined, 'section-heading')
+  heading.append(node('h2', '到期提醒'))
+  section.append(heading)
+  const expiries = workspace.expiries
+  const reminders = expiries.filter(expiry => ['soon', 'today', 'expired', 'invalid'].includes(expiry.status))
+  if (!reminders.some(expiry => expiry.status !== 'invalid'))
+    section.append(node('p', '已填写的日期中，暂无已过期或将在 30 天内到期的凭据或材料。'))
+  for (const expiry of reminders) {
+    const row = node('div', undefined, 'overview-row')
+    const identity = node('div')
+    identity.append(node('div', expiry.label, 'file-name'))
+    identity.append(node('div', [labels[expiry.kind] || expiry.kind, expiry.environment, expiry.name].filter(Boolean).join(' · '), 'hint'))
+    const detail = node('div', undefined, 'overview-row-status')
+    const message = expiry.status === 'invalid'
+      ? '日期无效，请修正'
+      : expiry.status === 'expired'
+        ? `截止 ${expiry.value} · 已过期 ${Math.abs(expiry.days)} 天`
+        : expiry.status === 'today'
+          ? `截止 ${expiry.value} · 今天到期（剩余 0 天）`
+          : `截止 ${expiry.value} · 剩余 ${expiry.days} 天`
+    detail.append(node('span', message, 'missing'))
+    const action = button(expiry.status === 'invalid' ? '修正日期' : '编辑有效期', () => selectDocument(expiry.path, expiry.key), 'small')
+    action.setAttribute('aria-label', `${expiry.label} · ${expiry.environment || labels[expiry.kind] || expiry.kind} · ${action.textContent}`)
+    row.append(identity, detail, action)
+    section.append(row)
+  }
+  const unset = expiries.filter(expiry => expiry.status === 'unset').length
+  if (unset)
+    section.append(node('p', `已有文件引用但未设置有效期：${unset} 项；日期未知，不参与到期提醒。`, 'hint'))
+  const status = node('p', '仅按手填日期提醒；未填写、长期或暂无提醒均不代表凭据有效。', 'hint')
+  status.id = 'expiry-refresh-status'
+  section.append(status)
+  return section
 }
 
 function renderOverview() {
@@ -381,10 +451,10 @@ function renderOverview() {
   const doctorRow = node('div', undefined, 'overview-row')
   doctorRow.append(node('span', 'Doctor'), node('span', '按需运行只读诊断', 'overview-row-status'), button('打开诊断', () => switchView('doctor'), 'small'))
   tools.append(fileRow, doctorRow)
-  target.replaceChildren(profile, stats, configurations, tools)
+  target.replaceChildren(renderExpiries(), profile, stats, configurations, tools)
 }
 
-async function openDocument(path) {
+async function openDocument(path, fieldKey) {
   const info = await api(`/api/document?path=${encodeURIComponent(path)}`)
   const draft = cleanDraft(info)
   current = { ...info, draft, base: structuredClone(draft) }
@@ -395,6 +465,15 @@ async function openDocument(path) {
   showView('documents', `document:${path}`)
   renderDocumentList()
   renderEditor()
+  focusField(fieldKey)
+}
+
+function focusField(key) {
+  const input = key && document.getElementById(`field-${key}`)
+  if (input) {
+    restoreFocus = input
+    scroll.scrollToAnchor(input)
+  }
 }
 
 function renderDocumentList() {
@@ -479,7 +558,7 @@ function renderEditor() {
   form.id = 'document-form'
   const sections = new Map()
   function sectionFor(field) {
-    const key = field.type === 'file' ? '文件引用' : field.type === 'secret' || current.scope === 'signing' ? '凭据与签名' : '基本信息'
+    const key = field.type === 'date' ? '凭据有效期' : field.type === 'file' ? '文件引用' : field.type === 'secret' || current.scope === 'signing' ? '凭据与签名' : '基本信息'
     if (!sections.has(key)) {
       const card = node('fieldset', undefined, 'editor-section')
       card.append(node('legend', key))
@@ -496,6 +575,7 @@ function renderEditor() {
     label.htmlFor = `field-${field.key}`
     if (field.required)
       label.append(node('span', '*', 'required'))
+    group.append(label)
     const input = node(/description|notes|variables/i.test(field.key) && field.type !== 'secret' ? 'textarea' : 'input')
     input.id = `field-${field.key}`
     input.name = field.key
@@ -510,6 +590,44 @@ function renderEditor() {
     }
     const value = current.draft[field.key]
     input.value = Array.isArray(value) ? value.join(', ') : value ?? ''
+    if (field.type === 'date') {
+      // Keep raw invalid dates visible: native date inputs silently erase them.
+      input.placeholder = 'YYYY-MM-DD（留空表示未知）'
+      input.pattern = '[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      input.maxLength = 10
+      const hint = node('p', '选填，格式 YYYY-MM-DD，请填写真实公历日期；留空表示未知，不参与提醒。', 'hint')
+      hint.id = `hint-${field.key}`
+      input.setAttribute('aria-describedby', hint.id)
+      group.append(hint)
+      if (field.allowPermanent) {
+        const mode = node('select')
+        mode.setAttribute('aria-label', `${field.label}填写方式`)
+        mode.id = `field-${field.key}-mode`
+        mode.setAttribute('aria-describedby', hint.id)
+        for (const [value, text] of [['unset', '未知 / 未填写'], ['date', '填写截止日期'], ['never', '长期有效']]) {
+          const option = node('option', text)
+          option.value = value
+          mode.append(option)
+        }
+        mode.value = value === 'never' ? 'never' : value === '' || value === null || value === undefined ? 'unset' : 'date'
+        let datedValue = mode.value === 'date' ? input.value : ''
+        const updateMode = () => {
+          input.disabled = mode.value !== 'date'
+          input.hidden = input.disabled
+          input.value = mode.value === 'date' ? datedValue : ''
+          label.htmlFor = input.disabled ? mode.id : input.id
+        }
+        mode.addEventListener('change', () => {
+          if (!input.disabled)
+            datedValue = input.value
+          updateMode()
+          current.draft[field.key] = mode.value === 'never' ? 'never' : mode.value === 'date' ? input.value : ''
+          updateDirty()
+        })
+        updateMode()
+        group.append(mode)
+      }
+    }
     input.addEventListener('input', () => {
       if (current.kind === 'app' && ['platforms', 'environments'].includes(field.key))
         current.draft[field.key] = input.value.split(',').map(value => value.trim()).filter(Boolean)
@@ -517,7 +635,6 @@ function renderEditor() {
         current.draft[field.key] = field.type === 'number' ? (input.value === '' ? null : Number(input.value)) : input.value
       updateDirty()
     })
-    group.append(label)
     const row = node('div', undefined, 'input-row')
     row.append(input)
     if (field.type === 'secret') {
@@ -592,7 +709,7 @@ async function saveCurrent() {
   if (!form.checkValidity()) {
     restoreFocus = form.querySelector(':invalid')
     scroll.scrollToAnchor(restoreFocus)
-    throw new Error('请补全标记的必填字段。')
+    throw new Error('请补全必填字段，并检查日期是否符合 YYYY-MM-DD 格式。')
   }
   const focusedId = form.contains(actionFocus) ? actionFocus.id : ''
   const focusedSubmit = form.contains(actionFocus) && actionFocus.type === 'submit'
@@ -982,6 +1099,12 @@ window.addEventListener('keydown', (event) => {
       $('#document-form').requestSubmit()
   }
 })
+const expiryTimer = setInterval(() => void refreshExpiries(), 60_000)
+lifecycle.signal.addEventListener('abort', () => clearInterval(expiryTimer), { once: true })
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden)
+    void refreshExpiries(true)
+}, { signal: lifecycle.signal })
 window.addEventListener('pagehide', (event) => {
   if (event.persisted)
     return

@@ -7,6 +7,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import { documentFields, documentKinds, documentPath, identifyDocument, isSafeName, platformKinds } from '../config/model.js'
+import { collectExpiries } from '../features/expiry.js'
 import { loadDocuments, logicalFiles, runDoctor, safeErrorMessage, saveDocument } from '../features/workspace.js'
 import { openWorkspace } from '../storage/workspace.js'
 
@@ -195,6 +196,7 @@ async function state(session) {
     documents: [...byPath.values()].sort((a, b) => a.path.localeCompare(b.path)),
     files: [...files.values()].sort((a, b) => a.path.localeCompare(b.path)),
     fields,
+    expiries: collectExpiries(documents, { language: 'zh' }),
     kinds: documentKinds,
     platforms: platformKinds,
     environments,
