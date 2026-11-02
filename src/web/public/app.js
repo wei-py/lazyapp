@@ -542,12 +542,16 @@ function screenshotReferences(field) {
 }
 
 function renderScreenshots(field) {
-  const group = node('div', undefined, 'field wide')
+  const group = node('div', undefined, 'field wide screenshot-field')
+  const references = screenshotReferences(field)
+  const toolbar = node('div', undefined, 'screenshot-toolbar')
+  const heading = node('div', undefined, 'screenshot-heading')
   const title = node('h2', field.label, 'field-label')
   title.id = `field-${field.key}`
   title.tabIndex = -1
-  group.append(title)
-  const references = screenshotReferences(field)
+  heading.append(title, node('span', `${references.length} 张`, 'count'))
+  toolbar.append(heading)
+  group.append(toolbar)
   const redraw = (index = 0) => {
     renderEditor()
     restoreFocus = document.getElementById(`screenshot-${field.key}-${index}`) || document.getElementById(title.id)
@@ -568,29 +572,34 @@ function renderScreenshots(field) {
     const external = /^(?:\/|[a-z]:[\\/])/i.test(path)
     const file = workspace.files.find(file => file.path === path)
     const present = file && !file.missing && !file.unsafe
-    const info = node('div', undefined, 'file-info')
-    info.append(node('div', `#${index + 1}`, 'file-name'), node('div', typeof reference === 'string' ? reference : '无效引用，请移除后重新添加', 'path'), node('p', external ? '外部引用 · 只读（网页不读取）' : present ? '存在' : '缺失', `file-reference-status ${external ? '' : present ? 'present' : 'missing'}`))
-    const identity = node('div', undefined, 'file-identity')
-    if (!external && present)
-      identity.append(fileVisual(file))
-    identity.append(info)
-    const actions = node('div', undefined, 'field-actions')
-    const preview = button('预览 / 下载', () => showFile(reference), 'small')
+    const original = typeof reference === 'string' ? reference : ''
+    const filename = original.replaceAll('\\', '/').split('/').at(-1)
+    const header = node('div', undefined, 'screenshot-meta')
+    header.append(node('span', String(index + 1).padStart(2, '0'), 'screenshot-number'), node('span', external ? '外部 · 只读' : present ? '存在' : '缺失', `file-reference-status ${external ? '' : present ? 'present' : 'missing'}`))
+    const visual = !external && present ? fileVisual(file) : node('div', external ? '外部只读图片' : '图片缺失', 'file-visual screenshot-placeholder')
+    const name = node('div', filename || '无效引用，请移除后重新添加', 'screenshot-name')
+    name.title = filename || ''
+    const location = node('details', undefined, 'screenshot-location')
+    location.append(node('summary', '文件位置'), node('p', original || '无效引用', 'path'))
+    const actions = node('div', undefined, 'screenshot-actions')
+    const preview = button('预览', () => showFile(reference), 'small')
     preview.disabled = external || !present
     const move = (offset) => {
       const values = screenshotReferences(field)
       ;[values[index], values[index + offset]] = [values[index + offset], values[index]]
       setReferences(values, index + offset)
     }
-    const up = button('上移', () => move(-1), 'small')
-    const down = button('下移', () => move(1), 'small')
+    const up = button('↑', () => move(-1), 'small')
+    const down = button('↓', () => move(1), 'small')
     up.disabled = index === 0
     down.disabled = index === references.length - 1
-    const remove = button('移除引用', () => setReferences(references.filter((_, position) => position !== index), Math.max(0, index - 1)), 'small')
-    for (const action of [preview, up, down, remove])
-      action.setAttribute('aria-label', `${action.textContent} 截图 ${index + 1}`)
+    const remove = button('移除', () => setReferences(references.filter((_, position) => position !== index), Math.max(0, index - 1)), 'small danger')
+    for (const [action, label] of [[preview, '预览 / 下载'], [up, '上移'], [down, '下移'], [remove, '移除引用']]) {
+      action.setAttribute('aria-label', `${label} 截图 ${index + 1}`)
+      action.title = label
+    }
     actions.append(preview, up, down, remove)
-    item.append(identity, actions)
+    item.append(header, visual, name, actions, location)
     list.append(item)
   })
   group.append(list)
@@ -606,8 +615,8 @@ function renderScreenshots(field) {
     if (files.length)
       void perform(() => importScreenshots(field, files))
   })
-  const actions = node('div', undefined, 'field-actions')
-  actions.append(button('上传截图（可多选）', () => chooser.click(), 'small'), button('添加已有引用', async () => {
+  const actions = node('div', undefined, 'screenshot-tools')
+  actions.append(button('上传截图', () => chooser.click(), 'small primary'), button('添加引用', async () => {
     const answer = await formDialog('添加截图引用', '工作区相对路径，或只读外部绝对路径。不复制或删除文件。', [{ key: 'path', label: '截图文件路径', required: true }], '添加引用')
     if (!answer)
       return
@@ -616,7 +625,8 @@ function renderScreenshots(field) {
       throw new Error('此截图已在列表中。')
     setReferences([...values, answer.path], values.length)
   }, 'small'), chooser)
-  group.append(actions, node('p', '按列表顺序保存；可为每个商店配置不同截图。移除引用不删除图片，尺寸及商店合规性未检查。', 'hint'))
+  toolbar.append(actions)
+  group.append(node('p', '支持多选上传，按顺序保存。移除只取消引用，不删除图片；未检查上架规格。', 'hint'))
   return group
 }
 
