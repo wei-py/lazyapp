@@ -102,6 +102,65 @@ describe('workspace features', () => {
     expect(session.records.get('services/push.json')).toEqual(saved)
   })
 
+  test('screenshot lists preserve order on save and reopen while legacy references canonicalize only on save', async () => {
+    for (const [kind, path] of [['assets', 'assets/config.json'], ['store', 'store/play.json']]) {
+      const initial = { schemaVersion: 1, ...(kind === 'store' ? { name: 'Play' } : {}), screenshots: 'assets/legacy.png' }
+      const session = memorySession({ [path]: initial })
+      expect((await loadDocuments(session))[0].data.screenshots).toBe('assets/legacy.png')
+      expect(session.writes).toBe(0)
+      const legacy = await saveDocument(session, path, kind, {}, `original:${path}`)
+      expect(legacy.data.screenshots).toEqual(['assets/legacy.png'])
+      const draft = { screenshots: ['assets/second.png', 'assets/first.png', '/tmp/external.png'] }
+      const saved = await saveDocument(session, path, kind, draft, legacy.revision)
+      expect(saved.data.screenshots).toEqual(['assets/second.png', 'assets/first.png', '/tmp/external.png'])
+      expect((await loadDocuments(session))[0].data.screenshots).toEqual(saved.data.screenshots)
+      expect(draft).toEqual({ screenshots: ['assets/second.png', 'assets/first.png', '/tmp/external.png'] })
+      const cleared = await saveDocument(session, path, kind, { screenshots: '' }, saved.revision)
+      expect(cleared.data.screenshots).toEqual([])
+      expect((await session.read(path)).data.screenshots).toEqual([])
+    }
+  })
+
+  test('invalid screenshot arrays never save and Doctor inspects valid items independently with ordinal labels', async () => {
+    const screenshots = ['assets/first.png', 'assets/missing.png', '/tmp/external.png']
+    const session = memorySession({
+      'app.json': createApp({ name: 'Example' }),
+      'assets/config.json': { schemaVersion: 1, screenshots },
+    }, { 'assets/first.png': true, '/tmp/external.png': true })
+    for (const invalid of [
+      ['../escape.png'],
+      ['assets/example.png.example'],
+      [null],
+      [''],
+      ['   '],
+      ['assets/first.png', 'assets/first.png'],
+      { path: 'assets/first.png' },
+    ]) {
+      await expect(saveDocument(session, 'assets/config.json', 'assets', { screenshots: invalid }, 'original:assets/config.json'))
+        .rejects
+        .toMatchObject({ code: 'VALIDATION_FAILED' })
+    }
+    expect(session.writes).toBe(0)
+    const results = (await runDoctor(session)).filter(item => item.path === 'assets/config.json')
+    expect(results).toContainEqual(expect.objectContaining({
+      status: 'missing',
+      label: 'Screenshots #2: referenced file is missing',
+    }))
+    expect(results.filter(item => item.status === 'unchecked').map(item => item.label)).toEqual([
+      'Screenshots #1: content, validity, expiry, and compatibility have not been checked',
+      'Screenshots #3: content, validity, expiry, and compatibility have not been checked',
+    ])
+    expect(results).toContainEqual(expect.objectContaining({
+      status: 'warning',
+      label: 'Screenshots #3: external read-only reference is not portable with this workspace',
+    }))
+    session.records.get('assets/config.json').data.screenshots = ['../escape.png', 'assets/first.png']
+    const partial = (await runDoctor(session)).filter(item => item.path === 'assets/config.json')
+    expect(partial).toContainEqual(expect.objectContaining({ status: 'error', message: expect.objectContaining({ params: { label: 'Screenshots', index: 1 } }) }))
+    expect(partial).toContainEqual(expect.objectContaining({ status: 'pass', label: 'Screenshots #2: file exists (existence only)' }))
+    expect(session.writes).toBe(0)
+  })
+
   test('qualification attachments reject unsafe references and Doctor distinguishes missing from unchecked originals', async () => {
     const assets = {
       schemaVersion: 1,

@@ -115,6 +115,10 @@ export async function saveDocument(session, path, kind, draft, revision) {
     throw error
   }
   const data = { ...(previous.data ?? {}), ...draft }
+  for (const field of documentFields(kind, { scope: identified.scope })) {
+    if (field.type === 'files' && typeof data[field.key] === 'string')
+      data[field.key] = data[field.key] ? [data[field.key]] : []
+  }
   const issues = validateDocument(kind, data, { scope: identified.scope })
   if (kind === 'environment' && data.name !== identified.name)
     issues.push({ key: 'name', message: 'Environment name must match its document filename' })
@@ -128,7 +132,8 @@ export function doctorLabel(result, language = 'en') {
   if (!result.message)
     return result.label
   const { key, params } = result.message
-  return t(language, key, params.label ? { ...params, label: t(language, params.label) } : params)
+  const label = params.label ? `${t(language, params.label)}${params.index ? ` #${params.index}` : ''}` : undefined
+  return t(language, key, label ? { ...params, label } : params)
 }
 
 export async function runDoctor(session, language = 'en') {
@@ -228,55 +233,56 @@ export async function runDoctor(session, language = 'en') {
     if (document.environment && !environments.includes(document.environment))
       report('warning', 'Platform environment is not listed in App', path)
     for (const field of documentFields(kind, { scope })) {
-      const reference = data[field.key]
-      if (
-        field.type !== 'file'
-        || typeof reference !== 'string'
-        || !reference
-        || issues.some(issue => issue.key === field.key)
-      ) {
+      if (!['file', 'files'].includes(field.type))
         continue
-      }
-      try {
-        const info = await session.inspectReference(reference)
-        if (!info.exists) {
-          report(disabled ? 'warning' : 'missing', '{label}: referenced file is missing', path, {
-            label: field.label,
-          })
+      const value = data[field.key]
+      const references = field.type === 'files' && Array.isArray(value) ? value : [value]
+      for (const [index, reference] of references.entries()) {
+        if (
+          typeof reference !== 'string'
+          || !reference
+          || issues.some(issue => issue.key === field.key && (!issue.params?.index || issue.params.index === index + 1))
+        ) {
+          continue
         }
-        else if (!info.regular) {
-          report('error', '{label}: reference is not a regular file', path, { label: field.label })
+        const params = { label: field.label, ...(field.type === 'files' ? { index: index + 1 } : {}) }
+        try {
+          const info = await session.inspectReference(reference)
+          if (!info.exists) {
+            report(disabled ? 'warning' : 'missing', '{label}: referenced file is missing', path, params)
+          }
+          else if (!info.regular) {
+            report('error', '{label}: reference is not a regular file', path, params)
+          }
+          else {
+            report('pass', '{label}: file exists (existence only)', path, params)
+            report(
+              'unchecked',
+              '{label}: content, validity, expiry, and compatibility have not been checked',
+              path,
+              params,
+            )
+          }
+          if (info.external) {
+            report(
+              'warning',
+              '{label}: external read-only reference is not portable with this workspace',
+              path,
+              params,
+            )
+          }
+          if (info.permissionsWarning) {
+            report('warning', '{label}: file permissions allow access by other users', path, params)
+          }
         }
-        else {
-          report('pass', '{label}: file exists (existence only)', path, { label: field.label })
+        catch {
           report(
-            'unchecked',
-            '{label}: content, validity, expiry, and compatibility have not been checked',
+            'error',
+            '{label}: cannot inspect reference; check path safety and permissions',
             path,
-            { label: field.label },
+            params,
           )
         }
-        if (info.external) {
-          report(
-            'warning',
-            '{label}: external read-only reference is not portable with this workspace',
-            path,
-            { label: field.label },
-          )
-        }
-        if (info.permissionsWarning) {
-          report('warning', '{label}: file permissions allow access by other users', path, {
-            label: field.label,
-          })
-        }
-      }
-      catch {
-        report(
-          'error',
-          '{label}: cannot inspect reference; check path safety and permissions',
-          path,
-          { label: field.label },
-        )
       }
     }
     if (
