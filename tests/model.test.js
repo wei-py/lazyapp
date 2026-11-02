@@ -59,7 +59,7 @@ describe('document model', () => {
     for (const kind of documentKinds) {
       expect(documentFields(kind).length).toBeGreaterThan(0)
       for (const field of documentFields(kind))
-        expect(['text', 'secret', 'file', 'number']).toContain(field.type)
+        expect(['text', 'secret', 'file', 'number', 'date']).toContain(field.type)
     }
     const sentinel = { secret: 'fictional-token-DO-NOT-PRINT' }
     const issues = validateDocument('service', { schemaVersion: 1, name: 'Push', token: sentinel })
@@ -85,6 +85,28 @@ describe('document model', () => {
     expect(validateDocument('ios', { ...ios, certificate: '' }, { scope: 'signing' })).toEqual([
       { key: 'certificate', message: 'Certificate (.p12) is required' },
     ])
+  })
+
+  test('optional expiry dates accept only strict Gregorian dates and explicitly supported permanent validity', () => {
+    const ios = { schemaVersion: 1, certificate: 'signing/certificate.p12', provisioningProfile: 'signing/profile' }
+    for (const certificateExpiresOn of [undefined, null, '', '2024-02-29', '2000-02-29', '0001-01-01', '9999-12-31'])
+      expect(validateDocument('ios', { ...ios, certificateExpiresOn }, { scope: 'signing' })).toEqual([])
+    for (const certificateExpiresOn of ['2023-02-29', '1900-02-29', '2024-04-31', '0000-01-01', '10000-01-01', '2024-1-01', '2024-01-01T00:00:00Z', ' 2024-01-01', '2024-01-01 ', '2024-01-01\n', 'never', 20240101]) {
+      const issues = validateDocument('ios', { ...ios, certificateExpiresOn }, { scope: 'signing' })
+      expect(issues.map(issue => issue.key)).toEqual(['certificateExpiresOn'])
+      expect(issues[0].message).not.toContain(String(certificateExpiresOn))
+    }
+    expect(validateDocument('assets', { schemaVersion: 1, businessLicenseExpiresOn: 'never', waiverExpiresOn: 'never', copyrightSupplementExpiresOn: 'never' })).toEqual([])
+    expect(documentFields('ios', { scope: 'platform' }).some(field => field.type === 'date')).toBe(false)
+    const fields = documentFields('android', { scope: 'signing' })
+    expect(fields.find(field => field.key === 'keystoreExpiresOn')).toEqual({
+      key: 'keystoreExpiresOn',
+      label: 'Keystore certificate expiry date',
+      type: 'date',
+      required: false,
+      scope: 'signing',
+      expiresFor: 'keystore',
+    })
   })
 
   test('internal file references match managed storage paths while external paths remain explicit', () => {

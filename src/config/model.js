@@ -28,6 +28,14 @@ function field(key, label, type = 'text', required = false, scope) {
   return Object.freeze({ key, label, type, required, ...(scope ? { scope } : {}) })
 }
 
+function expiryField(referenceKey, label, scope = 'signing', allowPermanent = false) {
+  return Object.freeze({
+    ...field(`${referenceKey}ExpiresOn`, label, 'date', false, scope),
+    expiresFor: referenceKey,
+    ...(allowPermanent ? { allowPermanent: true } : {}),
+  })
+}
+
 const FIELDS = {
   app: [
     field('name', 'App name', 'text', true),
@@ -41,6 +49,7 @@ const FIELDS = {
     field('versionCode', 'Version code', 'number', false, 'platform'),
     field('versionName', 'Version name', 'text', false, 'platform'),
     field('keystore', 'Keystore', 'file', true, 'signing'),
+    expiryField('keystore', 'Keystore certificate expiry date'),
     field('storePassword', 'Keystore password', 'secret', true, 'signing'),
     field('alias', 'Key alias', 'text', true, 'signing'),
     field('keyPassword', 'Key password', 'secret', true, 'signing'),
@@ -55,8 +64,10 @@ const FIELDS = {
     field('appleId', 'Apple ID', 'text', false, 'platform'),
     field('capabilities', 'Capabilities', 'text', false, 'platform'),
     field('certificate', 'Certificate (.p12)', 'file', true, 'signing'),
+    expiryField('certificate', 'Certificate expiry date'),
     field('certificatePassword', 'Certificate password (may be empty)', 'secret', false, 'signing'),
     field('provisioningProfile', 'Provisioning profile', 'file', true, 'signing'),
+    expiryField('provisioningProfile', 'Provisioning profile expiry date'),
     field('issuerId', 'App Store Connect issuer ID', 'text', false, 'platform'),
     field('keyId', 'App Store Connect key ID', 'text', false, 'platform'),
     field('privateKey', 'App Store Connect private key (.p8)', 'file', false, 'platform'),
@@ -72,7 +83,9 @@ const FIELDS = {
     field('startWindowBackground', 'Launch background color (#RRGGBB)', 'text', false, 'platform'),
     field('startWindowIcon', 'Launch center icon', 'file', false, 'platform'),
     field('certificate', 'Certificate (.cer)', 'file', true, 'signing'),
+    expiryField('certificate', 'Certificate expiry date'),
     field('profile', 'Profile (.p7b)', 'file', true, 'signing'),
+    expiryField('profile', 'Profile expiry date'),
     field('keystore', 'Keystore (.p12)', 'file', true, 'signing'),
     field('alias', 'Key alias', 'text', true, 'signing'),
     field('storePassword', 'Keystore password', 'secret', true, 'signing'),
@@ -83,6 +96,7 @@ const FIELDS = {
     field('publisher', 'Publisher', 'text', true, 'platform'),
     field('version', 'Version', 'text', false, 'platform'),
     field('certificate', 'Signing certificate (.pfx)', 'file', true, 'signing'),
+    expiryField('certificate', 'Certificate expiry date'),
     field('certificatePassword', 'Certificate password', 'secret', false, 'signing'),
   ],
   macos: [
@@ -90,14 +104,17 @@ const FIELDS = {
     field('teamId', 'Team ID', 'text', true, 'platform'),
     field('developerId', 'Developer ID', 'text', false, 'platform'),
     field('certificate', 'Signing certificate (.p12)', 'file', true, 'signing'),
+    expiryField('certificate', 'Certificate expiry date'),
     field('certificatePassword', 'Certificate password', 'secret', false, 'signing'),
     field('provisioningProfile', 'Provisioning profile', 'file', false, 'signing'),
+    expiryField('provisioningProfile', 'Provisioning profile expiry date'),
   ],
   miniprogram: [
     field('provider', 'Provider (WeChat / Alipay / other)', 'text', true, 'platform'),
     field('appId', 'App ID', 'text', true, 'platform'),
     field('appSecret', 'App secret', 'secret', false, 'signing'),
     field('privateKey', 'Upload private key', 'file', false, 'signing'),
+    expiryField('privateKey', 'Upload private key expiry date'),
   ],
   service: [
     field('name', 'Service name', 'text', true),
@@ -131,9 +148,12 @@ const FIELDS = {
     field('screenshots', 'Screenshot file', 'file'),
     field('promotionalImage', 'Promotional image', 'file'),
     field('waiver', 'Waiver letter', 'file'),
+    expiryField('waiver', 'Waiver letter expiry date', null, true),
     field('businessLicense', 'Business license', 'file'),
+    expiryField('businessLicense', 'Business license expiry date', null, true),
     field('softwareCopyright', 'Software copyright certificate', 'file'),
     field('copyrightSupplement', 'Software copyright supplement', 'file'),
+    expiryField('copyrightSupplement', 'Software copyright supplement expiry date', null, true),
   ],
   store: [
     field('name', 'Store name', 'text', true),
@@ -238,6 +258,19 @@ function validReference(value) {
   )
 }
 
+/** Strict Gregorian calendar date; avoids Date's rollover and special handling of years 0–99. */
+export function isValidExpiryDate(value) {
+  if (typeof value !== 'string' || value.length !== 10 || !/^\d{4}-\d{2}-\d{2}$/u.test(value))
+    return false
+  const year = Number(value.slice(0, 4))
+  const month = Number(value.slice(5, 7))
+  const day = Number(value.slice(8, 10))
+  if (year < 1 || month < 1 || month > 12 || day < 1)
+    return false
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  return day <= [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1]
+}
+
 /** Validate without mutation; issues contain field labels, never submitted values. */
 export function validateDocument(kind, data, options = {}) {
   const fields = documentFields(kind, options)
@@ -253,7 +286,7 @@ export function validateDocument(kind, data, options = {}) {
     })
   if (data.schemaVersion !== 1)
     issue('schemaVersion', 'Unsupported or missing schema version; expected 1')
-  for (const { key, label, type, required } of fields) {
+  for (const { key, label, type, required, allowPermanent } of fields) {
     const value = data[key]
     if (value === undefined || value === null || value === '') {
       if (required)
@@ -262,6 +295,14 @@ export function validateDocument(kind, data, options = {}) {
     }
     if (kind === 'app' && ['platforms', 'environments'].includes(key))
       continue
+    if (type === 'date') {
+      if (!(allowPermanent && value === 'never') && !isValidExpiryDate(value)) {
+        issue(key, allowPermanent
+          ? '{label} must be a valid YYYY-MM-DD date or never'
+          : '{label} must be a valid YYYY-MM-DD date', { label })
+      }
+      continue
+    }
     if (type === 'number') {
       if (!Number.isSafeInteger(value) || value < 1)
         issue(key, '{label} must be a positive safe integer', { label })
