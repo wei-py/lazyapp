@@ -4,6 +4,7 @@ import { applyTextKey } from '../../vendor/lazy-kit/keys.js'
 import { DEFAULT_THEME, THEMES } from '../../vendor/lazy-kit/themes.js'
 import { t } from '../config/i18n.js'
 import { documentFields, identifyDocument } from '../config/model.js'
+import { collectExpiries } from '../features/expiry.js'
 import {
   doctorLabel,
   loadDocuments,
@@ -12,7 +13,7 @@ import {
 } from '../features/workspace.js'
 import { loadPreferences, savePreferences } from '../storage/preferences.js'
 import { copy } from './clipboard.js'
-import { confirm, createDocument, leave, prompt, save } from './documents.js'
+import { confirm, createDocument, leave, open as openDocument, prompt, save } from './documents.js'
 import { deleteSelected, filePicker, openFile, showFiles } from './files.js'
 import { moveHelp } from './help.js'
 import {
@@ -106,11 +107,28 @@ export class Application {
     })
   }
 
+  expiries() {
+    return collectExpiries(this.state.documents, { language: this.state.language })
+  }
+
+  openExpiry(item) {
+    const document = this.state.documents.find(document => document.path === item.path)
+    if (!document)
+      return
+    openDocument(this, document)
+    if (this.state.editor?.path === document.path) {
+      this.state.editor.index = Math.max(0, this.fields().findIndex(field => field.key === item.key))
+      this.update()
+    }
+  }
+
   groupItems(group, tab = this.state.groups[group - 1].tab, search) {
     const s = this.state
     const query = (search ?? s.groups[group - 1].searches[tab]).toLowerCase()
     const matches = item => item.path?.toLowerCase().includes(query)
     if (group === 4) {
+      if (tab === 2)
+        return this.expiries().map(entry => ({ ...entry, expiry: true, id: `expiry:${entry.path}:${entry.key}` })).filter(matches)
       return tab === 1
         ? s.doctor.map((entry, index) => ({ ...entry, doctor: true, id: `doctor:${index}` }))
         : logicalFiles(s.files || s.managedFiles).filter(matches)
@@ -186,7 +204,7 @@ export class Application {
       s.lastGroup = Number(focus.slice(-1))
     if (focus === 'form' && !s.editor) {
       const item = this.activeItem()
-      if (item && !item.file && !item.node && !item.doctor)
+      if (item && !item.file && !item.node && !item.doctor && !item.expiry)
         s.editor = editDocument(item)
     }
     this.update()
@@ -208,7 +226,7 @@ export class Application {
       return after?.(item)
     }
     const same = s.activeGroup === group && (s.activeTab ?? 0) === tab
-      && (this.activeItem()?.path || this.activeItem()?.id) === (item?.path || item?.id)
+      && (this.activeItem()?.id || this.activeItem()?.path) === (item?.id || item?.path)
     const apply = () => {
       navigation.tab = tab
       navigation.indices[tab] = index
@@ -297,8 +315,13 @@ export class Application {
       if (item.node)
         return
     }
-    if (forward)
-      this.selectItem(index, group, navigation.tab, () => this.focusPanel('form'))
+    if (forward) {
+      this.selectItem(index, group, navigation.tab, (item) => {
+        if (item?.expiry)
+          this.openExpiry(item)
+        else this.focusPanel('form')
+      })
+    }
   }
 
   #cycleSetting(modal, delta) {
@@ -581,7 +604,7 @@ export class Application {
       const group = focusedGroup(s)
       const navigation = s.groups[group - 1]
       const item = this.groupItems(group)[navigation.indices[navigation.tab]]
-      if (!item || item.node || item.doctor)
+      if (!item || item.node || item.doctor || item.expiry)
         return
       this.selectItem(navigation.indices[navigation.tab], group, navigation.tab, () => deleteSelected(this))
       return
@@ -637,6 +660,10 @@ export class Application {
         }
         else {
           this.selectItem(index, group, navigation.tab, (selected) => {
+            if (selected?.expiry) {
+              this.openExpiry(selected)
+              return
+            }
             if (selected?.file && (selected.missing || identifyDocument(selected.path)))
               openFile(this, selected)
             else this.focusPanel('form')

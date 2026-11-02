@@ -4,19 +4,42 @@ import { displayValue, GROUP_TABS, isDirty } from '../state.js'
 import { COLORS } from './colors.js'
 import { editingValue, windowContent, wrap } from './primitives.js'
 
+function expiryText(entry, language) {
+  const key = {
+    unset: 'Expiry date not set',
+    permanent: 'Permanent',
+    valid: 'Not due soon',
+    soon: 'Expires in {days} days',
+    today: 'Expires today',
+    expired: 'Expired {days} days ago',
+    invalid: 'Invalid expiry date',
+  }[entry.status]
+  return t(language, key, { days: Math.abs(entry.days ?? 0) })
+}
+
+function expiryColor(entry) {
+  return ['expired', 'invalid'].includes(entry.status)
+    ? COLORS.error
+    : ['soon', 'today'].includes(entry.status) ? COLORS.warning : COLORS.text
+}
+
 export function groupContent(s, app, group, rows) {
   const navigation = s.groups[group - 1]
   const tab = navigation.tab
   const items = app.groupItems(group)
   const index = navigation.indices[tab]
-  const title = group < 3
-    ? GROUP_TABS[group - 1].map(label => t(s.language, label)).join(' / ')
-    : GROUP_TABS[group - 1].map((label, i) => `${i === tab ? '•' : ''}${t(s.language, label)}`).join(' / ')
+  const title = group === 4
+    ? t(s.language, GROUP_TABS[3][tab])
+    : group < 3
+      ? GROUP_TABS[group - 1].map(label => t(s.language, label)).join(' / ')
+      : GROUP_TABS[group - 1].map((label, i) => `${i === tab ? '•' : ''}${t(s.language, label)}`).join(' / ')
   const labels = items.map((item) => {
     if (item.node)
       return `${s.expanded.includes(item.kind) ? '▾' : '▸'} ${item.kind}`
     if (item.doctor)
       return `[${t(s.language, item.status)}] ${doctorLabel(item, s.language)}`
+    if (item.expiry)
+      return `${item.kind}${item.environment ? `/${item.environment}` : ''} · ${item.label} · ${expiryText(item, s.language)}`
     const active = s.activeGroup === group && (s.activeTab ?? 0) === tab && app.activeItem()?.path === item.path
     let label = item.path
     if (group === 2) {
@@ -31,12 +54,12 @@ export function groupContent(s, app, group, rows) {
   })
   const content = windowContent(labels, index, rows)
   if (!labels.length)
-    content.lines = [t(s.language, navigation.searches[tab] ? 'No matching files.' : group === 4 && tab === 1 ? 'No checks yet. Press r to run Doctor.' : 'No documents. Press a to create.')]
+    content.lines = [t(s.language, navigation.searches[tab] ? 'No matching files.' : group === 4 && tab === 2 ? 'No expiry information yet.' : group === 4 && tab === 1 ? 'No checks yet. Press r to run Doctor.' : 'No documents. Press a to create.')]
   return {
     title,
     count: items.length,
     ...content,
-    colors: items.slice(content.start, content.start + content.lines.length).map(item => item.node || item.doctor ? COLORS.text : item.missing ? COLORS.error : COLORS.present),
+    colors: items.slice(content.start, content.start + content.lines.length).map(item => item.expiry ? expiryColor(item) : item.node || item.doctor ? COLORS.text : item.missing ? COLORS.error : COLORS.present),
   }
 }
 
@@ -49,7 +72,7 @@ function editorContent(s, app, rows, width) {
   let section
   for (let index = 0; index < fields.length; index++) {
     const field = fields[index]
-    const nextSection = field.type === 'file' ? 'File references' : field.type === 'secret' || editor.scope === 'signing' || editor.path.split('/').length === 4 ? 'Credentials' : 'Basic information'
+    const nextSection = field.type === 'date' ? 'Expiry dates' : field.type === 'file' ? 'File references' : field.type === 'secret' || editor.scope === 'signing' || editor.path.split('/').length === 4 ? 'Credentials' : 'Basic information'
     if (section !== nextSection) {
       if (lines.length)
         lines.push('')
@@ -62,6 +85,10 @@ function editorContent(s, app, rows, width) {
       ? editingValue(editor.input, editor.cursor, field.type === 'secret', text)
       : displayValue(field, editor.draft[field.key], s.language)
     lines.push(`  ${value}`)
+    if (field.type === 'date' && editor.index === index) {
+      const hint = field.allowPermanent ? 'YYYY-MM-DD or never for permanent validity.' : 'YYYY-MM-DD; leave blank if unknown.'
+      lines.push(...wrap(t(s.language, hint), text).map(line => `  ${line}`))
+    }
   }
   positions.push(lines.length)
   lines.push(`[ ${t(s.language, 'Save document')} ]`)
@@ -80,6 +107,17 @@ export function detailContent(s, app, rows, width) {
   if (app.isDoctor()) {
     title = t(s.language, 'Check details')
     text = item ? [`[${t(s.language, item.status)}] ${doctorLabel(item, s.language)}`, item.path || '', t(s.language, 'File existence is not certificate validity or release readiness.')] : [t(s.language, s.checking ? 'Checking…' : 'No checks yet.')]
+  }
+  else if (item?.expiry) {
+    const entry = app.expiries().find(entry => entry.path === item.path && entry.key === item.key) || item
+    title = t(s.language, 'Expiry reminders')
+    text = [
+      entry.label,
+      entry.path,
+      expiryText(entry, s.language),
+      ...(['valid', 'soon', 'today', 'expired'].includes(entry.status) ? [`${t(s.language, 'Expiry date')}: ${entry.value}`] : []),
+      t(s.language, 'Based on entered dates; credential contents are not verified.'),
+    ]
   }
   else if (item && !item.node) {
     title = item.path

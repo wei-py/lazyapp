@@ -567,3 +567,41 @@ describe('logical file presence', () => {
     })
   })
 })
+
+test('expiry entries distinguish credentials in one document and protect invalid date drafts', async () => {
+  await withWorkspace(async (app) => {
+    const path = 'platforms/ios/ad-hoc/config.json'
+    const data = {
+      schemaVersion: 1,
+      certificate: 'platforms/ios/ad-hoc/certificate.p12',
+      provisioningProfile: 'platforms/ios/ad-hoc/provisioning.mobileprovision',
+      certificateExpiresOn: '2030-01-01',
+      provisioningProfileExpiresOn: '2030-01-02',
+    }
+    await app.session.save(path, data, null)
+    await press(app, 'r')
+    await press(app, '4')
+    await press(app, '[')
+    expect(app.state.groups[3].tab).toBe(2)
+    expect(app.activeItem()).toMatchObject({ path, key: 'certificateExpiresOn', environment: 'ad-hoc' })
+    await press(app, 'j')
+    expect(app.activeItem()).toMatchObject({ path, key: 'provisioningProfileExpiresOn' })
+    await press(app, 'D')
+    expect(app.state.modal).toBeNull()
+    await press(app, 'return')
+    expect(app.state.editor.path).toBe(path)
+    expect(app.fields()[app.state.editor.index].key).toBe('provisioningProfileExpiresOn')
+    await press(app, 'e')
+    await press(app, 'x')
+    await press(app, 'return')
+    expect(await save(app)).toBe(false)
+    expect(app.state.editor.draft.provisioningProfileExpiresOn).toBe('2030-01-02x')
+    expect(isDirty(app.state.editor)).toBe(true)
+    await press(app, '4')
+    await press(app, '[')
+    await choose(app, 'Cancel')
+    expect(app.state.groups[3].tab).toBe(2)
+    expect(app.state.editor.draft.provisioningProfileExpiresOn).toBe('2030-01-02x')
+    expect((await app.session.read(path)).data).toEqual(data)
+  })
+})

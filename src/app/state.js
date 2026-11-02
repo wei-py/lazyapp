@@ -15,7 +15,7 @@ export const GROUP_TABS = [
   ['App', 'Assets'],
   ['Platforms'],
   ['Services', 'Environments', 'Store'],
-  ['Managed files', 'Doctor'],
+  ['Managed files', 'Doctor', 'Expiry reminders'],
 ]
 
 export function isNavigation(focus) {
@@ -91,6 +91,12 @@ export function categoryFor(kind) {
 export function displayValue(field, value, language = 'en') {
   if (field.type === 'secret')
     return value ? '********' : t(language, '(not set)')
+  if (field.type === 'date') {
+    if (value === 'never' && field.allowPermanent)
+      return t(language, 'Permanent')
+    if (value === undefined || value === null || value === '')
+      return t(language, 'Expiry date not set')
+  }
   if (Array.isArray(value))
     return value.join(', ') || t(language, '(not set)')
   return String(value ?? '') || t(language, '(not set)')

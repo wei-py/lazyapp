@@ -171,7 +171,7 @@ export function createView(renderer) {
       focused ? COLORS.focus : COLORS.muted,
     )
   }
-  function renderHeader(s, width) {
+  function renderHeader(s, width, app) {
     const node = nodes.header
     node.visible = true
     Object.assign(node, {
@@ -185,16 +185,18 @@ export function createView(renderer) {
     const home = (process.env.HOME ?? '').replace(/\/$/, '')
     const root = s.root
     const abbreviated = home && root.startsWith(home) ? `~${root.slice(home.length)}` : root
-    const chipPlain = 'zh en'
+    const reminders = app.expiries().filter(entry => ['soon', 'today', 'expired', 'invalid'].includes(entry.status))
+    const expiryChip = reminders.length ? `${t(s.language, 'Expiry reminders: {count}', { count: reminders.length })} · ` : ''
+    const chipPlain = `${expiryChip}zh en`
     const prefixPlain = ' LAZYAPP │ '
-    const pathBudget = Math.max(3, width - prefixPlain.length - chipPlain.length - 1)
+    const pathBudget = Math.max(3, width - prefixPlain.length - stringWidth(chipPlain) - 1)
     const shownPath
       = stringWidth(abbreviated) > pathBudget
         ? `${clipColumns(abbreviated, pathBudget - 1)}…`
         : abbreviated
     const dirty = isDirty(s.editor) ? ' ●' : ''
     const pad = ' '.repeat(
-      Math.max(1, width - prefixPlain.length - stringWidth(shownPath + dirty) - chipPlain.length),
+      Math.max(1, width - prefixPlain.length - stringWidth(shownPath + dirty) - stringWidth(chipPlain)),
     )
     const segments = [
       { text: ' ', color: COLORS.text },
@@ -203,6 +205,7 @@ export function createView(renderer) {
       { text: shownPath, color: COLORS.repo },
       ...(dirty ? [{ text: dirty, color: COLORS.warning }] : []),
       { text: pad, color: COLORS.text },
+      ...(expiryChip ? [{ text: expiryChip, color: reminders.some(entry => ['expired', 'invalid'].includes(entry.status)) ? COLORS.error : COLORS.warning }] : []),
       { text: 'zh', color: s.language === 'zh' ? COLORS.focus : COLORS.muted },
       { text: ' ', color: COLORS.border },
       { text: 'en', color: s.language === 'en' ? COLORS.focus : COLORS.muted },
@@ -294,7 +297,7 @@ export function createView(renderer) {
     const feedbackHeight = Math.max(1, feedback.length)
     const panelHeight = height - feedbackHeight - 2
     const group = focusedGroup(s)
-    renderHeader(s, width)
+    renderHeader(s, width, app)
     const drawPanel = (id, left, top, panelWidth, panelRows) => panel(
       id,
       left,
@@ -425,7 +428,18 @@ export function createView(renderer) {
       render(lastState, lastApp)
   }
   renderer.on('theme_mode', onThemeMode)
+  let day = new Date().toDateString()
+  const dayTimer = setInterval(() => {
+    const next = new Date().toDateString()
+    if (next !== day) {
+      day = next
+      if (lastState)
+        render(lastState, lastApp)
+    }
+  }, 60_000)
+  dayTimer.unref?.()
   renderer.once('destroy', () => {
+    clearInterval(dayTimer)
     renderer.off('theme_mode', onThemeMode)
     lastState = undefined
     lastApp = undefined

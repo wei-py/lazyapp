@@ -25,6 +25,8 @@ function hintId(s) {
   const group = focusedGroup(s)
   if (group === 4 && s.groups[3].tab === 0)
     return 'files'
+  if (group === 4 && s.groups[3].tab === 2)
+    return 'expiry'
   if (group === 4)
     return 'doctor'
   return 'list'
