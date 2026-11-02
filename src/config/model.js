@@ -145,7 +145,7 @@ const FIELDS = {
   assets: [
     field('icon', 'App icon source', 'file'),
     field('splash', 'Splash source', 'file'),
-    field('screenshots', 'Screenshot file', 'file'),
+    field('screenshots', 'Screenshots', 'files'),
     field('promotionalImage', 'Promotional image', 'file'),
     field('waiver', 'Waiver letter', 'file'),
     expiryField('waiver', 'Waiver letter expiry date', null, true),
@@ -165,7 +165,7 @@ const FIELDS = {
     field('privacyUrl', 'Privacy policy URL'),
     field('supportUrl', 'Support URL'),
     field('marketingUrl', 'Marketing URL'),
-    field('screenshots', 'Screenshot file', 'file'),
+    field('screenshots', 'Screenshots', 'files'),
     field('promotionalImage', 'Promotional image', 'file'),
     field('consoleUrl', 'Console URL'),
     field('notes', 'Notes'),
@@ -278,12 +278,16 @@ export function validateDocument(kind, data, options = {}) {
   if (!data || typeof data !== 'object' || Array.isArray(data))
     return [{ key: '', message: t(language, 'Configuration must be a JSON object') }]
   const issues = []
-  const issue = (key, messageKey, params = {}) =>
+  const issue = (key, messageKey, params = {}) => {
+    const renderedParams = params.index
+      ? { ...params, label: `${t(language, params.label)} #${params.index}` }
+      : params
     issues.push({
       key,
-      message: t(language, messageKey, params),
+      message: t(language, messageKey, renderedParams),
       ...(options.messages ? { messageKey, params } : {}),
     })
+  }
   if (data.schemaVersion !== 1)
     issue('schemaVersion', 'Unsupported or missing schema version; expected 1')
   for (const { key, label, type, required, allowPermanent } of fields) {
@@ -300,6 +304,34 @@ export function validateDocument(kind, data, options = {}) {
         issue(key, allowPermanent
           ? '{label} must be a valid YYYY-MM-DD date or never'
           : '{label} must be a valid YYYY-MM-DD date', { label })
+      }
+      continue
+    }
+    if (type === 'files') {
+      if (!Array.isArray(value) && typeof value !== 'string') {
+        issue(key, '{label} must be an array of file references', { label })
+        continue
+      }
+      const references = Array.isArray(value) ? value : [value]
+      const seen = new Set()
+      for (const [index, reference] of references.entries()) {
+        const params = { label, index: index + 1 }
+        if (typeof reference !== 'string') {
+          issue(key, '{label} must be text', params)
+        }
+        else if (Array.isArray(value) && !reference.trim()) {
+          issue(key, '{label} must not be blank', params)
+        }
+        else if (!validReference(reference)) {
+          issue(key, '{label} must be an absolute external path or a workspace-relative path without hidden components, traversal, colons, or backslashes', params)
+        }
+        else if (reference.toLowerCase().endsWith('.example')) {
+          issue(key, '{label} refers to an example placeholder; import a real file before saving', params)
+        }
+        else if (seen.has(reference)) {
+          issue(key, '{label} must not contain duplicate file references', params)
+        }
+        seen.add(reference)
       }
       continue
     }

@@ -59,7 +59,7 @@ describe('document model', () => {
     for (const kind of documentKinds) {
       expect(documentFields(kind).length).toBeGreaterThan(0)
       for (const field of documentFields(kind))
-        expect(['text', 'secret', 'file', 'number', 'date']).toContain(field.type)
+        expect(['text', 'secret', 'file', 'files', 'number', 'date']).toContain(field.type)
     }
     const sentinel = { secret: 'fictional-token-DO-NOT-PRINT' }
     const issues = validateDocument('service', { schemaVersion: 1, name: 'Push', token: sentinel })
@@ -107,6 +107,41 @@ describe('document model', () => {
       scope: 'signing',
       expiresFor: 'keystore',
     })
+  })
+
+  test('screenshots accept ordered file lists and legacy single references without mutating data', () => {
+    for (const kind of ['assets', 'store']) {
+      const base = { schemaVersion: 1, ...(kind === 'store' ? { name: 'Example' } : {}) }
+      for (const screenshots of [[], ['assets/second.png', 'assets/first.png', '/tmp/external.png'], 'assets/legacy.png', '']) {
+        const data = { ...base, screenshots }
+        const original = structuredClone(data)
+        expect(validateDocument(kind, data)).toEqual([])
+        expect(data).toEqual(original)
+      }
+      for (const screenshots of [
+        42,
+        {},
+        true,
+        [''],
+        ['   '],
+        [null],
+        [42],
+        [{}],
+        [[]],
+        ['assets/valid.png', '../escape.png'],
+        ['assets/.hidden/image.png'],
+        ['assets//image.png'],
+        ['assets/image:prod.png'],
+        ['assets\\image.png'],
+        ['assets/image\u0000.png'],
+        ['assets/image.png.EXAMPLE'],
+        ['assets/duplicate.png', 'assets/duplicate.png'],
+      ]) {
+        const issues = validateDocument(kind, { ...base, screenshots })
+        expect(issues.length).toBeGreaterThan(0)
+        expect(issues.every(issue => issue.key === 'screenshots')).toBe(true)
+      }
+    }
   })
 
   test('internal file references match managed storage paths while external paths remain explicit', () => {

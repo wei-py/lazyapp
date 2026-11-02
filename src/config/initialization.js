@@ -40,7 +40,7 @@ function configurationExample(kind, options = {}) {
     'Instructional example only; not active configuration. Create the corresponding .json file when ready and fill in actual values. Import your own files later or reference their absolute paths; never rename these instruction files as images or credentials.',
     '仅为说明示例，不是生效配置。准备就绪后创建对应的 .json 文件并填写真实值。稍后导入自己的文件或引用其绝对路径；请勿将说明文件重命名为图片或凭据。',
   )
-  for (const field of fields) data[field.key] = field.type === 'number' ? null : ''
+  for (const field of fields) data[field.key] = field.type === 'files' ? [] : field.type === 'number' ? null : ''
   return { path: `${documentPath(kind, options)}.example`, data }
 }
 
@@ -73,8 +73,12 @@ export function initializationExamples(app) {
     examples.push({
       path,
       data: instruction(
-        `Instructional example for ${label}; this JSON is not an image. Import an actual image later and set the ${key} reference in assets/config.json. Keep this .example file inactive.`,
-        `${chineseLabel}的说明示例；此 JSON 不是图片。稍后导入真实图片，并在 assets/config.json 中设置 ${key} 文件引用。此 .example 文件不参与配置。`,
+        key === 'screenshots'
+          ? `Instructional example for ${label}; this JSON is not an image. Import actual images later and set screenshots to an ordered array of file references in assets/config.json. Keep this .example file inactive.`
+          : `Instructional example for ${label}; this JSON is not an image. Import an actual image later and set the ${key} reference in assets/config.json. Keep this .example file inactive.`,
+        key === 'screenshots'
+          ? `${chineseLabel}的说明示例；此 JSON 不是图片。稍后导入真实图片，并在 assets/config.json 中将 screenshots 设置为有序文件引用数组。此 .example 文件不参与配置。`
+          : `${chineseLabel}的说明示例；此 JSON 不是图片。稍后导入真实图片，并在 assets/config.json 中设置 ${key} 文件引用。此 .example 文件不参与配置。`,
       ),
     })
   }

@@ -55,6 +55,15 @@ describe('example-first initialization', () => {
     expect(signing.certificatePassword).toBe('')
   })
 
+  test('screenshot examples use empty ordered arrays and describe importing original images', () => {
+    const examples = initializationExamples(metadata())
+    expect(examples.find(item => item.path === 'assets/config.json.example').data.screenshots).toEqual([])
+    expect(examples.find(item => item.path === 'store/store.json.example').data.screenshots).toEqual([])
+    const instructions = examples.find(item => item.path === 'assets/screenshots/screenshot.png.example').data.instruction
+    expect(instructions.en).toContain('ordered array of file references')
+    expect(instructions.zh).toContain('有序文件引用数组')
+  })
+
   test('publishes all examples privately but loads only real App metadata', async () => {
     const app = metadata()
     const examples = initializationExamples(app)

@@ -185,7 +185,17 @@ const chinese = {
   'Additional variables / secrets': '其他变量 / 密钥',
   'App icon source': '应用图标源文件',
   'Splash source': '启动图源文件',
-  'Screenshot file': '截图文件',
+  'Screenshots': '截图',
+  'Screenshot {number}': '第 {number} 张截图',
+  'Move up': '上移',
+  'Move down': '下移',
+  'Screenshots keep their listed order. Select an item to remove or move its reference. Image files are never deleted.':
+    '截图按列表顺序保存。选择一项以移除或移动引用。不会删除图片文件。',
+  'Removing or reordering references only changes the draft; image files are never deleted.':
+    '移除或调整引用顺序仅修改草稿；不会删除图片文件。',
+  '{label} must be an array of file references': '{label}必须是文件引用数组',
+  '{label} must not be blank': '{label}不能为空',
+  '{label} must not contain duplicate file references': '{label}不能包含重复的文件引用',
   'Promotional image': '宣传图片',
   'Store name': '商店名称',
   'Store App ID': '商店应用 ID',
