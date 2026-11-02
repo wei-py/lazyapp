@@ -175,18 +175,23 @@ async function state(session) {
     if (!document.data)
       continue
     for (const field of documentFields(document.kind, { scope: document.scope })) {
-      const reference = document.data[field.key]
-      if (field.type !== 'file' || typeof reference !== 'string' || !reference || files.has(reference))
+      if (!['file', 'files'].includes(field.type))
         continue
-      const filePath = internalReference(reference, session.root)
-      if (files.has(filePath))
-        continue
-      try {
-        const info = await session.inspectReference(filePath)
-        files.set(filePath, { ...info, file: true, missing: !info.exists })
-      }
-      catch {
-        files.set(reference, { path: reference, file: true, missing: true, external: path.isAbsolute(reference), unsafe: true })
+      const value = document.data[field.key]
+      const references = field.type === 'files' && Array.isArray(value) ? value : [value]
+      for (const reference of references) {
+        if (typeof reference !== 'string' || !reference || files.has(reference))
+          continue
+        const filePath = internalReference(reference, session.root)
+        if (files.has(filePath))
+          continue
+        try {
+          const info = await session.inspectReference(filePath)
+          files.set(filePath, { ...info, file: true, missing: !info.exists })
+        }
+        catch {
+          files.set(reference, { path: reference, file: true, missing: true, external: path.isAbsolute(reference), unsafe: true })
+        }
       }
     }
   }

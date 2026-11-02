@@ -106,6 +106,46 @@ describe('local web workspace service', () => {
     expect((await client.call('/api/doctor')).status).toBe(200)
   })
 
+  test('ordered screenshots round-trip for assets and stores with every reference discoverable and legacy data preserved', async () => {
+    await initialize({ documents: [
+      { path: 'assets/config.json', data: { schemaVersion: 1, screenshots: 'assets/legacy.png' } },
+      { path: 'store/play.json', data: { schemaVersion: 1, name: 'Play', screenshots: [] } },
+    ] })
+    const original = await fs.readFile(path.join(project, '.lazyapp/assets/config.json'), 'utf8')
+    const client = await start()
+    const initial = await (await client.call('/api/state')).json()
+    expect(initial.documents.find(item => item.path === 'assets/config.json').data.screenshots).toBe('assets/legacy.png')
+    expect(initial.files).toContainEqual(expect.objectContaining({ path: 'assets/legacy.png', missing: true }))
+    expect(await fs.readFile(path.join(project, '.lazyapp/assets/config.json'), 'utf8')).toBe(original)
+    for (const documentPath of ['assets/config.json', 'store/play.json']) {
+      const screenshots = documentPath.startsWith('assets')
+        ? ['assets/screenshots/second.png', 'assets/screenshots/first.png']
+        : ['store/play/screenshots/second.png', 'store/play/screenshots/first.png']
+      const uploaded = await client.call(`/api/file?path=${encodeURIComponent(screenshots[0])}&revision=null`, { method: 'PUT', body: 'original image bytes' })
+      expect(uploaded.status).toBe(200)
+      const snapshot = await (await client.call(`/api/document?path=${encodeURIComponent(documentPath)}`)).json()
+      const saved = await putDocument(client, snapshot, { ...snapshot.data, screenshots })
+      expect(saved.status).toBe(200)
+      expect((await saved.json()).data.screenshots).toEqual(screenshots)
+      const reopened = await (await client.call(`/api/document?path=${encodeURIComponent(documentPath)}`)).json()
+      expect(reopened.data.screenshots).toEqual(screenshots)
+      const state = await (await client.call('/api/state')).json()
+      expect(state.files).toContainEqual(expect.objectContaining({ path: screenshots[0], missing: false }))
+      expect(state.files).toContainEqual(expect.objectContaining({ path: screenshots[1], missing: true }))
+      for (const invalid of [['../unsafe.png'], [''], [false], ['assets/a.png', 'assets/a.png']]) {
+        expect((await putDocument(client, reopened, { ...reopened.data, screenshots: invalid })).status).toBe(422)
+      }
+      const cleared = await putDocument(client, reopened, { ...reopened.data, screenshots: [] })
+      expect(cleared.status).toBe(200)
+      expect(await (await client.call(`/api/file?path=${encodeURIComponent(screenshots[0])}`)).text()).toBe('original image bytes')
+    }
+    const legacySnapshot = await (await client.call('/api/document?path=assets/config.json')).json()
+    const legacySaved = await putDocument(client, legacySnapshot, { ...legacySnapshot.data, screenshots: 'assets/legacy.png' })
+    expect(legacySaved.status).toBe(200)
+    expect((await legacySaved.json()).data.screenshots).toEqual(['assets/legacy.png'])
+    expect(JSON.parse(await fs.readFile(path.join(project, '.lazyapp/assets/config.json'), 'utf8')).screenshots).toEqual(['assets/legacy.png'])
+  })
+
   test('state exposes localized expiry summaries without credential references and dates round-trip safely', async () => {
     await initialize({ documents: [{
       path: 'assets/config.json',

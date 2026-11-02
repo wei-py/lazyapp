@@ -285,7 +285,7 @@ function cleanDraft(info) {
     return structuredClone(info.data)
   const draft = { schemaVersion: 1 }
   for (const field of fieldsFor(info))
-    draft[field.key] = field.type === 'number' ? null : ''
+    draft[field.key] = field.type === 'files' ? [] : field.type === 'number' ? null : ''
   if (info.kind === 'app') {
     draft.platforms = []
     draft.environments = []
@@ -536,6 +536,108 @@ function renderDocumentList() {
   }
 }
 
+function screenshotReferences(field) {
+  const value = current.draft[field.key]
+  return Array.isArray(value) ? [...value] : value ? [value] : []
+}
+
+function renderScreenshots(field) {
+  const group = node('div', undefined, 'field wide')
+  const title = node('h2', field.label, 'field-label')
+  title.id = `field-${field.key}`
+  title.tabIndex = -1
+  group.append(title)
+  const references = screenshotReferences(field)
+  const redraw = (index = 0) => {
+    renderEditor()
+    restoreFocus = document.getElementById(`screenshot-${field.key}-${index}`) || document.getElementById(title.id)
+  }
+  const setReferences = (values, index) => {
+    current.draft[field.key] = values
+    redraw(index)
+  }
+  if (!references.length)
+    group.append(node('p', '尚未添加截图。', 'hint'))
+  const list = node('ol', undefined, 'screenshot-list')
+  list.setAttribute('aria-labelledby', title.id)
+  references.forEach((reference, index) => {
+    const item = node('li', undefined, 'screenshot-item')
+    item.id = `screenshot-${field.key}-${index}`
+    item.tabIndex = -1
+    const path = typeof reference === 'string' ? internalReference(reference) : ''
+    const external = /^(?:\/|[a-z]:[\\/])/i.test(path)
+    const file = workspace.files.find(file => file.path === path)
+    const present = file && !file.missing && !file.unsafe
+    const info = node('div', undefined, 'file-info')
+    info.append(node('div', `#${index + 1}`, 'file-name'), node('div', typeof reference === 'string' ? reference : '无效引用，请移除后重新添加', 'path'), node('p', external ? '外部引用 · 只读（网页不读取）' : present ? '存在' : '缺失', `file-reference-status ${external ? '' : present ? 'present' : 'missing'}`))
+    const identity = node('div', undefined, 'file-identity')
+    if (!external && present)
+      identity.append(fileVisual(file))
+    identity.append(info)
+    const actions = node('div', undefined, 'field-actions')
+    const preview = button('预览 / 下载', () => showFile(reference), 'small')
+    preview.disabled = external || !present
+    const move = (offset) => {
+      const values = screenshotReferences(field)
+      ;[values[index], values[index + offset]] = [values[index + offset], values[index]]
+      setReferences(values, index + offset)
+    }
+    const up = button('上移', () => move(-1), 'small')
+    const down = button('下移', () => move(1), 'small')
+    up.disabled = index === 0
+    down.disabled = index === references.length - 1
+    const remove = button('移除引用', () => setReferences(references.filter((_, position) => position !== index), Math.max(0, index - 1)), 'small')
+    for (const action of [preview, up, down, remove])
+      action.setAttribute('aria-label', `${action.textContent} 截图 ${index + 1}`)
+    actions.append(preview, up, down, remove)
+    item.append(identity, actions)
+    list.append(item)
+  })
+  group.append(list)
+  const chooser = node('input')
+  chooser.type = 'file'
+  chooser.id = `upload-${field.key}`
+  chooser.multiple = true
+  chooser.accept = 'image/png,image/jpeg,image/webp,image/gif'
+  chooser.hidden = true
+  chooser.addEventListener('change', () => {
+    const files = [...chooser.files]
+    chooser.value = ''
+    if (files.length)
+      void perform(() => importScreenshots(field, files))
+  })
+  const actions = node('div', undefined, 'field-actions')
+  actions.append(button('上传截图（可多选）', () => chooser.click(), 'small'), button('添加已有引用', async () => {
+    const answer = await formDialog('添加截图引用', '工作区相对路径，或只读外部绝对路径。不复制或删除文件。', [{ key: 'path', label: '截图文件路径', required: true }], '添加引用')
+    if (!answer)
+      return
+    const values = screenshotReferences(field)
+    if (values.includes(answer.path))
+      throw new Error('此截图已在列表中。')
+    setReferences([...values, answer.path], values.length)
+  }, 'small'), chooser)
+  group.append(actions, node('p', '按列表顺序保存；可为每个商店配置不同截图。移除引用不删除图片，尺寸及商店合规性未检查。', 'hint'))
+  return group
+}
+
+async function importScreenshots(field, files) {
+  const directory = current.kind === 'store' ? `assets/screenshots/${current.name}` : 'assets/screenshots'
+  const answer = await formDialog('导入截图', '按所选文件顺序逐张导入；可在列表中调整顺序。文件立即写入，放弃草稿不会撤销已完成的导入；中途失败保留已成功的文件与引用。', [{ key: 'directory', label: '工作区相对目标目录', value: directory, required: true }], `导入 ${files.length} 张截图`)
+  if (!answer)
+    return
+  for (const file of files) {
+    const destination = `${answer.directory}/${file.name}`
+    if (!await upload(file, destination))
+      continue
+    const values = screenshotReferences(field)
+    if (!values.includes(destination))
+      current.draft[field.key] = [...values, destination]
+    renderEditor()
+  }
+  restoreFocus = document.getElementById(`field-${field.key}`)
+  notice('截图导入完成。请保存配置以提交顺序和引用；放弃草稿不会删除已导入图片。')
+}
+
 function renderEditor() {
   const editor = $('#editor')
   editor.replaceChildren()
@@ -558,7 +660,7 @@ function renderEditor() {
   form.id = 'document-form'
   const sections = new Map()
   function sectionFor(field) {
-    const key = field.type === 'date' ? '凭据有效期' : field.type === 'file' ? '文件引用' : field.type === 'secret' || current.scope === 'signing' ? '凭据与签名' : '基本信息'
+    const key = field.type === 'date' ? '凭据有效期' : ['file', 'files'].includes(field.type) ? '文件引用' : field.type === 'secret' || current.scope === 'signing' ? '凭据与签名' : '基本信息'
     if (!sections.has(key)) {
       const card = node('fieldset', undefined, 'editor-section')
       card.append(node('legend', key))
@@ -570,6 +672,10 @@ function renderEditor() {
     return sections.get(key).grid
   }
   for (const field of fieldsFor(current)) {
+    if (field.type === 'files') {
+      sectionFor(field).append(renderScreenshots(field))
+      continue
+    }
     const group = node('div', undefined, `field${field.type === 'file' || /description|notes|variables/i.test(field.key) ? ' wide' : ''}`)
     const label = node('label', field.label, 'field-label')
     label.htmlFor = `field-${field.key}`
